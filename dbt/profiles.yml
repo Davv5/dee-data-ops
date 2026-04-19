@@ -1,0 +1,49 @@
+# Repo-local profiles.yml. dbt finds this via DBT_PROFILES_DIR=./dbt
+# (set in .env). Secrets live in .env, loaded into the shell before `dbt` runs.
+#
+# Targets:
+#   dev  → dee-data-ops project, dev_<user> schema; all layers consolidated
+#   ci   → dee-data-ops project, ci schema; all layers consolidated
+#   prod → dee-data-ops-prod project, per-layer schemas (staging/warehouse/marts)
+#          via generate_schema_name macro
+#
+# Schema routing behavior is driven by macros/generate_schema_name.sql.
+
+dee_data_ops:
+  target: dev
+  outputs:
+    dev:
+      type: bigquery
+      method: service-account
+      project: "{{ env_var('GCP_PROJECT_ID_DEV', 'dee-data-ops') }}"
+      dataset: "{{ env_var('DBT_SCHEMA', 'dev_david') }}"
+      keyfile: "{{ env_var('BQ_KEYFILE_PATH') }}"
+      threads: 4
+      timeout_seconds: 300
+      location: US
+      priority: interactive
+
+    ci:
+      type: bigquery
+      method: service-account
+      project: "{{ env_var('GCP_PROJECT_ID_DEV', 'dee-data-ops') }}"
+      dataset: ci
+      keyfile: "{{ env_var('BQ_KEYFILE_PATH') }}"
+      threads: 4
+      timeout_seconds: 300
+      location: US
+      priority: interactive
+
+    prod:
+      type: bigquery
+      method: service-account
+      project: "{{ env_var('GCP_PROJECT_ID_PROD', 'dee-data-ops-prod') }}"
+      # In prod, models route to staging/warehouse/marts via generate_schema_name.
+      # This dataset is the fallback for anything without a +schema: config —
+      # keep it at "marts" so the fallback lands in the customer-facing layer.
+      dataset: marts
+      keyfile: "{{ env_var('BQ_KEYFILE_PATH_PROD') }}"
+      threads: 4
+      timeout_seconds: 300
+      location: US
+      priority: interactive

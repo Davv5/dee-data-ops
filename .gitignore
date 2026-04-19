@@ -1,0 +1,26 @@
+# Secrets and local config
+.env
+.env.local
+.env.*.local
+
+# Personal / engagement-specific Claude overlay
+CLAUDE.local.md
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# dbt
+target/
+dbt_packages/
+logs/
+.user.yml
+
+# macOS
+.DS_Store
+
+# Editor
+.vscode/
+.idea/
+*.swp

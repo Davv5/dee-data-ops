@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__notebooklm-mcp"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"/Users/david/Documents/data ops/.claude/scripts/sync-rule-to-notebook.sh\"",
+            "timeout": 30,
+            "async": true
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "WORKLOG=\"/Users/david/Documents/data ops/WORKLOG.md\"; if [ -f \"$WORKLOG\" ]; then content=$(tail -n 200 \"$WORKLOG\"); jq -n --arg ctx \"$content\" '{hookSpecificOutput: {hookEventName: \"SessionStart\", additionalContext: (\"# Project worklog (tail)\\n\\n\" + $ctx)}}'; else jq -n '{hookSpecificOutput: {hookEventName: \"SessionStart\", additionalContext: \"No WORKLOG.md yet at /Users/david/Documents/data ops/WORKLOG.md — consider creating one.\"}}'; fi"
+          }
+        ]
+      }
+    ]
+  }
+}

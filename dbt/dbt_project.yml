@@ -1,0 +1,36 @@
+name: 'dee_data_ops'
+version: '1.0.0'
+
+profile: 'dee_data_ops'
+
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+
+clean-targets:
+  - "target"
+  - "dbt_packages"
+  - "logs"
+
+# Layer-level configs. Schema assignments are routed through the
+# generate_schema_name macro: prod → these names as-is (staging/warehouse/marts
+# inside the dee-data-ops-prod project); dev/ci → consolidated into
+# target.schema (dev_<user> or ci).
+models:
+  dee_data_ops:
+    staging:
+      +materialized: view
+      +schema: staging
+    warehouse:
+      +materialized: table
+      +schema: warehouse
+      dimensions:
+        +schema: warehouse
+      facts:
+        +schema: warehouse
+    marts:
+      +materialized: table
+      +schema: marts
