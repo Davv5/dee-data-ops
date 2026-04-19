@@ -11,6 +11,31 @@ Rolling log of what's been done on this project. Newest entries at the top. Tail
 
 ---
 
+## 2026-04-19 — Phase 1 kickoff: GHL + Fanbasis extractor skeletons + ingest workflow
+
+**What happened**
+- Scaffolded `ingestion/ghl/` (extract.py + requirements.txt + README.md) — BQ client, state-table DDL, cursor read/write, per-endpoint loop all wired; `fetch_endpoint` stubbed until Week-0 GHL credentials arrive. Endpoints: `contacts`, `conversations`, `opportunities`, `users`
+- Mirrored the same shape in `ingestion/fanbasis/` for `customers`, `subscriptions`, `payments`; CSV-export fallback documented per scope Risk #5
+- Created `raw_ghl` + `raw_fanbasis` BQ datasets (location US) in `dee-data-ops`; `_sync_state` tables auto-created on first dry-run via `ensure_state_table` DDL
+- Smoke-tested both extractors with `python ingestion/<source>/extract.py --dry-run` — BQ auth, `_sync_state` creation, cursor read, endpoint loop all green
+- Scaffolded `.github/workflows/ingest.yml` — cron `0 6 * * *` + `workflow_dispatch`, matrix over `[ghl, fanbasis]`, `google-github-actions/auth@v2` step, cached pip. Runs as a plumbing smoke test until Week-0 secrets (`GCP_SA_KEY`, `GHL_API_KEY`, `FANBASIS_API_KEY`) are set in GitHub
+- Queried corpus before scaffolding — confirmed one-dataset-per-source + secrets-via-env patterns; noted explicitly in each README that cursor/append/`_ingested_at` choices are reasoned defaults, not corpus-prescribed
+
+**Decisions**
+- **Append-only + `_ingested_at` + dedupe-in-staging** over upsert-at-ingest. *Why:* keeps the extractor small and idempotent; corpus is silent on this, dbt style guide owns the dedupe pattern downstream (Phase 2 staging with `qualify row_number()`)
+- **Wall-clock watermark in `raw_<source>._sync_state`** (not a per-record `updated_at` high-water mark) for v1. *Why:* GHL API behavior around `updatedSince` is unknown until Week 0; wall-clock is safe and overlap is deduped in staging. Revisit once API is confirmed
+- **Matrix-over-source in a single job** (not two separate jobs). *Why:* one workflow file, DRY step definitions, parallel by default, clean rerun UX from the Actions tab
+- **`GCP_SA_KEY` as raw JSON paste** (not base64) per `google-github-actions/auth@v2` convention. Flagged in workflow comments — easy to get wrong on setup
+- **Skeleton ships before credentials arrive.** *Why:* plumbing smoke test is free and surfaces any auth/env issues with `GCP_SA_KEY` before GHL is in the critical path. Also satisfies v1 plan's "workflow exists from day one" requirement
+
+**Open threads**
+- Week-0 asks unchanged: GHL + Fanbasis API credentials, Fivetran account setup for Typeform/Calendly/Stripe, SLA thresholds, GHL tag mappings
+- `fetch_endpoint` implementations for both extractors — fill in once credentials land; README TODO(week-0) markers document the handoff points
+- GitHub Actions secrets not yet set (`GCP_SA_KEY` / `GHL_API_KEY` / `FANBASIS_API_KEY`) — workflow will fail on the auth step until they are; safe to merge because only triggered on cron + manual dispatch
+- Prod-project `raw_*` datasets deferred to Phase 6 alongside the prod SA
+
+---
+
 ## 2026-04-19 — Phase 0 mostly landed + two-project corpus correction + personal overlay layering
 
 **What happened**
@@ -42,7 +67,8 @@ Rolling log of what's been done on this project. Newest entries at the top. Tail
 - **Personal overlay file is `CLAUDE.local.md` (gitignored)**, not user-level `~/.claude/CLAUDE.md`. *Why:* engagement context shouldn't leak into unrelated projects; template stays clean for client #2.
 
 **Open threads**
-- **GitHub remote repo — blocked**: `gh` CLI active account is `heidyforero1`; David needs to confirm whether to switch to his own account or to a PS org before `gh repo create`. No commit has been made locally yet either (no `git init`).
+- **GitHub remote — resolved**: switched `gh` auth from `heidyforero1` → `Davv5` (personal); created private repo `Davv5/dee-data-ops`; initial commit `85564e9` pushed to `main` (56 files). Old account still in keyring, inactive.
+- **Branch protection on `main` — deferred to Phase 6**: GitHub Free doesn't support branch protection on private personal repos (both classic API + newer rulesets returned 403). Revisit with Pro upgrade or a free GitHub org when CI workflow lands.
 - Prod service account (`dbt-prod`) not yet created — deferred to Phase 6 per v1 plan when CI/deploy workflows land
 - `.claude/settings.json` hook to block local `dbt --target prod` runs — still deferred to Phase 6
 - Pre-commit `sqlfluff` hook — deferred to after Phase 4 (per v1 plan cross-phase decisions)

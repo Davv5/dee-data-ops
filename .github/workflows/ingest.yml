@@ -1,0 +1,62 @@
+# Daily ingestion for sources not covered by Fivetran (GHL, Fanbasis).
+#
+# Runs at 06:00 UTC (≈02:00 ET) so dashboards are fresh by morning US-East.
+# Also available via workflow_dispatch for on-demand reruns.
+#
+# Required repo secrets (set in GitHub → Settings → Secrets → Actions):
+#   GCP_SA_KEY        - JSON keyfile for the ingest/deploy service account (NOT base64; paste the raw JSON)
+#   GHL_API_KEY       - GoHighLevel private integration token (Week-0 client ask)
+#   FANBASIS_API_KEY  - Fanbasis API token (Week-0 client ask; CSV fallback documented in ingestion/fanbasis/README.md)
+#
+# Until those secrets land and fetch_endpoint() is wired, the jobs run to completion
+# with zero rows loaded — good as a plumbing smoke test and satisfies the Phase 1
+# "workflow exists from day one" requirement.
+
+name: Ingest
+
+on:
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write  # for google-github-actions/auth if we switch to WIF later
+
+concurrency:
+  group: ingest
+  cancel-in-progress: false
+
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        source: [ghl, fanbasis]
+
+    env:
+      GCP_PROJECT_ID_DEV: dee-data-ops
+      GHL_API_KEY: ${{ secrets.GHL_API_KEY }}
+      FANBASIS_API_KEY: ${{ secrets.FANBASIS_API_KEY }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: ingestion/${{ matrix.source }}/requirements.txt
+
+      - name: Install deps
+        run: pip install -r ingestion/${{ matrix.source }}/requirements.txt
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Run extractor
+        run: python ingestion/${{ matrix.source }}/extract.py
