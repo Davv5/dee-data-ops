@@ -11,6 +11,30 @@ Rolling log of what's been done on this project. Newest entries at the top. Tail
 
 ---
 
+## 2026-04-19 — Speed-to-Lead metric locked via source-owner interview; SDR roster seed landed
+
+**What happened**
+- Queried the corpus on data-discovery practice — corpus explicitly does NOT prescribe profiling queries; the discipline is source-owner conversation + codifying findings in `sources.yml` / data dictionary. David pivoted to acting as the D-DEE GHL source owner directly (he owns the config)
+- Ran a structured `AskUserQuestion` interview with David covering confirm-signal mechanics, booked-call definition, SDR/AE identification, DQ filter, channels, and human-vs-workflow touches
+- David reframed the headline metric on the fly: "confirms within 5 min" is NOT a ritual (tag/stage change) — it's first-touch speed (time from booking → first human SDR outbound to that contact). This is a materially cleaner metric definition than the original scope doc wording
+- Locked every specific into `CLAUDE.local.md` under a new "Locked metric: Speed-to-Lead v1" section (denominator, numerator, channels, human-only, DQ filter, SDR identity mechanism)
+- Inventoried `raw_ghl.users` (all 16 accounts) and `raw_ghl.opportunities` (20+ distinct pipelineIds). Discovered `conversations.lastManualMessageDate` field exists separately from `lastMessageDate` — gives us human-vs-workflow signal "for free" without needing per-message detail
+- Built `dbt/seeds/ghl_sdr_roster.csv` with 12 of 16 users tagged (5 SDR / 3 AE / 4 excluded); remaining 4 (Ayaan, Jake, Jordan, Kevin) tagged `unknown` pending David's confirmation
+
+**Decisions**
+- **Metric: first outbound human SDR touch < 5 min post-booking, channels = CALL + SMS, workflow-automated messages excluded.** *Why:* measures human responsiveness, not automation reach; email dropped because D-DEE's floor is phone/SMS-heavy
+- **All pipelines in scope** (not a curated subset). *Why:* David's read — dashboard can offer optional pipeline filter at Looker Studio level; staging stays pipeline-agnostic
+- **SDR identity via repo seed CSV, not GHL role field.** *Why:* GHL's `roles.type`/`roles.role` are `account/agency` × `user/admin` — orthogonal to SDR/AE. Seed is explicit, version-controlled, and the source-owner can update it without schema change
+- **DQ filter = no phone OR opportunity status 'lost'.** Tags and `dnd` flag are NOT filters (David was explicit). *Why:* phone is the channel, lost is the explicit disqualification signal; tags in GHL are too noisy to encode as a filter
+
+**Open threads**
+- 4 users need SDR/AE/admin tagging: Ayaan Menon, Jake Lynch, Jordan Evans, Kevin Maya — David to confirm
+- Which `pipelineStageId` value(s) = "booked call" — resolvable in-line during Phase 4 mart design by inspecting `raw_ghl.opportunities` pipeline definitions together
+- GHL `/opportunities/pipelines` endpoint not yet extracted — would give us stage names instead of IDs; add to extractor as a 5th endpoint before Phase 4 if useful
+- GHL PIT rotation still owed (token exposed in transcript earlier today)
+
+---
+
 ## 2026-04-19 — Phase 1: GHL v2 extractor live end-to-end (four endpoints landed)
 
 **What happened**
