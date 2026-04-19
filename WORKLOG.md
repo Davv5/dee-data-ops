@@ -11,6 +11,26 @@ Rolling log of what's been done on this project. Newest entries at the top. Tail
 
 ---
 
+## 2026-04-19 — Phase 2: `stg_ghl__conversations` staging view (Speed-to-Lead numerator source)
+
+**What happened**
+- Shipped `stg_ghl__conversations.sql` on branch `phase-2/stg-ghl-conversations` → PR [#7](https://github.com/Davv5/dee-data-ops/pull/7). 1:1 view on `raw_ghl.conversations`, same pattern as `stg_ghl__users` (source → deduped → parsed → final, `qualify row_number()` latest-wins dedupe, `JSON_VALUE` extraction). 20 typed columns including the metric-critical `last_manual_message_at`, `last_outbound_action`, `last_message_direction`, `last_message_type`, `contact_id`, `assigned_user_id`. Epoch-millis → `TIMESTAMP` cast in staging so downstream layers never handle raw millis
+- Tests: `unique` + `not_null` on `conversation_id`, `not_null` on `contact_id`. `dbt build` green (PASS=4)
+- Row parity 15527 = 15527 distinct. Metric-relevant distributions confirmed: 5525 CALL/SMS, 4962 outbound, 4329 manual-action
+- Intentionally omitted `lastMessageBody` (free-text, not needed for metric, privacy-first) and nested arrays (`followers`, `scoring`)
+
+**Decisions**
+- **Flagged `assigned_user_id` sparsity inline on the model.** Only 176/15527 rows (~1%) carry `assignedTo` on the conversation object. *Why:* the locked metric assumes SDR identity joins `conversations.assignedTo → users.id`, but at this population rate warehouse-layer attribution may need the GHL `/conversations/{id}/messages` endpoint (not yet ingested). Documented in the model description as a Phase 3 follow-up, not a blocker for this PR
+- **Epoch-millis conversion happens in staging, not downstream.** *Why:* raw is JSON-string with millis; converting at the boundary (staging) means dimension/fact/mart layers deal only in native `TIMESTAMP`s — matches the corpus rule that staging is the "clean boundary"
+- **No message body in the flattened view.** *Why:* the Speed-to-Lead metric doesn't need it, and keeping free-text PII contained to `raw_ghl` limits downstream exposure. Trivially addable later if a use case emerges
+
+**Open threads**
+- Parallel sessions shipped `stg_ghl__opportunities` (branch `phase-2/stg-ghl-opportunities`, commit `699f426`) and `stg_ghl__contacts` (branch `phase-2/stg-ghl-contacts`, commit `54bd853`) — PRs pending
+- **Shared-working-tree hazard surfaced:** three parallel Claude sessions on one filesystem collided on branch switches + untracked files + concurrent yml edits. Recovered cleanly (nothing lost) but next time parallel sessions are run, use `git worktree add` per branch to get separate on-disk working dirs
+- `assigned_user_id` attribution gap — resolve in Phase 3 by either (a) ingesting the `/messages` endpoint for message-level SDR attribution, or (b) confirming with David whether the warehouse can back-attribute from opportunity ownership
+
+---
+
 ## 2026-04-19 — Phase 2 kickoff: first GHL staging view (`stg_ghl__users`) + sources declaration
 
 **What happened**
