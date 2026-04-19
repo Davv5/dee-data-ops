@@ -247,3 +247,111 @@ models:
 
       - name: _ingested_at
         description: Wall-clock UTC time the underlying raw row was written into BigQuery.
+
+  - name: stg_ghl__conversations
+    description: >
+      1:1 staging view on `raw_ghl.conversations`. Deduped on `id` keeping the
+      latest `_ingested_at`. Flattens the JSON payload into typed columns; no
+      joins. Epoch-millisecond date fields from GHL are cast to BigQuery
+      TIMESTAMPs here so downstream models never handle raw millis.
+
+      This is the numerator source for the headline Speed-to-Lead metric:
+      `last_manual_message_at` (human-originated) is the exclusion lever against
+      `last_message_at` (includes workflow automation), and
+      `last_outbound_action = 'manual'` + `last_message_direction = 'outbound'`
+      + `last_message_type in ('TYPE_CALL','TYPE_SMS')` together define a
+      countable human SDR touch.
+
+      Caveat: `assigned_user_id` is populated on only ~1% of rows (176/15527 as
+      of 2026-04-19). SDR attribution via this field alone will therefore be
+      sparse; warehouse-layer logic may need a message-level source
+      (GHL /conversations/{id}/messages) to attribute touches reliably.
+      Flagged for Phase 3.
+    columns:
+      - name: conversation_id
+        description: GHL conversation id. Primary key.
+        tests:
+          - unique
+          - not_null
+
+      - name: contact_id
+        description: GHL contact id this conversation belongs to. FK → stg_ghl__contacts.
+        tests:
+          - not_null
+
+      - name: assigned_user_id
+        description: >
+          GHL user assigned to this conversation, if any. FK → stg_ghl__users.
+          Sparsely populated (~1%) — see model-level note.
+
+      - name: location_id
+        description: GHL location (tenant) id. Single-tenant at D-DEE.
+
+      - name: conversation_type
+        description: Conversation channel type (e.g. `TYPE_PHONE`, `TYPE_EMAIL`).
+
+      - name: last_message_type
+        description: >
+          Type of the most recent message in the thread. Values observed:
+          `TYPE_NO_SHOW`, `TYPE_CALL`, `TYPE_SMS`, `TYPE_EMAIL`,
+          `TYPE_CAMPAIGN_CALL`, `TYPE_SMS_REACTION`. The Speed-to-Lead metric
+          counts only `TYPE_CALL` and `TYPE_SMS`.
+
+      - name: last_message_direction
+        description: '`inbound` or `outbound`. Outbound required for the metric numerator.'
+
+      - name: last_outbound_action
+        description: >
+          `manual` if the last outbound message was human-originated, otherwise
+          from a GHL workflow/automation. This is the primary human-vs-automation
+          lever for the Speed-to-Lead metric.
+
+      - name: last_message_at
+        description: >
+          Timestamp of the most recent message of any origin (human OR workflow
+          automation). Converted from GHL epoch-millis.
+
+      - name: last_manual_message_at
+        description: >
+          Timestamp of the most recent *human-originated* message. Converted from
+          GHL epoch-millis. Null if no manual message has ever been sent/received
+          in this conversation. This is the field used in the metric numerator
+          to exclude automated workflow touches.
+
+      - name: created_at
+        description: When the conversation thread was created in GHL (from `dateAdded`).
+
+      - name: updated_at
+        description: When the conversation was last updated in GHL (from `dateUpdated`).
+
+      - name: unread_count
+        description: Number of unread messages in the thread.
+
+      - name: in_inbox
+        description: True if the conversation currently appears in a user's inbox.
+
+      - name: is_attributed
+        description: GHL-internal attribution flag on the contact. Nullable.
+
+      - name: is_last_message_internal_comment
+        description: >
+          True if the most recent message was an internal comment (staff-only
+          note), not a customer-facing touch. Should be excluded from the metric.
+
+      - name: contact_full_name
+        description: Denormalized snapshot of contact name as of the last ingest.
+
+      - name: contact_email
+        description: Denormalized snapshot of contact email as of the last ingest.
+
+      - name: contact_phone
+        description: Denormalized snapshot of contact phone as of the last ingest.
+
+      - name: company_name
+        description: Denormalized company name from the contact record.
+
+      - name: tags
+        description: Array of tag strings on the conversation/contact.
+
+      - name: _ingested_at
+        description: Wall-clock UTC time the underlying raw row was written into BigQuery.
