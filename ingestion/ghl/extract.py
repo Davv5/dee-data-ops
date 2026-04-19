@@ -1,12 +1,8 @@
 """GHL (GoHighLevel) extractor → raw_ghl.* in BigQuery.
 
-Pulls the four v1 endpoints (contacts, conversations, opportunities, users) on an
-incremental cursor, lands each as `WRITE_APPEND` to its own table in the `raw_ghl`
-dataset, and stores per-endpoint watermarks in `raw_ghl._sync_state`.
-
-Status: skeleton. The BQ side (client, load, state table, cursor I/O) is fully wired
-and exercised by `--dry-run`. The GHL API side (`fetch_endpoint`) is a stub that
-returns []; fill in once the Week-0 GHL API credentials and endpoint schemas land.
+Pulls four v2 / LeadConnector API endpoints — contacts, conversations,
+opportunities, users — and lands each as `WRITE_APPEND` to its own table in
+`raw_ghl`, with per-endpoint wall-clock watermarks in `raw_ghl._sync_state`.
 
 Corpus guidance applied:
 - Land raw, unformatted (no casts, no renames, no joins here). Source:
@@ -14,10 +10,13 @@ Corpus guidance applied:
 - One dataset per source (`raw_ghl`, not `raw.ghl_*`). Same source.
 - Secrets via env vars only; no credentials in this file or in git.
 
-Reasoned defaults (NOT corpus-prescribed — revisit if the API shape forces it):
+Reasoned defaults (NOT corpus-prescribed):
 - Append-only + `_ingested_at` column; dedupe in staging (Phase 2).
-- Watermark per endpoint in a small state table, keyed by endpoint name.
-- First run with a NULL cursor does a full pull; subsequent runs are deltas.
+- Watermark per endpoint stored in BQ, keyed by endpoint name.
+- Only `conversations` honors `since` (via `startAfterDate`); other endpoints
+  do a full pull and rely on staging dedupe. GHL's GET endpoints don't expose
+  a clean updated-since filter; the POST /contacts/search variant has an
+  undocumented body schema — revisit if volume forces incremental.
 """
 
 from __future__ import annotations
@@ -27,15 +26,27 @@ import os
 import sys
 from argparse import ArgumentParser
 from datetime import datetime, timezone
-from typing import Any, Iterable, Optional
+from typing import Any, Callable, Iterable, Optional
 
+import requests
 from google.cloud import bigquery
 
 PROJECT_ID = os.environ["GCP_PROJECT_ID_DEV"]
 RAW_DATASET = "raw_ghl"
 STATE_TABLE = f"{PROJECT_ID}.{RAW_DATASET}._sync_state"
 
-ENDPOINTS: list[str] = ["contacts", "conversations", "opportunities", "users"]
+GHL_API_BASE = "https://services.leadconnectorhq.com"
+
+# Per-endpoint Version header. conversations sits on an older version than the
+# other three — confirmed from the published OpenAPI spec.
+VERSIONS: dict[str, str] = {
+    "contacts": "2021-07-28",
+    "conversations": "2021-04-15",
+    "opportunities": "2021-07-28",
+    "users": "2021-07-28",
+}
+
+ENDPOINTS: list[str] = list(VERSIONS.keys())
 
 
 def _bootstrap_adc() -> None:
@@ -100,15 +111,125 @@ def write_cursor(client: bigquery.Client, endpoint: str, synced_at: datetime) ->
     ).result()
 
 
-def fetch_endpoint(endpoint: str, since: Optional[datetime]) -> list[dict[str, Any]]:
-    """Pull rows from GHL for `endpoint`, modified since `since` (or all if None).
+def _headers(endpoint: str) -> dict[str, str]:
+    token = os.environ["GHL_API_KEY"]
+    return {
+        "Authorization": f"Bearer {token}",
+        "Version": VERSIONS[endpoint],
+        "Accept": "application/json",
+    }
 
-    TODO(week-0): implement once GHL API key + endpoint shapes are confirmed. For now
-    this is a stub returning []; the rest of the pipeline is exercisable via --dry-run.
-    """
-    _api_key = os.environ.get("GHL_API_KEY")
-    print(f"[stub] fetch_endpoint(endpoint={endpoint!r}, since={since})")
-    return []
+
+def _get(endpoint: str, path: str, params: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+    r = requests.get(
+        f"{GHL_API_BASE}{path}",
+        headers=_headers(endpoint),
+        params=params or {},
+        timeout=30,
+    )
+    r.raise_for_status()
+    return r.json()
+
+
+def _to_epoch_ms(value: Any) -> Optional[int]:
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return int(value)
+    if isinstance(value, str):
+        try:
+            dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+        return int(dt.timestamp() * 1000)
+    return None
+
+
+def _fetch_contacts(location_id: str, since: Optional[datetime]) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    params: dict[str, Any] = {"locationId": location_id, "limit": 100}
+    while True:
+        data = _get("contacts", "/contacts/", params)
+        batch = data.get("contacts") or []
+        if not batch:
+            break
+        rows.extend(batch)
+        if len(batch) < 100:
+            break
+        last = batch[-1]
+        start_after = _to_epoch_ms(last.get("dateAdded") or last.get("dateUpdated"))
+        start_after_id = last.get("id")
+        if start_after is None or not start_after_id:
+            break
+        params["startAfter"] = start_after
+        params["startAfterId"] = start_after_id
+    return rows
+
+
+def _fetch_conversations(location_id: str, since: Optional[datetime]) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    params: dict[str, Any] = {
+        "locationId": location_id,
+        "limit": 100,
+        "sort": "asc",
+        "sortBy": "last_message_date",
+        "lastMessageType": ["TYPE_CALL", "TYPE_SMS"],
+    }
+    if since is not None:
+        params["startAfterDate"] = int(since.timestamp() * 1000)
+
+    while True:
+        data = _get("conversations", "/conversations/search", params)
+        batch = data.get("conversations") or []
+        if not batch:
+            break
+        rows.extend(batch)
+        if len(batch) < 100:
+            break
+        next_cursor = _to_epoch_ms(batch[-1].get("lastMessageDate"))
+        if next_cursor is None:
+            break
+        params["startAfterDate"] = next_cursor
+    return rows
+
+
+def _fetch_opportunities(location_id: str, since: Optional[datetime]) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    params: dict[str, Any] = {"location_id": location_id, "limit": 100}
+    while True:
+        data = _get("opportunities", "/opportunities/search", params)
+        batch = data.get("opportunities") or []
+        if not batch:
+            break
+        rows.extend(batch)
+        meta = data.get("meta") or {}
+        start_after = meta.get("startAfter")
+        start_after_id = meta.get("startAfterId")
+        if not start_after_id:
+            break
+        params["startAfter"] = start_after
+        params["startAfterId"] = start_after_id
+    return rows
+
+
+def _fetch_users(location_id: str, since: Optional[datetime]) -> list[dict[str, Any]]:
+    data = _get("users", "/users/", {"locationId": location_id})
+    return data.get("users") or []
+
+
+FETCHERS: dict[str, Callable[[str, Optional[datetime]], list[dict[str, Any]]]] = {
+    "contacts": _fetch_contacts,
+    "conversations": _fetch_conversations,
+    "opportunities": _fetch_opportunities,
+    "users": _fetch_users,
+}
+
+
+def fetch_endpoint(endpoint: str, since: Optional[datetime]) -> list[dict[str, Any]]:
+    location_id = os.environ.get("GHL_LOCATION_ID")
+    if not location_id:
+        raise RuntimeError("GHL_LOCATION_ID env var is required but not set")
+    return FETCHERS[endpoint](location_id, since)
 
 
 def load_rows(client: bigquery.Client, endpoint: str, rows: Iterable[dict[str, Any]]) -> int:

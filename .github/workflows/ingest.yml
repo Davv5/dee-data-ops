@@ -5,12 +5,9 @@
 #
 # Required repo secrets (set in GitHub → Settings → Secrets → Actions):
 #   GCP_SA_KEY        - JSON keyfile for the ingest/deploy service account (NOT base64; paste the raw JSON)
-#   GHL_API_KEY       - GoHighLevel private integration token (Week-0 client ask)
-#   FANBASIS_API_KEY  - Fanbasis API token (Week-0 client ask; CSV fallback documented in ingestion/fanbasis/README.md)
-#
-# Until those secrets land and fetch_endpoint() is wired, the jobs run to completion
-# with zero rows loaded — good as a plumbing smoke test and satisfies the Phase 1
-# "workflow exists from day one" requirement.
+#   GHL_API_KEY       - GoHighLevel v2 / LeadConnector private integration token
+#   GHL_LOCATION_ID   - GHL location (sub-account) ID; v2 PITs are location-scoped
+#   FANBASIS_API_KEY  - Fanbasis API token (CSV fallback documented in ingestion/fanbasis/README.md)
 
 name: Ingest
 
@@ -38,6 +35,7 @@ jobs:
     env:
       GCP_PROJECT_ID_DEV: dee-data-ops
       GHL_API_KEY: ${{ secrets.GHL_API_KEY }}
+      GHL_LOCATION_ID: ${{ secrets.GHL_LOCATION_ID }}
       FANBASIS_API_KEY: ${{ secrets.FANBASIS_API_KEY }}
 
     steps:
