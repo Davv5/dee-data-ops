@@ -11,6 +11,27 @@ Rolling log of what's been done on this project. Newest entries at the top. Tail
 
 ---
 
+## 2026-04-19 — Phase 1: GHL v2 extractor live end-to-end (four endpoints landed)
+
+**What happened**
+- Implemented real GHL v2 / LeadConnector fetchers in `ingestion/ghl/extract.py` — `contacts`, `conversations`, `opportunities`, `users` — and merged as PR #2 (branch `phase-1/ghl-implementation`, commits `1466f5f` → `9332103`)
+- Added `GHL_LOCATION_ID` as a required env var / GH Actions secret (v2 PITs are location-scoped); `.env.example` + `ingest.yml` env block both document it
+- Switched raw-landing schema for both GHL and Fanbasis extractors to a fixed three-column shape: `id STRING, _ingested_at TIMESTAMP REQUIRED, payload STRING REQUIRED`. `payload` holds `json.dumps(source_row)`; staging parses with `JSON_VALUE`/`PARSE_JSON`
+- CI run `24640028389` on branch — both matrix legs green. Row counts in `raw_ghl`: `contacts=31784`, `conversations=15527`, `opportunities=25972`, `users=16`. `_sync_state` has a row per endpoint
+- Spent three CI iterations debugging: (1) `401` because the `GHL_API_KEY` secret was stale — re-set with the correct PIT and it resolved; (2) `BadRequest: Repeated field must be imported as a JSON array` from autodetect seeing `contacts.customFields.value` as both array and scalar; (3) `422` on conversations because `lastMessageType` as a repeated query param was rejected — dropped the filter and moved it to staging
+
+**Decisions**
+- **Single `payload` JSON-string column instead of flat autodetected schema.** *Why:* GHL has structurally inconsistent nested fields (`customFields.value` is the canonical offender) and autodetect breaks on the second row. JSON-string landing is the standard raw-zone pattern, makes the extractor immune to any upstream schema drift, and defers all typing to staging where we own it. Trade-off: Phase 2 will carry more `JSON_VALUE` extraction than if we had flat columns — acceptable because we get to pick the exact typed shape per staging model
+- **`conversations` is the only incremental endpoint for now.** GHL's other GET endpoints don't expose a reliable since-filter; accept full pulls + staging dedupe on `id` + latest `_ingested_at`. Revisit if daily volume becomes a cost concern
+- **Per-endpoint `Version` header pinned in a dict** — `conversations` uses `2021-04-15`, the rest use `2021-07-28` per OpenAPI spec. Documented in the README
+
+**Open threads**
+- GHL PIT `pit-578d0c36-…` is now in the conversation transcript — rotate in GHL → Settings → Private Integrations after close of session, update `GHL_API_KEY` secret, re-run workflow to confirm
+- Fanbasis `fetch_endpoint` still stub — unblocked on Week-0 docs/credentials
+- Fivetran initial syncs (Typeform, Calendly, Stripe) should have landed during the above — verify `raw_typeform` / `raw_calendly` / `raw_stripe` datasets exist and have rows before closing Phase 1
+
+---
+
 ## 2026-04-19 — Phase 1 kickoff: GHL + Fanbasis extractor skeletons + ingest workflow
 
 **What happened**
