@@ -173,7 +173,6 @@ def _fetch_conversations(location_id: str, since: Optional[datetime]) -> list[di
         "limit": 100,
         "sort": "asc",
         "sortBy": "last_message_date",
-        "lastMessageType": ["TYPE_CALL", "TYPE_SMS"],
     }
     if since is not None:
         params["startAfterDate"] = int(since.timestamp() * 1000)
