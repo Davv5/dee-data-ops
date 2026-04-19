@@ -1,0 +1,94 @@
+version: 2
+
+sources:
+  - name: ghl
+    description: >
+      Raw landing zone for GoHighLevel v2 API data. Populated by the custom
+      Python extractor in `ingestion/ghl/` (see .github/workflows/ingest.yml,
+      daily cron at 06:00 UTC). All tables share a three-column schema:
+      (id, _ingested_at, payload JSON-string) — see 2026-04-19 decision in
+      CLAUDE.local.md for why.
+    database: dee-data-ops  # TODO(Phase 6): parameterize once prod raw lands
+    schema: raw_ghl
+    config:
+      loaded_at_field: _ingested_at
+    tables:
+      - name: users
+        description: One row per GHL user (agency + account scope). ~16 rows.
+        columns:
+          - name: id
+            description: GHL user id (primary key of the source record).
+            tests:
+              - not_null
+          - name: _ingested_at
+            description: Wall-clock UTC time this row was written into BigQuery.
+            tests:
+              - not_null
+          - name: payload
+            description: JSON string — full user object as returned by GHL /users/search.
+            tests:
+              - not_null
+
+      - name: opportunities
+        description: >
+          One row per GHL opportunity. The "booked call" denominator for the
+          headline Speed-to-Lead metric comes from this table (stage = booked).
+          ~26K rows across 20+ pipelines.
+        config:
+          freshness:
+            warn_after: {count: 36, period: hour}
+            error_after: {count: 48, period: hour}
+        columns:
+          - name: id
+            description: GHL opportunity id.
+            tests:
+              - not_null
+          - name: _ingested_at
+            description: Wall-clock UTC time this row was written into BigQuery.
+            tests:
+              - not_null
+          - name: payload
+            description: JSON string — full opportunity object as returned by GHL /opportunities/search.
+            tests:
+              - not_null
+
+      - name: conversations
+        description: >
+          One row per GHL conversation (a contact-level thread spanning CALL /
+          SMS / EMAIL). The "first outbound human SDR touch" numerator for the
+          headline metric comes from this table, using `lastManualMessageDate`
+          (human-originated) vs `lastMessageDate` (includes workflow automation)
+          to exclude workflow touches. ~15K rows.
+        config:
+          freshness:
+            warn_after: {count: 36, period: hour}
+            error_after: {count: 48, period: hour}
+        columns:
+          - name: id
+            description: GHL conversation id.
+            tests:
+              - not_null
+          - name: _ingested_at
+            description: Wall-clock UTC time this row was written into BigQuery.
+            tests:
+              - not_null
+          - name: payload
+            description: JSON string — full conversation object as returned by GHL /conversations/search.
+            tests:
+              - not_null
+
+      - name: contacts
+        description: One row per GHL contact (the lead-level entity). ~32K rows.
+        columns:
+          - name: id
+            description: GHL contact id.
+            tests:
+              - not_null
+          - name: _ingested_at
+            description: Wall-clock UTC time this row was written into BigQuery.
+            tests:
+              - not_null
+          - name: payload
+            description: JSON string — full contact object as returned by GHL /contacts/search.
+            tests:
+              - not_null

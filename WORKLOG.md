@@ -11,6 +11,28 @@ Rolling log of what's been done on this project. Newest entries at the top. Tail
 
 ---
 
+## 2026-04-19 — Phase 2 kickoff: first GHL staging view (`stg_ghl__users`) + sources declaration
+
+**What happened**
+- Queried the corpus to validate Phase 0–1 trajectory before entering Phase 2. Corpus confirmed JSON-payload raw landing is endorsed (store semi-structured blobs, flatten in staging), vertical slice through headline metric is the prescribed sequencing, and "no joins in staging" is absolute
+- Wrote `dbt/models/staging/ghl/_ghl__sources.yml` (via subagent, parallel) — declares `raw_ghl` source with all 4 tables (users/opportunities/conversations/contacts), `loaded_at_field: _ingested_at`, freshness (36h warn / 48h error) on the two SLA-critical tables (conversations + opportunities). `users` + `contacts` intentionally skip freshness
+- Wrote `stg_ghl__users.sql` — 1:1 view on `raw_ghl.users`, CTE structure (source → deduped → parsed → final), `qualify row_number() over (partition by id order by _ingested_at desc) = 1` dedupe, `JSON_VALUE(payload, '$.field')` extraction for 9 fields including `is_deleted` bool cast
+- Wrote `_ghl__models.yml` — column descriptions + `unique`/`not_null` on `user_id`, `not_null` on `email`
+- `dbt build --select stg_ghl__users` → PASS=4 (1 view + 3 tests). Row count 16 = 16 distinct, matches `raw_ghl.users` exactly
+
+**Decisions**
+- **Corpus rule enforced: no seed join in staging.** Original vertical-slice plan had `stg_ghl__users` joining the `ghl_sdr_roster` seed for role attribution; corpus is absolute on "no joins here." *Why:* staging must remain 1:1 with source for modularity + DRY. Seed join moves to `dim_sdrs` in Phase 3
+- **Materialization lives in `dbt_project.yml` only** (no per-model `{{ config(...) }}` block). *Why:* staging = view is set globally; duplicating per-model is anti-DRY
+- **Freshness on conversations + opportunities only.** *Why:* those two drive the headline metric, so stale data = business-visible failure. Skipping freshness on low-churn or non-SLA tables prevents alert noise from training the team to ignore warnings
+- **`loaded_at_field` + `freshness` wrapped in `config:` blocks** — dbt 1.11 moved these schema properties from top-level to nested; fixed the resulting deprecations in-flight
+
+**Open threads**
+- Remaining 3 staging models in the GHL vertical slice (`stg_ghl__opportunities`, `stg_ghl__conversations`, `stg_ghl__contacts`) — same pattern, ship as separate PRs
+- SDR roster seed (on branch `phase-2/prep/sdr-roster-seed`, 1 commit ahead of main) still un-merged — independent of staging work, merges on its own cadence
+- Empty warehouse/marts config paths emit dbt warnings — expected; resolves as Phase 3/4 models land
+
+---
+
 ## 2026-04-19 — Phase 1: GHL v2 extractor live end-to-end (four endpoints landed)
 
 **What happened**

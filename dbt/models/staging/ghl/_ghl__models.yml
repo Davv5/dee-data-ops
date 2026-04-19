@@ -1,0 +1,50 @@
+version: 2
+
+models:
+  - name: stg_ghl__users
+    description: >
+      1:1 staging view on `raw_ghl.users`. Deduped on `id` keeping the latest
+      `_ingested_at`. Flattens the JSON payload into typed columns; no joins.
+      SDR/AE role attribution happens downstream in `dim_sdrs` via the
+      `ghl_sdr_roster` seed — GHL's native `roles.type` / `roles.role` fields
+      are agency/account × user/admin, which is orthogonal to SDR/AE.
+    columns:
+      - name: user_id
+        description: GHL user id. Primary key.
+        tests:
+          - unique
+          - not_null
+
+      - name: email
+        description: User's email address.
+        tests:
+          - not_null
+
+      - name: full_name
+        description: Display name as stored in GHL (`name` field of the payload).
+
+      - name: first_name
+        description: First name.
+
+      - name: last_name
+        description: Last name.
+
+      - name: phone
+        description: E.164-formatted phone number, as stored in GHL.
+
+      - name: ghl_account_type
+        description: >
+          `roles.type` from GHL — either `agency` (users with cross-location
+          reach) or `account` (users scoped to this location only). Orthogonal
+          to SDR/AE; used for traceability, not metric logic.
+
+      - name: ghl_role
+        description: >
+          `roles.role` from GHL — either `user` or `admin`. Orthogonal to
+          SDR/AE; used for traceability, not metric logic.
+
+      - name: is_deleted
+        description: True if the GHL user has been soft-deleted.
+
+      - name: _ingested_at
+        description: Wall-clock UTC time the underlying raw row was written into BigQuery.
