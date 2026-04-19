@@ -91,21 +91,38 @@ def fetch_endpoint(endpoint: str, since: Optional[datetime]) -> list[dict[str, A
     return []
 
 
+RAW_SCHEMA: list[bigquery.SchemaField] = [
+    bigquery.SchemaField("id", "STRING"),
+    bigquery.SchemaField("_ingested_at", "TIMESTAMP", mode="REQUIRED"),
+    bigquery.SchemaField("payload", "STRING", mode="REQUIRED"),
+]
+
+
 def load_rows(client: bigquery.Client, endpoint: str, rows: Iterable[dict[str, Any]]) -> int:
+    """Land rows as (id, _ingested_at, payload-JSON-string) — mirrors ghl/extract.py.
+
+    See that file for the rationale (schema-drift-proofing the raw landing zone).
+    """
     rows = list(rows)
     if not rows:
         return 0
     table_id = f"{PROJECT_ID}.{RAW_DATASET}.{endpoint}"
     ingested_at = datetime.now(timezone.utc).isoformat()
-    for r in rows:
-        r["_ingested_at"] = ingested_at
+    wrapped = [
+        {
+            "id": r.get("id"),
+            "_ingested_at": ingested_at,
+            "payload": json.dumps(r, default=str),
+        }
+        for r in rows
+    ]
     client.load_table_from_json(
-        rows,
+        wrapped,
         table_id,
         job_config=bigquery.LoadJobConfig(
             write_disposition=bigquery.WriteDisposition.WRITE_APPEND,
-            schema_update_options=[bigquery.SchemaUpdateOption.ALLOW_FIELD_ADDITION],
-            autodetect=True,
+            create_disposition=bigquery.CreateDisposition.CREATE_IF_NEEDED,
+            schema=RAW_SCHEMA,
         ),
     ).result()
     return len(rows)

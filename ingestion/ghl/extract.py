@@ -232,21 +232,43 @@ def fetch_endpoint(endpoint: str, since: Optional[datetime]) -> list[dict[str, A
     return FETCHERS[endpoint](location_id, since)
 
 
+RAW_SCHEMA: list[bigquery.SchemaField] = [
+    bigquery.SchemaField("id", "STRING"),
+    bigquery.SchemaField("_ingested_at", "TIMESTAMP", mode="REQUIRED"),
+    bigquery.SchemaField("payload", "STRING", mode="REQUIRED"),
+]
+
+
 def load_rows(client: bigquery.Client, endpoint: str, rows: Iterable[dict[str, Any]]) -> int:
+    """Land rows as (id, _ingested_at, payload-JSON-string).
+
+    Why payload-as-string rather than per-field columns: GHL responses have
+    mixed-type nested fields (e.g. contacts.customFields.value is a string in
+    some rows and an array in others). BQ autodetect picks one shape from the
+    first row and then chokes on the rest. Storing the full source row as a
+    JSON string sidesteps all schema-drift issues; staging parses with
+    JSON_VALUE / PARSE_JSON into typed columns.
+    """
     rows = list(rows)
     if not rows:
         return 0
     table_id = f"{PROJECT_ID}.{RAW_DATASET}.{endpoint}"
     ingested_at = datetime.now(timezone.utc).isoformat()
-    for r in rows:
-        r["_ingested_at"] = ingested_at
+    wrapped = [
+        {
+            "id": r.get("id"),
+            "_ingested_at": ingested_at,
+            "payload": json.dumps(r, default=str),
+        }
+        for r in rows
+    ]
     job = client.load_table_from_json(
-        rows,
+        wrapped,
         table_id,
         job_config=bigquery.LoadJobConfig(
             write_disposition=bigquery.WriteDisposition.WRITE_APPEND,
-            schema_update_options=[bigquery.SchemaUpdateOption.ALLOW_FIELD_ADDITION],
-            autodetect=True,
+            create_disposition=bigquery.CreateDisposition.CREATE_IF_NEEDED,
+            schema=RAW_SCHEMA,
         ),
     )
     job.result()

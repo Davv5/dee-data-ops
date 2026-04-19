@@ -13,10 +13,23 @@ Four v2 / LeadConnector endpoints (scope §4 / v1 plan Phase 1):
 - `opportunities` — pipeline stages
 - `users` — SDR / AE roster
 
-Everything lands untransformed in `raw_ghl.<endpoint>` (WRITE_APPEND) with a
-`_ingested_at` UTC timestamp column. Deduping and type-casting happen in staging
-(Phase 2), not here. Source for the raw-landing discipline: *"Data Ingestion / Raw
-Landing Zone"*, Data Ops notebook.
+Everything lands in `raw_ghl.<endpoint>` (WRITE_APPEND) using a fixed three-column
+schema:
+
+| column | type | source |
+|---|---|---|
+| `id` | STRING | pulled from the top-level `id` of each source row (NULLABLE — endpoints without one store NULL) |
+| `_ingested_at` | TIMESTAMP (REQUIRED) | UTC time of the load |
+| `payload` | STRING (REQUIRED) | the full source row, `json.dumps`-serialized |
+
+Why the single-JSON-payload shape rather than one BQ column per API field: GHL
+responses have mixed-type nested fields (for example, `contacts.customFields.value`
+is a string in some rows and an array of strings in others). BQ schema autodetect
+picks one shape from the first row of a load and then rejects the rest. Storing
+the raw JSON as a STRING sidesteps every schema-drift surprise. Staging (Phase 2)
+parses with `JSON_VALUE` / `PARSE_JSON` into typed columns, which is also where
+type-casting and dedupe happen. Source for the raw-landing discipline: *"Data
+Ingestion / Raw Landing Zone"*, Data Ops notebook.
 
 ## API shape (v2 / LeadConnector)
 
