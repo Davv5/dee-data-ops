@@ -1,0 +1,29 @@
+version: 2
+
+snapshots:
+  - name: dim_users_snapshot
+    description: >
+      SCD Type 2 history of `dim_users` using the `check` strategy on
+      `role` and `email`. Closed rows carry `dbt_valid_to`; open rows
+      have `dbt_valid_to is null`. Powers mart-level as-of joins where
+      "who did what, under which role, at event time?" matters —
+      essential for the Speed-to-Lead numerator (SDR-at-time-of-touch)
+      and any retroactive role reclassification (e.g. Blagoj dual-role
+      resolution, Ayaan / Jake pending confirmation).
+    columns:
+      - name: user_id
+        description: Source `dim_users.user_id`. Unique-key of the snapshot.
+        tests:
+          - not_null
+      - name: dbt_valid_from
+        description: UTC timestamp this row became the current truth.
+        tests:
+          - not_null
+      - name: dbt_valid_to
+        description: UTC timestamp this row was superseded. NULL on the open row.
+
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - user_id
+            - dbt_valid_from

@@ -11,6 +11,44 @@ Rolling log of what's been done on this project. Newest entries at the top. Tail
 
 ---
 
+## 2026-04-20 — Track E: warehouse dims + facts + bridge + SCD2 snapshot
+
+**What happened**
+- Shipped the full Kimball warehouse layer on branch `Davv5/Track-E-Warehouse-dims-facts-bridge-SCD2-snapshot` (Orca worktree). Merged `origin/main` into the branch first to pull in Tracks A/B/C/D (rules, seeds, non-GHL staging, `dim_pipeline_stages`) as upstreams
+- **4 new dims:** `dim_calendar_dates` (date_spine 2024-01-01 → current_date+1 with week/month/quarter/year enrichment + `is_weekday`), `dim_users` (unified SDR+AE via `stg_ghl__users` ⟕ `ghl_sdr_roster` seed, role defaults to `unknown`), `dim_offers` (inline SQL model, 2 rows for the D-DEE Core stack), `dim_contacts` (GHL-anchored spine, SK over `(location_id, contact_id)`, `attribution_era` derived from `lead_source`, Typeform enrichment columns shaped but null pending the email-join bridge). `dim_pipeline_stages` from Track D unchanged
+- **3 facts:** `fct_calls_booked` (Calendly-event grain; `contact_sk`/`assigned_user_sk`/`pipeline_stage_sk` NULL pending `stg_calendly__event_invitees`), `fct_outreach` (outbound-human CALL/SMS grain from `stg_ghl__messages` ⟕ `stg_ghl__conversations` with `last_manual_message_at is not null` filter; no role filter per Track D), `fct_revenue` (Stripe charges unioned with a `where false` Fanbasis stub; amounts to major units; `contact_sk` via bridge)
+- **1 bridge:** `bridge_identity_contact_payment` — deterministic 5-tier match (`email_exact` 1.00 → `phone_last10` 1.00 → `email_canonical` 0.95 w/ gmail dot/plus normalization → `billing_email_direct` 0.80 → `unmatched` 0.00); `qualify row_number()` picks best per payment_id; `ambiguous_multi_candidate` flag when > 1 contact tied at the top score
+- **1 SCD2 snapshot:** `dim_users_snapshot` — check strategy on `['role', 'email']`, unique_key `user_id`, target_schema `snapshots`
+- **YAML + docs:** extended `_dimensions__models.yml` and `_dimensions__docs.md` with the 4 new dims; created `_facts__models.yml` + `_facts__docs.md` (model-level description on every fact; `unique`+`not_null` on every `*_sk`; `relationships` test on every FK; `accepted_values` on `channel`/`match_method`/`bridge_status`/`source_platform`); created `_bridges__models.yml` + `_bridges__docs.md` with the tier table; created `_snapshots__models.yml` with `dbt_utils.unique_combination_of_columns` on `(user_id, dbt_valid_from)`
+- `dbt_project.yml`: added `warehouse.bridges.+schema: warehouse` to the models config tree
+- Local `dbt parse` + `dbt compile --select warehouse+` both resolve the DAG clean (19 models / 1 snapshot / 7 seeds / 142 tests / 13 sources / 625 macros) — warehouse-layer SQL + Jinja verified structurally. Actual `dbt build` against BigQuery blocked on missing `.env` / keyfile in this worktree; run in the dev worktree before opening the PR
+
+**Decisions**
+- **`dim_offers` stays an inline-CTE SQL model, not a seed.** *Why:* 2 rows, rarely changes, and living in SQL keeps the change history beside the other warehouse edits without requiring `dbt seed` coordination with Track B's seeds block
+- **`attribution_era` derived from `lead_source` pattern matching (paid/ads → `utm`, else `pre_utm`).** *Why:* the spec asked for per-contact era from the GHL payload, but Typeform-to-GHL email-join bridge isn't in staging yet; this keeps the column contract stable and tightens the derivation when the bridge lands
+- **Nullable FKs on `fct_calls_booked`** (`contact_sk`, `assigned_user_sk`, `pipeline_stage_sk`). *Why:* Calendly events carry no invitee email natively — that's in a sibling Calendly table (`raw_calendly.event_invitee`) not yet in staging (Track C open thread). `relationships` tests auto-exclude nulls, so the tests stay green; backfill happens at invitee-staging drop-in, not by widening `dim_contacts`
+- **`fct_outreach` carries `match_method='ghl_native'` / `match_score=1.00`** columns even though matching is trivial there. *Why:* shape-parity with `fct_revenue` so mart-level unions across touch types don't need special-cased projections
+- **`bridge_identity_contact_payment` is payment-centric (one row per `payment_id`), not contact-centric.** *Why:* every Stripe charge becomes a revenue row and needs a contact-attribution decision; keeping the bridge payment-centric lets `fct_revenue` left-join on a single key
+- **Jinja-in-docs gotcha.** Had to fix 2 spots where `{{ ref(...) }}` appeared inside markdown-backtick prose (in `_facts__docs.md`) and a SQL comment (in `fct_revenue.sql`) — Jinja parses inside both, and the undefined `stg_fanbasis__charges` reference blew up `dbt parse`. Lesson: never put `{{ ref('…') }}` in human prose even inside backticks or `--` comments; describe the future ref() call as a ref call, not as a literal
+
+**Verification (ran in `dev_david`)**
+- `.env` symlinked from `/Users/david/Documents/data ops/.env`; `dbt debug` green
+- `dbt build --target dev --select +warehouse+` → **PASS=146 WARN=0 ERROR=0 SKIP=0** (9 models + 1 snapshot + 66 warehouse tests, plus the upstream staging rebuild); `dim_users_snapshot` populated via the same build (snapshot runs inline under `--select +warehouse+`)
+- BigQuery parity: `fct_calls_booked` = 5,406 rows (2,639 active + 2,767 canceled); `fct_outreach` = 26,067; `fct_revenue` = 3,375; `dim_contacts` = 15,910; `dim_users` = 16; `bridge_identity_contact_payment` match-rate = **94% matched / 3% ambiguous / 2% unmatched** — well above the 0.70 gate
+
+**Decisions (verification)**
+- **Two mid-build fixes.** (1) Fanbasis placeholder CTE was `select ... where false` with no FROM — BigQuery rejects that; replaced with `from unnest([struct(1 as _placeholder)]) where false` to satisfy the parser while still producing zero rows. (2) `fct_outreach.user_sk` was hashed blind from `stg_ghl__messages.user_id`, which carries ids for GHL system/automation actors that never appear in `/users/search` (3 of 11 distinct outbound user_ids — 3,621 rows). Refactored to LEFT JOIN `dim_users` and source `user_sk` from the dim; orphans resolve to NULL, the `relationships` test passes, and the `not_null` test on `user_sk` was dropped (NULL is the intentional "unattributed automation" state; mart-layer role filters drop these naturally)
+- **Parity reconciled, not gated.** Oracle 3,141 vs. fact 5,406 looks like +72% drift but is a grain decision: the fact deliberately includes cancelled bookings (every confirmed booking event, per `fct_calls_booked__overview`). Active-only subset = 2,639, which is **-16%** vs. the oracle — inside the ±20% tolerance. Keeping cancellations enables mart-level no-show / cancellation cuts without reshaping the fact later
+
+**Open threads**
+- Invitee-staging drop-in owed to light up `fct_calls_booked.contact_sk` / `assigned_user_sk` / `pipeline_stage_sk`. Follow-on work for whoever owns the Calendly invitee staging model
+- Typeform email-join bridge still owed; once in, tighten `dim_contacts.attribution_era` + `has_typeform_utm` + `psychographic_score` derivations (column contract is already final)
+- Fanbasis union in `fct_revenue` is a `where false` stub — swap for the real ref when the Week-0 credentials land
+- ~3.6k `fct_outreach` rows have NULL `user_sk` (automation/system actors). The roster never covers them by design; if a mart-level "unattributed touches" diagnostic is needed, add it at the mart — do not paper over in the fact
+- Pre-existing YAML deprecation `MissingArgumentsPropertyInGenericTestDeprecation` surfaces in build output — pre-dates Track E, worth cleaning up in a follow-on style-guide pass
+
+---
+
 ## 2026-04-20 — Track J: Secret Manager migration + PR template + hosted dbt docs
 
 **What happened**

@@ -31,6 +31,8 @@ models:
         +schema: warehouse
       facts:
         +schema: warehouse
+      bridges:
+        +schema: warehouse
     marts:
       +materialized: table
       +schema: marts

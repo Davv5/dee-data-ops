@@ -1,0 +1,52 @@
+version: 2
+
+models:
+  - name: bridge_identity_contact_payment
+    description: >
+      Deterministic 5-tier match between Stripe payments and
+      `dim_contacts`. One row per `payment_id` — best match picked via
+      `qualify row_number() over (partition by payment_id order by
+      match_score desc) = 1`. Downstream: `fct_revenue` left-joins on
+      `payment_id` to attach `contact_sk` + bridge metadata. See
+      `_bridges__docs.md` for tier order, scoring, and rationale.
+    columns:
+      - name: payment_id
+        description: Native payment id (Stripe `charge_id` today). PK of the bridge.
+        tests:
+          - unique
+          - not_null
+      - name: contact_sk
+        description: >
+          FK to `dim_contacts.contact_sk`. NULL when
+          `match_method in ('billing_email_direct', 'unmatched')`.
+      - name: match_method
+        description: >
+          Which tier produced the match. Tier priority (and scores):
+          `email_exact` (1.00), `phone_last10` (1.00),
+          `email_canonical` (0.95), `billing_email_direct` (0.80),
+          `unmatched` (0.00).
+        tests:
+          - not_null
+          - accepted_values:
+              values:
+                - email_exact
+                - email_canonical
+                - phone_last10
+                - billing_email_direct
+                - unmatched
+      - name: match_score
+        description: Confidence score for the chosen tier. Range 0.00-1.00.
+        tests:
+          - not_null
+      - name: bridge_status
+        description: >
+          Summary flag. `matched` when a CRM contact was resolved;
+          `ambiguous_multi_candidate` when > 1 contact tied at the
+          best score; `unmatched` otherwise.
+        tests:
+          - not_null
+          - accepted_values:
+              values:
+                - matched
+                - ambiguous_multi_candidate
+                - unmatched
