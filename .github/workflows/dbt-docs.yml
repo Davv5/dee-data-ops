@@ -1,0 +1,56 @@
+name: Publish dbt docs
+
+# Builds `dbt docs` against prod on every push to main that touches dbt/,
+# then publishes dbt/target/ to the gh-pages branch. Served at
+# https://davv5.github.io/dee-data-ops/ (GitHub Pages source: gh-pages root).
+#
+# Auth model: GCP_SA_KEY_PROD is the prod-read-only SA keyfile. Docs
+# generation only executes read metadata queries (`dbt docs generate`
+# compiles the manifest + catalog from information_schema), so the SA does
+# not need write grants.
+
+on:
+  push:
+    branches: [main]
+    paths: ['dbt/**']
+  workflow_dispatch:
+
+permissions:
+  contents: write  # peaceiris/actions-gh-pages pushes to gh-pages
+
+concurrency:
+  group: dbt-docs
+  cancel-in-progress: true
+
+jobs:
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install deps
+        run: pip install -r requirements.txt
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY_PROD }}
+
+      - name: dbt deps
+        working-directory: dbt
+        run: dbt deps
+
+      - name: dbt docs generate
+        working-directory: dbt
+        run: dbt docs generate --target prod
+
+      - name: Deploy to gh-pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dbt/target

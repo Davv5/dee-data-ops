@@ -3,11 +3,19 @@
 # Runs at 06:00 UTC (≈02:00 ET) so dashboards are fresh by morning US-East.
 # Also available via workflow_dispatch for on-demand reruns.
 #
-# Required repo secrets (set in GitHub → Settings → Secrets → Actions):
-#   GCP_SA_KEY        - JSON keyfile for the ingest/deploy service account (NOT base64; paste the raw JSON)
-#   GHL_API_KEY       - GoHighLevel v2 / LeadConnector private integration token
-#   GHL_LOCATION_ID   - GHL location (sub-account) ID; v2 PITs are location-scoped
-#   FANBASIS_API_KEY  - Fanbasis API token (CSV fallback documented in ingestion/fanbasis/README.md)
+# Secrets model (post Track J Secret Manager migration, 2026-04-20):
+#
+#   Stored in GCP Secret Manager (project `dee-data-ops-prod`):
+#     ghl-api-key       — GHL v2 / LeadConnector Private Integration Token
+#     ghl-location-id   — GHL location (sub-account) ID
+#   Fetched at runtime by ingestion/ghl/extract.py via
+#   google-cloud-secret-manager. The GitHub Actions SA
+#   (secrets.GCP_SA_KEY) must hold `roles/secretmanager.secretAccessor` on
+#   both secrets.
+#
+#   Remaining GitHub repo secrets (Settings → Secrets → Actions):
+#     GCP_SA_KEY        — JSON keyfile for the ingest/deploy service account (NOT base64; paste the raw JSON)
+#     FANBASIS_API_KEY  — Fanbasis API token (week-0-deferred source; migration to SM scoped separately)
 
 name: Ingest
 
@@ -34,8 +42,10 @@ jobs:
 
     env:
       GCP_PROJECT_ID_DEV: dee-data-ops
-      GHL_API_KEY: ${{ secrets.GHL_API_KEY }}
-      GHL_LOCATION_ID: ${{ secrets.GHL_LOCATION_ID }}
+      # Signals to ingestion/*/extract.py that secrets should be fetched from
+      # Secret Manager (via _load_secret in ingestion/ghl/extract.py) rather
+      # than read from env vars. Unset in local dev so .env values apply.
+      GCP_SECRET_MANAGER_PROJECT: dee-data-ops-prod
       FANBASIS_API_KEY: ${{ secrets.FANBASIS_API_KEY }}
 
     steps:

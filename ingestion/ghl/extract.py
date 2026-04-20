@@ -76,6 +76,53 @@ def _bootstrap_adc() -> None:
         os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = keyfile
 
 
+# env-var name → GCP Secret Manager secret ID in GCP_SECRET_MANAGER_PROJECT.
+# CI sets GCP_SECRET_MANAGER_PROJECT=dee-data-ops-prod; local dev leaves it
+# unset and relies on os.environ (populated from .env).
+_SECRET_MANAGER_IDS: dict[str, str] = {
+    "GHL_API_KEY": "ghl-api-key",
+    "GHL_LOCATION_ID": "ghl-location-id",
+}
+_secret_cache: dict[str, str] = {}
+
+
+def _load_secret(env_name: str) -> str:
+    """Resolve a secret, preferring Secret Manager when GCP_SECRET_MANAGER_PROJECT is set.
+
+    Priority:
+      1. If GCP_SECRET_MANAGER_PROJECT is set and env_name is mapped, fetch
+         from Secret Manager (cached per process).
+      2. Otherwise, read os.environ[env_name] (local-dev path).
+    Raises KeyError if neither source resolves the value.
+    """
+    if env_name in _secret_cache:
+        return _secret_cache[env_name]
+
+    sm_project = os.environ.get("GCP_SECRET_MANAGER_PROJECT")
+    secret_id = _SECRET_MANAGER_IDS.get(env_name)
+    if sm_project and secret_id:
+        _bootstrap_adc()
+        from google.cloud import secretmanager  # lazy import: optional for local dev
+
+        client = secretmanager.SecretManagerServiceClient()
+        name = f"projects/{sm_project}/secrets/{secret_id}/versions/latest"
+        response = client.access_secret_version(request={"name": name})
+        value = response.payload.data.decode("utf-8")
+        _secret_cache[env_name] = value
+        return value
+
+    value = os.environ.get(env_name)
+    if not value:
+        raise KeyError(
+            f"{env_name} not set and GCP_SECRET_MANAGER_PROJECT unset. "
+            f"For local dev, set {env_name} in .env; "
+            f"for prod/CI, set GCP_SECRET_MANAGER_PROJECT to the project "
+            f"hosting secret '{_SECRET_MANAGER_IDS.get(env_name, '<unmapped>')}'."
+        )
+    _secret_cache[env_name] = value
+    return value
+
+
 def get_client() -> bigquery.Client:
     _bootstrap_adc()
     return bigquery.Client(project=PROJECT_ID)
@@ -127,7 +174,7 @@ def write_cursor(client: bigquery.Client, endpoint: str, synced_at: datetime) ->
 
 
 def _headers(endpoint: str) -> dict[str, str]:
-    token = os.environ["GHL_API_KEY"]
+    token = _load_secret("GHL_API_KEY")
     return {
         "Authorization": f"Bearer {token}",
         "Version": VERSIONS[endpoint],
@@ -337,9 +384,7 @@ FETCHERS: dict[str, Callable[[str, Optional[datetime]], list[dict[str, Any]]]] =
 
 
 def fetch_endpoint(endpoint: str, since: Optional[datetime]) -> list[dict[str, Any]]:
-    location_id = os.environ.get("GHL_LOCATION_ID")
-    if not location_id:
-        raise RuntimeError("GHL_LOCATION_ID env var is required but not set")
+    location_id = _load_secret("GHL_LOCATION_ID")
     return FETCHERS[endpoint](location_id, since)
 
 
