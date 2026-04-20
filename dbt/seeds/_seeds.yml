@@ -3,16 +3,20 @@ version: 2
 seeds:
   - name: ghl_sdr_roster
     description: >
-      Human-maintained roster of GHL users with SDR/AE role assignments. GHL's
-      built-in `role` and `type` fields are account/agency + user/admin (agency
-      hierarchy), which is orthogonal to the SDR/AE distinction the Speed-to-Lead
-      metric needs. This seed is the source of truth for who counts as an SDR
-      when attributing first-touch on a booking.
+      Human-maintained roster of GHL users with role assignments. GHL's built-in
+      `role` and `type` fields are account/agency + user/admin (agency hierarchy),
+      which is orthogonal to the functional role distinction the Speed-to-Lead metric
+      needs. This seed is the source of truth for who counts as an SDR when attributing
+      first outbound touch on a booking.
 
-      Valid `role` values: `sdr`, `ae`, `unknown`. All 16 users start as
-      `unknown`; update as David confirms each person's role on the D-DEE floor.
-      The metric numerator (first outbound human SDR touch) will return 0 until
-      at least some users are marked `sdr`.
+      Valid `role` values follow the 5-role taxonomy revealed by the Master Lead Sheet
+      oracle (columns AZ–BD): SDR, Setter, Triager, DM_Setter, Closer. Plus Owner for
+      the client/operator accounts and unknown for users awaiting manual confirmation.
+
+      The Speed-to-Lead metric numerator filters `WHERE first_toucher.role = 'SDR'`
+      at the mart layer (per .claude/rules/mart-naming.md). Other roles still appear
+      in the warehouse (`fct_outreach` captures all roles) and in Page 2 attribution
+      tiles, but only SDR touches count for the headline 5-min SLA metric.
     config:
       column_types:
         user_id: string
@@ -27,8 +31,8 @@ seeds:
           - unique
           - not_null
       - name: role
-        description: SDR / AE / unknown. Drives the metric numerator.
+        description: Functional role driving Speed-to-Lead attribution + v1.5 leaderboards.
         tests:
           - not_null
           - accepted_values:
-              values: ['sdr', 'ae', 'unknown']
+              values: ['SDR', 'Setter', 'Triager', 'DM_Setter', 'Closer', 'Owner', 'unknown']
