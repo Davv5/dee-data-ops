@@ -141,7 +141,7 @@ models:
         tests:
           - not_null
           - accepted_values:
-              values: ['sdr', 'ae', 'unknown']
+              values: ['SDR', 'Setter', 'Triager', 'DM_Setter', 'Closer', 'Owner', 'unknown']
       - name: is_active
         description: >
           `not is_deleted` from GHL. True when the user currently exists
