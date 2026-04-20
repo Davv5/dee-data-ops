@@ -11,6 +11,32 @@ Rolling log of what's been done on this project. Newest entries at the top. Tail
 
 ---
 
+## 2026-04-20 — Track F: `sales_activity_detail` mart scaffolded (booked-call grain)
+
+**What happened**
+- Created 4 files on branch `Davv5/Track-F-sales_activity_detail-mart-booked-call-grain`:
+  - `dbt/models/marts/sales_activity_detail.sql` — wide mart, booking grain. 7 CTEs: `fct_bookings` (spine) → `first_touch` (windowed to `touched_at >= booked_at`, earliest wins) → `first_toucher` (role lookup) → `closer_and_outcome` (join through `dim_contacts` to reach `stg_ghl__opportunities.contact_id`; latest opp by `opportunity_created_at`) → `had_activity_1hr` (DQ diagnostic) → `final` with all contract columns
+  - `dbt/models/marts/_marts__models.yml` — `unique` + `not_null` on `booking_id`; `not_null` on `contact_id`, `booked_at`, `had_any_sdr_activity_within_1_hr`, `is_booked_stage`, `attribution_quality_flag`, `mart_refreshed_at`; `accepted_values` on `close_outcome` and `attribution_quality_flag`. Initialized with `sales_activity_detail` only — L + M add theirs at merge
+  - `dbt/models/marts/_marts__docs.md` — model-level doc block explaining grain, metric-gate logic, join map, the `lost_reason_id` (not text) tradeoff, DQ gates
+  - `dbt/tests/release_gate_sales_activity_detail.sql` — singular: fails when mart count deviates >±5% from oracle `Calls Booked = 3141`
+- `dbt build`/`dbt test` NOT run: upstream refs `fct_calls_booked`, `dim_contacts`, `dim_users`, `fct_outreach` don't exist yet — Track E has not merged to main. SQL is code-complete and reviewable against Track E's spec; it resolves after E lands and this branch rebases
+
+**Decisions**
+- **Shipped scaffolding despite the E dependency being unmet** (user instruction to proceed). *Why:* the mart contract is stable, the column names for E's outputs are fixed by the Track E prompt, and the review value of having F in PR form while E is in review is greater than the review-loop cost of waiting. Acceptance criterion: dry-compile only; live build + parity check owed after E merges
+- **Adjusted `stg_ghl__opportunities` column names from the prompt template to match actual staging schema.** *Why:* the track prompt's template uses `opp.created_at`, `opp.closed_at`, `opp.lost_reason_text` — none of those exist in `stg_ghl__opportunities.sql`. Mapped to `opportunity_created_at` (for ordering), `last_status_change_at` gated by `status in ('won','lost')` (closed_at proxy), `lost_reason_id` (no text resolution — no `dim_lost_reasons` in v1). Documented in the column-level description so the DQ gap is visible to consumers
+- **Normalized `status` → `close_outcome` with a `lower()` cast** mapping `won→won`, `lost→lost`, else `pending`. *Why:* GHL `status` also carries `open`/`abandoned`; collapsing to the 3-value contract enum keeps the accepted_values test tight
+- **Joined `stg_ghl__opportunities` to the booking spine via `dim_contacts.contact_id`** rather than assuming `fct_calls_booked` carries `contact_id`. *Why:* Track E defines the fact as carrying `contact_sk` only (Kimball rule — facts hold SKs, not natural keys); going through `dim_contacts` to reach the opportunity's natural key is the correct pattern
+- **`attribution_quality_flag` CASE does not yet emit `ambiguous_contact_match`.** *Why:* that value is bridge-level (from `bridge_identity_contact_payment`) and the mart doesn't consume bridge output. Left in the accepted_values enum + documented as "reserved" so a later track can wire it in without a schema change
+- **`had_any_sdr_activity_within_1_hr` left unfiltered by role** per the track prompt's CTE. *Why:* the column is a DQ diagnostic distinguishing "nobody touched this" from "a non-SDR touched it" — filtering by role would collapse that distinction. Name is misleading; doc block clarifies
+
+**Open threads**
+- Track E blocker: `fct_calls_booked`, `dim_contacts`, `dim_users`, `fct_outreach` do not exist on `main` or on the Track E branch. Track F PR should land AFTER Track E. Verification block (`dbt build --select sales_activity_detail`; parity BQ query) owed post-rebase
+- Shared `_marts__models.yml` with Tracks L + M: initialized with only `sales_activity_detail`. L + M must add their model blocks at merge — noted in PR description
+- `lost_reason_text` resolution (deferred): requires either a `dim_lost_reasons` seed or a pull from GHL's lost-reason catalog. Not blocking v1; track as enhancement
+- Worktree path mismatch from the track prompt: prompt specifies `/Users/david/Documents/data-ops-wt-track-f`; actual worktree is the Orca worktree at `/Users/david/orca/workspaces/data ops/Track-F-sales_activity_detail-mart-booked-call-grain`. Same branch, no file-content impact
+
+---
+
 ## 2026-04-20 — Track L: `lead_journey` mart (contact grain, widest)
 
 **What happened**

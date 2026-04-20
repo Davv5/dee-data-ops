@@ -107,5 +107,39 @@ upstream ships.
 - `pre_utm_era` — the contact's `attribution_era = pre_utm`
 - `no_sdr_touch` — the contact is a booker but no SDR touch is
   attributed (`fct_outreach` row count = 0 for SDR-role users)
+{% docs sales_activity_detail %}
+
+**Grain:** one row per Calendly booking event (~3,141 rows, ±5% of oracle).
+
+**Purpose:** primary Speed-to-Lead reporting surface. Wide, denormalized, dashboard-ready.
+
+**Core metric logic:**
+- Numerator columns (`minutes_to_first_sdr_touch`, `is_within_5_min_sla`) populate only when
+  the first outbound touch after booking was made by a user with `role = 'SDR'`. That role
+  filter lives at the mart — `fct_outreach` remains a faithful record of every outbound
+  touch regardless of role, so the same fact powers AE / Closer analyses downstream.
+- `had_any_sdr_activity_within_1_hr` is a DQ diagnostic — ANY user activity within 60 min of
+  booking — designed to separate "SLA missed" from "SLA not applicable" when the SDR numerator
+  is null.
+
+**Join map:**
+- `fct_calls_booked` is the spine.
+- `dim_contacts` on `contact_sk` — supplies identity, UTM attribution, and era.
+- `dim_users` twice: once via `assigned_user_sk` (assignment), once via `fct_outreach.user_sk` (first toucher).
+- `fct_outreach` windowed to `touched_at >= booked_at`, picking first by `row_number()`.
+- `stg_ghl__opportunities` is joined on `contact_id` (not booking); most recent opp by
+  `opportunity_created_at` wins. Surfaces closer + outcome + `lost_reason_id` +
+  `last_stage_change_at`.
+- `dim_pipeline_stages` on `pipeline_stage_sk` — supplies human-readable pipeline/stage
+  names and the `is_booked_stage` boolean.
+
+**Why `lost_reason` carries the id, not the text:** GHL returns `lostReasonId` only; a
+`dim_lost_reasons` lookup is not in v1 scope. The id preserves the signal; a future track
+can widen when the lost-reason catalog is available.
+
+**Known DQ gates:**
+- `attribution_quality_flag` is never null — see the column description for the enum.
+- The release-gate test (`dbt/tests/release_gate_sales_activity_detail.sql`) fails when the
+  mart row count deviates more than ±5% from the oracle `Calls Booked` seed (3,141).
 
 {% enddocs %}

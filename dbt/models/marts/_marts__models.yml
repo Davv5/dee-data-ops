@@ -33,6 +33,12 @@ models:
     columns:
       - name: contact_id
         description: Primary key — GHL contact_id, 1:1 with `dim_contacts`.
+  - name: sales_activity_detail
+    description: |
+      {{ doc("sales_activity_detail") }}
+    columns:
+      - name: booking_id
+        description: Primary key. Surrogate from `fct_calls_booked.booking_sk`.
         tests:
           - unique
           - not_null
@@ -165,6 +171,111 @@ models:
           DQ bucket for the payment. Enum:
           `clean | unmatched | ambiguous_contact_match | role_unknown`.
           Every row lands in exactly one bucket.
+      - name: contact_id
+        description: Natural-key GHL contact_id (from `dim_contacts`) for lookups and joins to other marts.
+        tests:
+          - not_null
+
+      - name: email
+        description: Contact email (from `dim_contacts`).
+      - name: full_name
+        description: Contact display name (from `dim_contacts`).
+
+      - name: booked_at
+        description: UTC timestamp — moment the invitee confirmed the Calendly slot. Speed-to-Lead start clock.
+        tests:
+          - not_null
+      - name: scheduled_for
+        description: UTC timestamp — actual meeting start time.
+      - name: event_status
+        description: Calendly event status (`scheduled`, `cancelled`, ...).
+      - name: cancelled_at
+        description: UTC timestamp when the booking was cancelled; null for active bookings.
+
+      - name: assigned_user_name
+        description: Name of the GHL-assigned user on the opportunity at booking time.
+      - name: assigned_user_role
+        description: Role of the assigned user (`SDR | Setter | Triager | DM_Setter | Closer | Owner`).
+
+      - name: first_toucher_name
+        description: User who made the first outbound touch after booking.
+      - name: first_toucher_role
+        description: Role of the first toucher. Gates Speed-to-Lead columns — non-SDR touches leave those null.
+      - name: first_outbound_touch_at
+        description: UTC timestamp of the first outbound touch >= booked_at.
+      - name: first_touch_channel
+        description: Channel of the first outbound touch (`call | sms`).
+
+      - name: minutes_to_first_sdr_touch
+        description: |
+          Speed-to-Lead numerator. `timestamp_diff(first_outbound_touch_at, booked_at, minute)`.
+          Populated ONLY when `first_toucher_role = 'SDR'` — filtering is a reporting concern,
+          so `fct_outreach` carries all roles and the mart applies the SDR gate here.
+      - name: is_within_5_min_sla
+        description: |
+          True when `minutes_to_first_sdr_touch < 5` AND `first_toucher_role = 'SDR'`.
+          Null when the first toucher was not an SDR (distinguishes "missed SLA" from "SLA not applicable").
+      - name: had_any_sdr_activity_within_1_hr
+        description: |
+          DQ diagnostic. True when ANY user (not just SDR) touched the contact within 60 minutes of booking.
+          Helps separate "no SDR but another rep engaged" from "no activity at all".
+        tests:
+          - not_null
+
+      - name: closer_name
+        description: Closer on the opportunity that matches this booking (most recent opp on the contact).
+      - name: closer_role
+        description: Role of the closer (should resolve to `Closer` when mapped).
+      - name: close_outcome
+        description: Opportunity outcome at mart build time.
+        tests:
+          - accepted_values:
+              values: ['won', 'lost', 'pending']
+      - name: cycle_time_booking_to_close_min
+        description: |
+          Minutes from `booked_at` to opportunity `last_status_change_at` when `close_outcome = 'won'`.
+          Null for pending / lost.
+      - name: lost_reason
+        description: |
+          `lost_reason_id` from the matched opportunity. Human-readable reason text is not yet resolved —
+          a `dim_lost_reasons` is not in v1 scope.
+
+      - name: first_touch_campaign
+        description: First-touch UTM campaign (from `dim_contacts`).
+      - name: first_touch_source
+        description: First-touch UTM source.
+      - name: first_touch_medium
+        description: First-touch UTM medium.
+      - name: last_touch_campaign
+        description: Last-touch UTM campaign before booking.
+      - name: last_touch_source
+        description: Last-touch UTM source.
+      - name: last_touch_medium
+        description: Last-touch UTM medium.
+
+      - name: lead_source
+        description: Lead-source label, Typeform-derived where available.
+      - name: pipeline_name
+        description: GHL pipeline name (from `dim_pipeline_stages`).
+      - name: stage_name
+        description: GHL pipeline stage name at booking time.
+      - name: is_booked_stage
+        description: True when `stage_name` is in the booked-stage set (see `dim_pipeline_stages.is_booked_stage`).
+        tests:
+          - not_null
+      - name: days_since_stage_change
+        description: |
+          Days between `current_date()` and the matched opportunity's `last_stage_change_at`.
+          Approximate — bound to mart refresh time.
+
+      - name: attribution_quality_flag
+        description: |
+          DQ enum on every row — never null:
+            `clean`                    — SDR touched, UTM era, role known
+            `no_sdr_touch`             — no outbound touch recorded after booking
+            `role_unknown`             — first toucher role missing or 'unknown'
+            `pre_utm_era`              — contact predates UTM capture
+            `ambiguous_contact_match`  — reserved (bridge-level ambiguity; not yet populated)
         tests:
           - not_null
           - accepted_values:
@@ -341,3 +452,16 @@ models:
       - name: mart_refreshed_at
         description: `current_timestamp()` at build time — freshness marker.
         tests: [not_null]
+                - no_sdr_touch
+                - role_unknown
+                - pre_utm_era
+                - ambiguous_contact_match
+      - name: attribution_era
+        description: '`UTM` or `pre_UTM` — passed through from `dim_contacts`.'
+      - name: client
+        description: Client slug — passed through from `dim_contacts`. Enables multi-client reuse.
+
+      - name: mart_refreshed_at
+        description: '`current_timestamp()` at build. Lets BI tools show a freshness indicator.'
+        tests:
+          - not_null
