@@ -1,0 +1,81 @@
+version: 2
+
+models:
+  - name: stg_typeform__responses
+    description: >
+      1:1 staging view on `raw_typeform.response`. Deduped on `id` keeping the
+      latest `_fivetran_synced`. One row per Typeform submission.
+
+      This model ships the response **header** only (who, when, which form,
+      which UTMs). The 6 psychographic fields called out in the v1 scope
+      (`age`, `business_stage`, `investment_range`, `core_struggle`,
+      `emotional_goal_value`, `current_situation`) live in
+      `raw_typeform.response_answer` as EAV rows (keyed by
+      `response_id` + `field_id`). Pivoting them onto the response requires a
+      `field_id → field_label` mapping from the active Typeform config; that
+      pivot happens in the warehouse layer (`dim_contacts` or a dedicated
+      bridge), not in staging, per the 1:1-with-raw staging rule.
+
+      The invitee email for joining back to GHL contacts is one of those EAV
+      answers — same note applies.
+    columns:
+      - name: response_id
+        description: Typeform response id. Primary key.
+        tests:
+          - unique
+          - not_null
+
+      - name: form_id
+        description: Typeform form id the submission belongs to.
+        tests:
+          - not_null
+
+      - name: response_token
+        description: Typeform-issued response token (used in webhook payloads).
+
+      - name: response_type
+        description: '`completed` or `in_progress`.'
+
+      - name: landing_id
+        description: Internal Typeform landing id for the page visit.
+
+      - name: landed_at
+        description: UTC timestamp when the respondent first landed on the form.
+
+      - name: submitted_at
+        description: >
+          UTC timestamp when the form was submitted. Null when
+          `response_type = 'in_progress'`.
+
+      - name: staged_at
+        description: UTC timestamp Typeform staged the response on its side.
+
+      - name: hidden_utm_source
+        description: UTM source passed via Typeform hidden field (attribution).
+
+      - name: hidden_utm_medium
+        description: UTM medium passed via Typeform hidden field (attribution).
+
+      - name: hidden_utm_campaign
+        description: UTM campaign passed via Typeform hidden field (attribution).
+
+      - name: user_agent
+        description: Browser user-agent string at submission time.
+
+      - name: platform
+        description: Typeform-detected platform (e.g. `mobile`, `desktop`).
+
+      - name: referrer
+        description: HTTP referrer at form load.
+
+      - name: browser
+        description: Typeform-detected browser name.
+
+      - name: network_id
+        description: Typeform-internal network identifier.
+
+      - name: calculated_score
+        description: Typeform-calculated score for the response, when scoring is configured.
+
+      - name: _ingested_at
+        description: Wall-clock UTC time Fivetran last synced the underlying row.

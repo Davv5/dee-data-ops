@@ -1,0 +1,76 @@
+version: 2
+
+models:
+  - name: stg_calendly__events
+    description: >
+      1:1 staging view on `raw_calendly.event`. Deduped on `uri` keeping the
+      latest `_fivetran_synced`. One row per scheduled Calendly event.
+
+      Load-bearing for Speed-to-Lead: `booked_at` (Calendly's `created_at`,
+      the moment the invitee confirms the slot) is the **start clock** for
+      the metric — SDR first-touch time is measured against this timestamp.
+      `scheduled_for` is the actual meeting time.
+
+      Invitee-level fields (`email`, cancel_url, tracking UTMs) and custom
+      question answers (including any `self_reported_source` question) live
+      in `raw_calendly.event_invitee` and `raw_calendly.question_and_answer`
+      respectively — they are separate raw tables and per the 1:1-with-raw
+      staging rule they get their own staging models downstream. Those
+      models are not in scope for Track C; add them when a mart needs the
+      invitee join or the Q&A pivot.
+    columns:
+      - name: event_id
+        description: Full Calendly event URI. Primary key.
+        tests:
+          - unique
+          - not_null
+
+      - name: event_type_id
+        description: FK to the Calendly event-type URI the booking was made against.
+
+      - name: event_name
+        description: Event-type name as displayed to the invitee (e.g. "30 Minute Meeting").
+
+      - name: status
+        description: '`active` or `canceled`.'
+
+      - name: location_type
+        description: Meeting location type (e.g. `zoom`, `google_conference`, `physical`).
+
+      - name: scheduled_for
+        description: >
+          When the meeting is scheduled to start (UTC). This is the call time,
+          not the booking time.
+
+      - name: scheduled_until
+        description: When the meeting is scheduled to end (UTC).
+
+      - name: booked_at
+        description: >
+          When the booking was created in Calendly (from `created_at`). This is
+          the Speed-to-Lead **start clock** — first-touch latency is measured
+          from this timestamp.
+
+      - name: updated_at
+        description: When the event row was last touched in Calendly.
+
+      - name: cancel_reason
+        description: Free-text cancellation reason when `status = 'canceled'`.
+
+      - name: cancelled_by
+        description: URI of the user or invitee that cancelled, when applicable.
+
+      - name: cancelled_by_type
+        description: '`host` or `invitee`, when cancelled.'
+
+      - name: active_invitee_count
+        description: Number of invitees currently active (i.e. not cancelled) on the event.
+
+      - name: invitee_limit
+        description: Maximum invitees the event can hold (1 for 1:1 events).
+
+      - name: is_deleted
+        description: Fivetran soft-delete flag.
+
+      - name: _ingested_at
+        description: Wall-clock UTC time Fivetran last synced the underlying row.

@@ -11,6 +11,28 @@ Rolling log of what's been done on this project. Newest entries at the top. Tail
 
 ---
 
+## 2026-04-20 — Track C: non-GHL staging (Calendly / Typeform / Stripe + Fanbasis stub)
+
+**What happened**
+- Shipped 4 staging views on branch `Davv5/Track-C-Non-GHL-staging-models` (Orca worktree at `/Users/david/orca/workspaces/data ops/Track-C-Non-GHL-staging-models`): `stg_calendly__events` (5406 rows), `stg_typeform__responses` (22198 rows), `stg_stripe__charges` (3375 rows), `stg_stripe__customers` (516 rows). Same 4-CTE pattern as GHL staging (source → deduped on `_fivetran_synced` via `qualify row_number()` → parsed → final). All 4 PKs pass `unique` + `not_null`
+- Declared 3 Fivetran sources (`raw_calendly`, `raw_typeform`, `raw_stripe`) with freshness blocks (25h/48h warn/error on Calendly + Typeform; warn-only 48h on Stripe per the known zero-row caveat). All 7 declared source tables PASS freshness
+- `dbt build --target dev --select staging.calendly staging.typeform staging.stripe` green — PASS=21 WARN=0 ERROR=0
+- Scaffolded Fanbasis placeholder: `dbt/models/staging/fanbasis/.gitkeep` + `_fanbasis__sources.yml` with empty `tables: []` and a prominent header comment noting the Week-0 credentials blocker
+
+**Decisions**
+- **Staging stays strictly 1:1 with raw — no joins across Fivetran tables.** *Why:* the CLAUDE.md staging rule is "1:1 view with raw, NO joins in staging"; the prompt's ask for `invitee_email` (in `raw_calendly.event_invitee`), Q&A (`raw_calendly.question_and_answer`), and the 6 Typeform psychographic fields (EAV in `raw_typeform.response_answer`) would all require joins. Documented the joins as downstream (warehouse / bridge) work in each model-level description. Invitee + Q&A + psychographic-pivot staging models land when the first mart needs them
+- **Stripe zero-row gap from 2026-04-19 has partially resolved.** `charge` now 3375 / `customer` now 516; the 2026-04-19 CLAUDE.local.md note claimed zero on both. Still flagged as "Fivetran ↔ Dashboard reconcile owed before revenue marts depend on these figures" in `stg_stripe__charges` model description, but the structural ship is now backed by real data
+- **Amounts preserved in minor units (`amount_minor`, `balance_minor`).** *Why:* Stripe's API contract is minor units; dividing by 100 at staging would hard-code USD assumption and lose fidelity for multi-currency. Conversion to major units happens in a fact model
+- **Calendly `booked_at` maps to `event.created_at`, not `start_time`.** *Why:* `booked_at` is the Speed-to-Lead *start clock* (moment invitee confirms the slot); `start_time` is the actual meeting time, aliased to `scheduled_for` instead
+- **Deduped on `_fivetran_synced` even though Fivetran upserts.** *Why:* idempotent + mirrors GHL-staging CTE shape; no behavioral cost
+
+**Open threads**
+- Downstream bridges owed: (a) `stg_calendly__event_invitees` to surface `invitee_email` and tracking UTMs; (b) `stg_calendly__question_and_answers` + pivot to surface `self_reported_source`; (c) Typeform psychographic-pivot (needs `field_id → label` mapping from the active form config). None block Track C.
+- Stripe Fivetran ↔ Dashboard reconcile still owed — `charge` / `customer` aren't empty but completeness vs. Stripe source-of-truth unverified
+- Fanbasis: still waiting on Week-0 API docs + credentials
+
+---
+
 ## 2026-04-20 — Track B: oracle validation seeds + roster-update proposal
 
 **What happened**

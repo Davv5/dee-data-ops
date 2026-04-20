@@ -1,0 +1,42 @@
+version: 2
+
+sources:
+  - name: raw_typeform
+    description: >
+      Raw landing zone for Typeform, populated by the Fivetran Typeform
+      connector (daily sync). `response` is the header table (one row per
+      form submission); `response_answer` holds the answers in EAV form keyed
+      by `response_id` + `field_id`. Per the 1:1-with-raw staging rule, each
+      raw table gets its own staging view — psychographic-field pivoting
+      (age / business_stage / investment_range / core_struggle /
+      emotional_goal_value / current_situation) happens downstream in the
+      warehouse layer, not here.
+    database: dee-data-ops
+    schema: raw_typeform
+    config:
+      loaded_at_field: _fivetran_synced
+      freshness:
+        warn_after: {count: 25, period: hour}
+        error_after: {count: 48, period: hour}
+    tables:
+      - name: response
+        description: >
+          One row per Typeform submission. Funnel-attribution source —
+          `hidden_utm_*` carry the ad source when present. ~22K rows.
+        columns:
+          - name: id
+            description: Typeform response id. Primary key of the source record.
+            tests:
+              - not_null
+          - name: _fivetran_synced
+            description: Wall-clock UTC time Fivetran last synced this row.
+            tests:
+              - not_null
+
+      - name: response_answer
+        description: >
+          EAV — one row per answered field per response. Keyed by
+          `response_id` + `field_id`. Psychographic-field extraction for
+          `dim_contacts` happens downstream (pivot on `field_id` → column).
+          Staging model deferred; the pivot needs a `field_id` →
+          `field_label` mapping that depends on the Typeform form config.
