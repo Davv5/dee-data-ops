@@ -355,3 +355,133 @@ models:
 
       - name: _ingested_at
         description: Wall-clock UTC time the underlying raw row was written into BigQuery.
+
+  - name: stg_ghl__messages
+    description: >
+      1:1 staging view on `raw_ghl.messages`. Deduped on `id` keeping the
+      latest `_ingested_at`. Flattens the JSON payload into typed scalar
+      columns; `body` (the free-text message content) is deliberately dropped
+      — it's not needed for the metric and keeping raw PII out of staging is
+      the right default.
+
+      This is the load-bearing numerator source for Speed-to-Lead. Unlike
+      `stg_ghl__conversations.assigned_user_id` (populated on ~1% of rows),
+      `user_id` here is populated per-message — so first-outbound-human-touch
+      attribution against the SDR roster runs cleanly off this table.
+
+      Metric-relevant filter combo for "human SDR touch":
+        - `direction = 'outbound'`
+        - `message_type in ('TYPE_CALL','TYPE_SMS')`
+        - `message_source` IS NULL (human) rather than `'workflow'` / `'api'` (automation)
+        - `user_id` present and mapped to role='sdr' in the ghl_sdr_roster seed
+    columns:
+      - name: message_id
+        description: GHL message id. Primary key.
+        tests:
+          - unique
+          - not_null
+
+      - name: conversation_id
+        description: GHL conversation this message belongs to. FK → stg_ghl__conversations.
+        tests:
+          - not_null
+
+      - name: contact_id
+        description: GHL contact this message belongs to. FK → stg_ghl__contacts.
+        tests:
+          - not_null
+
+      - name: user_id
+        description: >
+          GHL user who sent the message (for outbound) or null (for inbound /
+          system). FK → stg_ghl__users. This is the per-touch SDR attribution
+          field — load-bearing for the Speed-to-Lead numerator.
+
+      - name: location_id
+        description: GHL location (tenant) id. Single-tenant at D-DEE.
+
+      - name: message_type
+        description: >
+          String message type — `TYPE_CALL`, `TYPE_SMS`, `TYPE_EMAIL`,
+          `TYPE_PHONE_CALL`, etc. The Speed-to-Lead metric counts only
+          `TYPE_CALL` and `TYPE_SMS` per the locked scope.
+
+      - name: direction
+        description: '`inbound` or `outbound`. Outbound required for the metric numerator.'
+
+      - name: status
+        description: GHL-internal delivery status (`sent`, `delivered`, `failed`, `read`, etc.).
+
+      - name: message_source
+        description: >
+          Origin of the message. `workflow` / `api` = automation,
+          null / `app` = human-originated. The primary human-vs-automation
+          lever at message level — mirrors the `last_outbound_action` logic
+          on `stg_ghl__conversations` but at per-touch granularity.
+
+      - name: content_type
+        description: MIME type of the message body (`text/plain`, etc.). Informational only.
+
+      - name: type_code
+        description: >
+          Numeric message type code as stored by GHL (`type` field). Redundant
+          with `message_type` (string) but kept for lineage parity with the raw
+          payload.
+
+      - name: sent_at
+        description: >
+          When the message was sent/received. Parsed from the ISO-8601
+          `dateAdded` field (note: unlike conversations, messages use ISO
+          strings rather than epoch-millis). This is the timestamp used in
+          the Speed-to-Lead numerator when comparing against the booking event.
+        tests:
+          - not_null
+
+      - name: _ingested_at
+        description: Wall-clock UTC time the underlying raw row was written into BigQuery.
+
+  - name: stg_ghl__pipelines
+    description: >
+      1:1 staging view on `raw_ghl.pipelines`. Deduped on `id` keeping the
+      latest `_ingested_at`. Flattens pipeline-level scalars (name, location,
+      funnel-visibility flags); the nested `stages` array is preserved as a
+      JSON value (`stages_json`) — unnesting into one-row-per-stage happens
+      downstream (likely `dim_pipeline_stage` in warehouse).
+
+      Two loads this table carries:
+        - Resolves opaque `pipeline_stage_id` on `stg_ghl__opportunities` into
+          human-readable stage names → required to identify the "booked"
+          stage for the Speed-to-Lead metric denominator.
+        - Source for the lead-magnet-performance panel (each D-DEE pipeline
+          corresponds to one lead-magnet funnel; per-pipeline conversion
+          metrics read from here).
+    columns:
+      - name: pipeline_id
+        description: GHL pipeline id. Primary key.
+        tests:
+          - unique
+          - not_null
+
+      - name: pipeline_name
+        description: Display name of the pipeline (e.g. "Lead Magnet — SMS Marketing"). At D-DEE each pipeline ≈ one lead-magnet funnel.
+        tests:
+          - not_null
+
+      - name: location_id
+        description: GHL location (tenant) id. Single-tenant at D-DEE.
+
+      - name: show_in_funnel
+        description: GHL display flag — whether this pipeline appears in the funnel view. Informational only.
+
+      - name: show_in_pie_chart
+        description: GHL display flag — whether this pipeline appears in the pie-chart view. Informational only.
+
+      - name: stages_json
+        description: >
+          Raw JSON array of pipeline stages (each stage is an object with
+          id/name/position/originId). Kept as JSON at staging — unnested into
+          tabular form by a downstream stage dimension. Use `JSON_QUERY_ARRAY` /
+          `UNNEST` to explode.
+
+      - name: _ingested_at
+        description: Wall-clock UTC time the underlying raw row was written into BigQuery.
