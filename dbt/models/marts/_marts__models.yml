@@ -1,467 +1,66 @@
 version: 2
 
 models:
-  - name: revenue_detail
-    description: |
-      {{ doc("revenue_detail") }}
-    columns:
-      - name: payment_id
-        description: |
-          Source-system payment identifier (Stripe charge_id or Fanbasis
-          equivalent). Primary key of the mart — every payment appears exactly
-          once, including unmatched payments.
-  - name: lead_journey
-    description: >
-      Contact-grain "golden lead" surface — one row per GHL contact
-      whether the lead ever booked a call or not. Powers Page 2 of
-      the D-DEE dashboard (funnel, attribution, psychographics,
-      lost-reason, applicant → booker conversion). Widest mart in the
-      project. See `_marts__docs.md` for column-level documentation
-      and placeholder inventory.
 
-      **Placeholders:** several columns ship as typed NULLs today
-      because their upstream pivot / bridge hasn't landed yet
-      (applications, lead magnets, psychographics, self-reported
-      source, engagement score, multi-touch first-vs-last). The
-      schema contract stays stable; the join fills in when upstream
-      ships. The release-gate applicant assertion documents the
-      dependency and will fail until the Typeform-answers pivot lands.
-
-      **Coordination:** this file will be extended by Tracks F
-      (`sales_activity_detail`) and M (`revenue_detail`) at merge.
-      Do not rewrite — add new `- name:` entries under `models:`.
-    columns:
-      - name: contact_id
-        description: Primary key — GHL contact_id, 1:1 with `dim_contacts`.
   - name: sales_activity_detail
     description: |
-      {{ doc("sales_activity_detail") }}
+      Booked-call grain Speed-to-Lead mart. One row per Calendly booking event (~3,141 rows vs oracle).
+      Powers Page 1 of the D-DEE dashboard. See `_marts__docs.md` for full column documentation.
     columns:
       - name: booking_id
-        description: Primary key. Surrogate from `fct_calls_booked.booking_sk`.
+        description: Primary key — surrogate from `fct_calls_booked.booking_sk`.
         tests:
           - unique
           - not_null
+      - name: attribution_quality_flag
+        tests:
+          - accepted_values:
+              values: ['clean', 'no_sdr_touch', 'ambiguous_contact_match', 'pre_utm_era', 'role_unknown']
 
+  - name: lead_journey
+    description: |
+      Contact grain "golden lead" mart — one row per GHL contact whether booked or not (~15,598 rows vs oracle).
+      Widest mart in the project. Powers Page 2 of the dashboard (funnel, attribution, psychographic,
+      applicant→booker conversion, lost-reason, multi-touch). See `_marts__docs.md` for column documentation.
+    columns:
+      - name: contact_id
+        description: Primary key — GHL contact_id, 1:1 with `dim_contacts`.
+        tests:
+          - unique
+          - not_null
+      - name: attribution_quality_flag
+        tests:
+          - accepted_values:
+              values: ['clean', 'no_sdr_touch', 'ambiguous_contact_match', 'pre_utm_era', 'role_unknown']
+
+  - name: revenue_detail
+    description: |
+      Payment grain mart — one row per Stripe/Fanbasis payment event (~1,423 rows vs oracle).
+      Unmatched rows stay visible (not quarantined) so the Page 3 unmatched-revenue tile stays honest.
+      See `_marts__docs.md` for column documentation.
+    columns:
+      - name: payment_id
+        description: Primary key — source-system identifier (Stripe charge_id or Fanbasis equivalent).
+        tests:
+          - unique
+          - not_null
       - name: source_platform
         description: Payment processor — `stripe` or `fanbasis`.
         tests:
           - not_null
           - accepted_values:
               values: ['stripe', 'fanbasis']
-
-      - name: transaction_date
-        description: Timestamp the payment was captured, in UTC.
-        tests:
-          - not_null
-
-      - name: gross_amount
-        description: Gross payment amount before fees/refunds, in `currency`.
-
-      - name: net_amount
-        description: |
-          Net payment amount after processor fees/refunds, in `currency`. This
-          is the column summed for revenue parity against the oracle.
-        tests:
-          - not_null
-
-      - name: currency
-        description: ISO-4217 currency code (uppercase).
-        tests:
-          - not_null
-
-      - name: product
-        description: Product / offer name if the payment carries it; nullable.
-
-      - name: contact_sk
-        description: |
-          Surrogate key into `dim_contacts`. NULL when the payment could not
-          be matched to a contact — those rows stay in the mart so the
-          unmatched-revenue tile on Page 3 of the dashboard is honest.
-
-      - name: contact_email_if_matched
-        description: |
-          Email from `dim_contacts` for matched payments. NULL for unmatched.
-
       - name: match_method
-        description: |
-          How the payment was linked to a contact. Enum:
-          `email_exact | email_canonical | phone_last10 |
-          billing_email_direct | unmatched`.
+        description: Identity-bridge tier used to link this payment to a contact (or `unmatched`).
         tests:
-          - not_null
           - accepted_values:
-              values:
-                - email_exact
-                - email_canonical
-                - phone_last10
-                - billing_email_direct
-                - unmatched
-
-      - name: match_score
-        description: |
-          Confidence score from the identity bridge, 0.0–1.0. 1.0 is exact
-          match; unmatched rows carry 0.0.
-
-      - name: match_status
-        description: |
-          Bridge-level status carried through from
-          `bridge_identity_contact_payment`. Enum:
-          `matched | ambiguous_multi_candidate | unmatched`.
+              values: ['email_exact', 'email_canonical', 'phone_last10', 'billing_email_direct', 'unmatched']
+      - name: bridge_status
+        description: Overall bridge outcome.
         tests:
-          - not_null
           - accepted_values:
-              values:
-                - matched
-                - ambiguous_multi_candidate
-                - unmatched
-
-      - name: payment_method
-        description: |
-          Payment method from the processor (e.g. `card`, `us_bank_account`).
-
-      - name: card_issue_country
-        description: |
-          ISO-3166 country the payment card was issued in. Nullable for
-          non-card payment methods and for payments where the processor did
-          not return a country.
-
-      - name: is_international_card
-        description: |
-          Boolean: true when `card_issue_country` is populated and not `US`.
-          NULL when the country is unknown — explicit three-valued logic so
-          downstream consumers don't accidentally bucket unknown as
-          domestic.
-
-      - name: first_touch_campaign
-        description: |
-          First-touch campaign from `dim_contacts`. Only populated for
-          payments matched to a contact.
-
-      - name: first_touch_source
-        description: First-touch marketing source; matched payments only.
-
-      - name: first_touch_medium
-        description: First-touch marketing medium; matched payments only.
-
-      - name: last_touch_campaign
-        description: Last-touch campaign; matched payments only.
-
-      - name: last_touch_source
-        description: Last-touch marketing source; matched payments only.
-
-      - name: lead_magnet_first_engaged
-        description: |
-          First lead magnet the contact engaged with, from `dim_contacts`.
-          Matched payments only.
-
-      - name: closer_name
-        description: |
-          Latest Closer assigned to the contact (resolved via most recently
-          updated opportunity). NULL when the contact has no Closer-role
-          opportunity yet.
-
-      - name: closer_role
-        description: |
-          User role from `dim_users`. Constrained to `Closer` in the join —
-          present when `closer_name` is present.
-
+              values: ['matched', 'ambiguous_multi_candidate', 'unmatched']
       - name: attribution_quality_flag
-        description: |
-          DQ bucket for the payment. Enum:
-          `clean | unmatched | ambiguous_contact_match | role_unknown`.
-          Every row lands in exactly one bucket.
-      - name: contact_id
-        description: Natural-key GHL contact_id (from `dim_contacts`) for lookups and joins to other marts.
-        tests:
-          - not_null
-
-      - name: email
-        description: Contact email (from `dim_contacts`).
-      - name: full_name
-        description: Contact display name (from `dim_contacts`).
-
-      - name: booked_at
-        description: UTC timestamp — moment the invitee confirmed the Calendly slot. Speed-to-Lead start clock.
-        tests:
-          - not_null
-      - name: scheduled_for
-        description: UTC timestamp — actual meeting start time.
-      - name: event_status
-        description: Calendly event status (`scheduled`, `cancelled`, ...).
-      - name: cancelled_at
-        description: UTC timestamp when the booking was cancelled; null for active bookings.
-
-      - name: assigned_user_name
-        description: Name of the GHL-assigned user on the opportunity at booking time.
-      - name: assigned_user_role
-        description: Role of the assigned user (`SDR | Setter | Triager | DM_Setter | Closer | Owner`).
-
-      - name: first_toucher_name
-        description: User who made the first outbound touch after booking.
-      - name: first_toucher_role
-        description: Role of the first toucher. Gates Speed-to-Lead columns — non-SDR touches leave those null.
-      - name: first_outbound_touch_at
-        description: UTC timestamp of the first outbound touch >= booked_at.
-      - name: first_touch_channel
-        description: Channel of the first outbound touch (`call | sms`).
-
-      - name: minutes_to_first_sdr_touch
-        description: |
-          Speed-to-Lead numerator. `timestamp_diff(first_outbound_touch_at, booked_at, minute)`.
-          Populated ONLY when `first_toucher_role = 'SDR'` — filtering is a reporting concern,
-          so `fct_outreach` carries all roles and the mart applies the SDR gate here.
-      - name: is_within_5_min_sla
-        description: |
-          True when `minutes_to_first_sdr_touch < 5` AND `first_toucher_role = 'SDR'`.
-          Null when the first toucher was not an SDR (distinguishes "missed SLA" from "SLA not applicable").
-      - name: had_any_sdr_activity_within_1_hr
-        description: |
-          DQ diagnostic. True when ANY user (not just SDR) touched the contact within 60 minutes of booking.
-          Helps separate "no SDR but another rep engaged" from "no activity at all".
-        tests:
-          - not_null
-
-      - name: closer_name
-        description: Closer on the opportunity that matches this booking (most recent opp on the contact).
-      - name: closer_role
-        description: Role of the closer (should resolve to `Closer` when mapped).
-      - name: close_outcome
-        description: Opportunity outcome at mart build time.
         tests:
           - accepted_values:
-              values: ['won', 'lost', 'pending']
-      - name: cycle_time_booking_to_close_min
-        description: |
-          Minutes from `booked_at` to opportunity `last_status_change_at` when `close_outcome = 'won'`.
-          Null for pending / lost.
-      - name: lost_reason
-        description: |
-          `lost_reason_id` from the matched opportunity. Human-readable reason text is not yet resolved —
-          a `dim_lost_reasons` is not in v1 scope.
-
-      - name: first_touch_campaign
-        description: First-touch UTM campaign (from `dim_contacts`).
-      - name: first_touch_source
-        description: First-touch UTM source.
-      - name: first_touch_medium
-        description: First-touch UTM medium.
-      - name: last_touch_campaign
-        description: Last-touch UTM campaign before booking.
-      - name: last_touch_source
-        description: Last-touch UTM source.
-      - name: last_touch_medium
-        description: Last-touch UTM medium.
-
-      - name: lead_source
-        description: Lead-source label, Typeform-derived where available.
-      - name: pipeline_name
-        description: GHL pipeline name (from `dim_pipeline_stages`).
-      - name: stage_name
-        description: GHL pipeline stage name at booking time.
-      - name: is_booked_stage
-        description: True when `stage_name` is in the booked-stage set (see `dim_pipeline_stages.is_booked_stage`).
-        tests:
-          - not_null
-      - name: days_since_stage_change
-        description: |
-          Days between `current_date()` and the matched opportunity's `last_stage_change_at`.
-          Approximate — bound to mart refresh time.
-
-      - name: attribution_quality_flag
-        description: |
-          DQ enum on every row — never null:
-            `clean`                    — SDR touched, UTM era, role known
-            `no_sdr_touch`             — no outbound touch recorded after booking
-            `role_unknown`             — first toucher role missing or 'unknown'
-            `pre_utm_era`              — contact predates UTM capture
-            `ambiguous_contact_match`  — reserved (bridge-level ambiguity; not yet populated)
-        tests:
-          - not_null
-          - accepted_values:
-              values:
-                - clean
-                - unmatched
-                - ambiguous_contact_match
-                - role_unknown
-
-      - name: mart_refreshed_at
-        description: Timestamp the mart was last materialized, in UTC.
-        tests:
-          - not_null
-      - name: email_canonical
-        description: Lowercased / trimmed email (from `dim_contacts.email_norm`).
-
-      - name: full_name
-        description: Display name from GHL (`dim_contacts.contact_name`).
-
-      - name: client
-        description: Client / tenant label. Literal `D-DEE` in v1 single-tenant.
-        tests:
-          - not_null
-          - accepted_values:
-              values: ['D-DEE']
-
-      - name: opt_in_date
-        description: First-contact timestamp (`dim_contacts.contact_created_at`).
-
-      - name: tracking_era
-        description: >
-          `utm` vs `pre_utm` bucket — derived from `dim_contacts.
-          attribution_era`. Drives era-aware dashboard joins.
-        tests:
-          - not_null
-          - accepted_values:
-              values: ['utm', 'pre_utm']
-
-      - name: application_submitted
-        description: >
-          Placeholder (NULL today) — Typeform-answers pivot owed.
-          True when the contact submitted the application Typeform.
-      - name: application_date
-        description: Placeholder (NULL today) — Typeform submission timestamp.
-      - name: lead_magnet_first_engaged
-        description: Placeholder (NULL today) — GHL-tag pivot owed.
-      - name: lead_magnet_history
-        description: Placeholder (NULL today) — CSV of all magnets engaged.
-
-      - name: bookings_count
-        description: >
-          Count of Calendly booking events matched to the contact
-          via `fct_calls_booked.contact_sk`. Reports 0 until the
-          Calendly-invitee staging (Track C open thread) lands.
-        tests:
-          - not_null
-      - name: latest_booking_at
-        description: Most recent booking timestamp; NULL when no bookings.
-      - name: showed_calls_count
-        description: >
-          Count of bookings whose `event_status` is neither
-          `canceled` nor `no_show`.
-        tests: [not_null]
-      - name: cancelled_bookings_count
-        description: Count of bookings with `event_status = canceled`.
-        tests: [not_null]
-      - name: application_to_booker_flag
-        description: >
-          True when the contact both submitted an application AND
-          booked at least one call. NULL today (depends on the
-          application-submitted placeholder).
-
-      - name: current_pipeline_name
-        description: Pipeline name of the contact's latest opportunity.
-      - name: current_stage_name
-        description: Stage name of the contact's latest opportunity.
-      - name: is_booked_stage
-        description: >
-          `dim_pipeline_stages.is_booked_stage` for the latest
-          opportunity's stage. False when the contact has no
-          opportunity or the stage doesn't match the booked rule.
-        tests: [not_null]
-      - name: is_closed_stage
-        description: True when opportunity status is `won` / `closed_won`.
-        tests: [not_null]
-      - name: days_since_stage_change
-        description: >
-          Days between `current_date` and the opportunity's
-          `last_stage_change_at`. NULL when the contact has no
-          opportunity.
-      - name: engagement_score
-        description: >
-          Placeholder (NULL today) — not surfaced on the GHL
-          opportunity endpoint in v1.
-
-      - name: closed_won_flag
-        description: Same rule as `is_closed_stage`, kept for contract clarity.
-        tests: [not_null]
-      - name: lost_reason
-        description: >
-          `lost_reason_id` from the latest opportunity. Raw id
-          today — resolution to display text is owed.
-      - name: has_any_payment_flag
-        description: True when any `fct_revenue` row matched this contact.
-        tests: [not_null]
-      - name: first_payment_at
-        description: Earliest payment transaction timestamp.
-      - name: latest_payment_at
-        description: Most recent payment transaction timestamp.
-      - name: total_net_revenue
-        description: >
-          Sum of `fct_revenue.net_amount`. Defaults to 0 when no
-          payments matched. Face-value across currencies (multi-
-          currency handling is a mart-consumer concern).
-        tests: [not_null]
-
-      - name: first_touch_campaign
-        description: >
-          First touch UTM campaign. Mirrors the single UTM trio on
-          `dim_contacts` today; widens when the multi-touch bridge
-          ships.
-      - name: first_touch_source
-      - name: first_touch_medium
-      - name: last_touch_campaign
-      - name: last_touch_source
-      - name: last_touch_medium
-      - name: first_vs_last_touch_campaign_match
-        description: >
-          Trivially true today (single-touch). Will become a real
-          signal when multi-touch attribution lands.
-        tests: [not_null]
-
-      - name: self_reported_source
-        description: Placeholder (NULL today) — Calendly Q&A staging owed.
-      - name: self_reported_vs_utm_match
-        description: Placeholder (NULL today) — cross-check of Q&A vs UTM.
-
-      - name: age
-        description: Placeholder (NULL today) — Typeform pivot owed.
-      - name: business_stage
-      - name: investment_range
-      - name: core_struggle
-      - name: emotional_goal_value
-      - name: current_situation
-
-      - name: assigned_sdr_name
-        description: >
-          SDR who touched the contact most often (role = `sdr` in
-          `dim_users`). NULL when no SDR touch exists.
-      - name: assigned_closer_name
-        description: >
-          Closer assigned to the latest opportunity (role = `ae`
-          in `dim_users`). NULL when the opportunity's
-          `assigned_user_id` isn't an AE in the roster.
-      - name: number_of_dials
-        description: >
-          Count of `fct_outreach` rows with `channel = call` for
-          this contact.
-        tests: [not_null]
-
-      - name: attribution_quality_flag
-        description: >
-          DQ bucket. Values:
-          `clean` — every signal present and consistent;
-          `pre_utm_era` — contact lands in pre-UTM era;
-          `no_sdr_touch` — booker with no SDR attributed.
-        tests:
-          - not_null
-          - accepted_values:
-              values: ['clean', 'pre_utm_era', 'no_sdr_touch']
-      - name: attribution_era
-        description: Raw `dim_contacts.attribution_era` for downstream grouping.
-        tests: [not_null]
-      - name: mart_refreshed_at
-        description: `current_timestamp()` at build time — freshness marker.
-        tests: [not_null]
-                - no_sdr_touch
-                - role_unknown
-                - pre_utm_era
-                - ambiguous_contact_match
-      - name: attribution_era
-        description: '`UTM` or `pre_UTM` — passed through from `dim_contacts`.'
-      - name: client
-        description: Client slug — passed through from `dim_contacts`. Enables multi-client reuse.
-
-      - name: mart_refreshed_at
-        description: '`current_timestamp()` at build. Lets BI tools show a freshness indicator.'
-        tests:
-          - not_null
+              values: ['clean', 'unmatched', 'ambiguous_contact_match', 'role_unknown']
