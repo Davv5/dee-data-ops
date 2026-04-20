@@ -11,6 +11,33 @@ Rolling log of what's been done on this project. Newest entries at the top. Tail
 
 ---
 
+## 2026-04-20 — Track J: Secret Manager migration + PR template + hosted dbt docs
+
+**What happened**
+- Branch `Davv5/Track-J-Secret-Manager-migration-PR-template-hosted-dbt-docs` (Orca worktree `/Users/david/orca/workspaces/data ops/Track-J-Secret-Manager-migration-PR-template-hosted-dbt-docs`)
+- **J1 (Secret Manager):** `ingestion/ghl/extract.py` now resolves `GHL_API_KEY` + `GHL_LOCATION_ID` via a `_load_secret()` helper — when `GCP_SECRET_MANAGER_PROJECT` is set, it fetches from GCP Secret Manager (`ghl-api-key`, `ghl-location-id`); otherwise falls back to `os.environ` for local `.env`-driven dev. `google-cloud-secret-manager==2.20.2` pinned in `ingestion/ghl/requirements.txt`. `.github/workflows/ingest.yml` drops the `GHL_API_KEY`/`GHL_LOCATION_ID` env pass-through, sets `GCP_SECRET_MANAGER_PROJECT=dee-data-ops-prod`, leaves `GCP_SA_KEY` as the only GH secret the GHL path depends on. `.env.example` rewritten to document both paths
+- **J2 (PR template):** `.github/pull_request_template.md` created with all 5 required sections (Summary / Tests / Mart impact / Validation evidence / Cost note) + DataOps checklist + Co-Authored-By line
+- **J3 (hosted docs):** `.github/workflows/dbt-docs.yml` — on push to `main` touching `dbt/**`, builds `dbt docs generate --target prod` and publishes `dbt/target/` to the `gh-pages` branch via `peaceiris/actions-gh-pages@v4`. Top-level `README.md` created (did not exist pre-track) with a `## Docs` section linking to `https://davv5.github.io/dee-data-ops/`
+- Local verification all green: both workflow YAMLs parse; PR template section count = 5; `extract.py` parses via `ast`
+
+**Decisions**
+- **`GCP_SECRET_MANAGER_PROJECT` as the activation flag, not `USE_SECRET_MANAGER=1`.** *Why:* the project-id *is* the routing target — a single env var captures both "use SM" and "which project" with no redundancy; local dev leaves it unset so .env continues to work unchanged
+- **`google-cloud-secret-manager` imported lazily inside `_load_secret`.** *Why:* keeps local dev a pure env-var flow without requiring the SM SDK to be installed, even when the pinned requirement is; import only happens on the first CI-path resolution
+- **Fanbasis `FANBASIS_API_KEY` stays on GitHub Secrets for now.** *Why:* Track J's charter scoped the rotation to the **exposed GHL PIT** (CLAUDE.local.md 2026-04-19 note); fanbasis is week-0-deferred per `.claude/rules/ingest.md`, migrate its secret when the extractor is actually wired
+- **`dbt-docs.yml` uses a prod-read-only SA (`GCP_SA_KEY_PROD`)**, distinct from the ingest SA. *Why:* docs generation only compiles manifest + catalog via information_schema reads; separation of duties — the docs job never needs write grants on any dataset
+
+**Open threads (manual steps David must perform in-session)**
+1. GHL → Settings → Private Integrations → regenerate the exposed PIT
+2. `gcloud secrets create ghl-api-key --project=dee-data-ops-prod --replication-policy=automatic` then `printf "%s" "<new-pit>" | gcloud secrets versions add ghl-api-key --project=dee-data-ops-prod --data-file=-`
+3. `gcloud secrets create ghl-location-id --project=dee-data-ops-prod --replication-policy=automatic` then `printf "%s" "yDDvavWJesa03Cv3wKjt" | gcloud secrets versions add ghl-location-id --project=dee-data-ops-prod --data-file=-`
+4. Grant `roles/secretmanager.secretAccessor` to the GH Actions SA on both secrets
+5. Delete `GHL_API_KEY` + `GHL_LOCATION_ID` from GH repo Secrets (leave `GCP_SA_KEY`); add `GCP_SA_KEY_PROD` if not already present for the docs workflow
+6. `gh workflow run ingest.yml --ref Davv5/Track-J-Secret-Manager-migration-PR-template-hosted-dbt-docs` to confirm the post-migration path runs green; rollback path is re-adding the two GH Secrets as a temporary fallback
+7. Enable GitHub Pages on the repo with source = `gh-pages` branch, root `/`
+- GHL PIT rotation confirmation: pending David's step 1 above; worklog will be re-dated if rotation slips past 2026-04-20
+
+---
+
 ## 2026-04-20 — Track G: dbt CI/CD workflows (dbt-ci + dbt-deploy + dbt-nightly)
 
 **What happened**
