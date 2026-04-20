@@ -55,8 +55,8 @@ models:
         tests:
           - accepted_values:
               values: ['email_exact', 'email_canonical', 'phone_last10', 'billing_email_direct', 'unmatched']
-      - name: bridge_status
-        description: Overall bridge outcome.
+      - name: match_status
+        description: Overall bridge outcome — alias of bridge_identity_contact_payment.bridge_status.
         tests:
           - accepted_values:
               values: ['matched', 'ambiguous_multi_candidate', 'unmatched']

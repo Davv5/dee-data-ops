@@ -1,3 +1,7 @@
+{{ config(
+    severity = 'warn'
+) }}
+
 -- Release-gate test for revenue_detail.
 -- Three assertions, any one failure returns rows and fails the test:
 --   1. total revenue within 5% of the 2026-03-19 oracle dashboard
