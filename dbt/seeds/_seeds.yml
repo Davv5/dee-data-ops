@@ -1,0 +1,34 @@
+version: 2
+
+seeds:
+  - name: ghl_sdr_roster
+    description: >
+      Human-maintained roster of GHL users with SDR/AE role assignments. GHL's
+      built-in `role` and `type` fields are account/agency + user/admin (agency
+      hierarchy), which is orthogonal to the SDR/AE distinction the Speed-to-Lead
+      metric needs. This seed is the source of truth for who counts as an SDR
+      when attributing first-touch on a booking.
+
+      Valid `role` values: `sdr`, `ae`, `unknown`. All 16 users start as
+      `unknown`; update as David confirms each person's role on the D-DEE floor.
+      The metric numerator (first outbound human SDR touch) will return 0 until
+      at least some users are marked `sdr`.
+    config:
+      column_types:
+        user_id: string
+        first_name: string
+        last_name: string
+        email: string
+        role: string
+    columns:
+      - name: user_id
+        description: GHL user id — joins to raw_ghl.users.id / conversations.assignedTo / messages.userId.
+        tests:
+          - unique
+          - not_null
+      - name: role
+        description: SDR / AE / unknown. Drives the metric numerator.
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['sdr', 'ae', 'unknown']

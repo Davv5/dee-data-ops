@@ -34,3 +34,9 @@ models:
     marts:
       +materialized: table
       +schema: marts
+
+seeds:
+  dee_data_ops:
+    +schema: staging
+    ghl_sdr_roster:
+      +quote_columns: false
