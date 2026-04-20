@@ -24,16 +24,20 @@ bridge as (
 
 contacts as (
 
+    -- dim_contacts doesn't expose multi-touch + lead-magnet columns yet
+    -- (Track E ships single-touch utm_* only). NULL-stub them to keep the
+    -- mart's column contract stable; Page 3 revenue-by-campaign tiles
+    -- render empty until upstream enrichment lands.
     select
         contact_sk,
         contact_id,
-        email                       as contact_email,
-        first_touch_campaign,
-        first_touch_source,
-        first_touch_medium,
-        last_touch_campaign,
-        last_touch_source,
-        lead_magnet_first_engaged
+        email                                 as contact_email,
+        cast(null as string)                  as first_touch_campaign,
+        cast(null as string)                  as first_touch_source,
+        cast(null as string)                  as first_touch_medium,
+        cast(null as string)                  as last_touch_campaign,
+        cast(null as string)                  as last_touch_source,
+        cast(null as string)                  as lead_magnet_first_engaged
     from {{ ref('dim_contacts') }}
 
 ),
