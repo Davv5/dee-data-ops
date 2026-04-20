@@ -1,0 +1,113 @@
+# dbt CI — build + test every PR to main in an isolated per-PR schema.
+#
+# Pattern (grounded in Data Ops notebook, "DBT Project Environment Setup"
+# and the Modern Data Community CI workflow video): a PR opens → we
+# provision a fresh BigQuery dataset `ci_pr_<num>` → dbt builds into it
+# via the `ci` target → on PR close (merged or not) we drop the dataset.
+# generate_schema_name.sql consolidates all layers into the target's
+# default schema when target.name != 'prod', so no fan-out.
+#
+# Slim CI note: this first version does NOT use `--select state:modified+`
+# + `--defer`. No prod manifest baseline exists yet and the corpus's
+# prescribed pattern is a standard full `dbt build` at CI time. Once a
+# prod manifest is produced by dbt-deploy.yml and stored somewhere
+# readable (e.g. GCS artifact), a follow-up PR can switch this workflow
+# to Slim CI for faster PR turnaround on large projects.
+#
+# Required repo secrets:
+#   GCP_SA_KEY — JSON keyfile for the dev-project service account
+#                (project: dee-data-ops). Needs BigQuery Data Editor +
+#                Job User on ci_pr_* datasets, plus the ability to
+#                create/drop datasets in dee-data-ops.
+
+name: dbt CI
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, closed]
+    paths:
+      - 'dbt/**'
+      - '.github/workflows/dbt-ci.yml'
+      - 'requirements.txt'
+
+permissions:
+  contents: read
+  id-token: write
+  pull-requests: read
+
+concurrency:
+  group: dbt-ci-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  provision:
+    if: github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Create per-PR dataset
+        run: |
+          bq --location=US mk --force=true --dataset \
+            --description "CI schema for PR #${{ github.event.pull_request.number }}" \
+            dee-data-ops:ci_pr_${{ github.event.pull_request.number }}
+
+  build:
+    if: github.event.action != 'closed'
+    needs: provision
+    runs-on: ubuntu-latest
+    env:
+      DBT_PROFILES_DIR: ./dbt
+      GCP_PROJECT_ID_DEV: dee-data-ops
+      DBT_CI_SCHEMA: ci_pr_${{ github.event.pull_request.number }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # needed later when we switch to Slim CI (state:modified+)
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install deps
+        run: pip install -r requirements.txt
+
+      - name: Authenticate to GCP
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: dbt deps
+        env:
+          BQ_KEYFILE_PATH: ${{ steps.auth.outputs.credentials_file_path }}
+        run: cd dbt && dbt deps
+
+      - name: dbt build (target ci)
+        env:
+          BQ_KEYFILE_PATH: ${{ steps.auth.outputs.credentials_file_path }}
+        run: cd dbt && dbt build --target ci
+
+  cleanup:
+    if: github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Drop per-PR dataset
+        run: |
+          bq rm -r -f -d dee-data-ops:ci_pr_${{ github.event.pull_request.number }} || true

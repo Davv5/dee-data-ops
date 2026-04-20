@@ -1,0 +1,72 @@
+# dbt Nightly — full refresh of prod, plus snapshot capture and
+# source-freshness check.
+#
+# Runs at 08:00 UTC (~03:00 ET winter / 04:00 ET summer) so dashboards
+# are fresh by the US-East morning. Ordered:
+#   1. dbt source freshness  (warn-only — a stale source shouldn't
+#      fail the whole nightly, but should surface in logs)
+#   2. dbt snapshot          (capture SCDs before downstream rebuild)
+#   3. dbt build             (full rebuild of staging + warehouse + marts)
+#
+# Also exposed via workflow_dispatch for on-demand reruns.
+#
+# Required repo secrets:
+#   GCP_SA_KEY_PROD — same prod service-account keyfile as dbt-deploy.yml
+
+name: dbt Nightly
+
+on:
+  schedule:
+    - cron: '0 8 * * *'  # 08:00 UTC daily
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: dbt-nightly-prod
+  cancel-in-progress: false
+
+jobs:
+  nightly:
+    runs-on: ubuntu-latest
+    env:
+      DBT_PROFILES_DIR: ./dbt
+      GCP_PROJECT_ID_PROD: dee-data-ops-prod
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install deps
+        run: pip install -r requirements.txt
+
+      - name: Authenticate to GCP (prod)
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY_PROD }}
+
+      - name: dbt deps
+        env:
+          BQ_KEYFILE_PATH_PROD: ${{ steps.auth.outputs.credentials_file_path }}
+        run: cd dbt && dbt deps
+
+      - name: dbt source freshness (warn-only)
+        env:
+          BQ_KEYFILE_PATH_PROD: ${{ steps.auth.outputs.credentials_file_path }}
+        run: cd dbt && dbt source freshness --target prod || true
+
+      - name: dbt snapshot
+        env:
+          BQ_KEYFILE_PATH_PROD: ${{ steps.auth.outputs.credentials_file_path }}
+        run: cd dbt && dbt snapshot --target prod
+
+      - name: dbt build (full refresh)
+        env:
+          BQ_KEYFILE_PATH_PROD: ${{ steps.auth.outputs.credentials_file_path }}
+        run: cd dbt && dbt build --target prod
