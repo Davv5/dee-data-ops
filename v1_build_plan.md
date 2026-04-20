@@ -225,8 +225,8 @@ dbt/models/staging/
 
 **Dimensions (build first — facts will reference them):**
 - [ ] `dim_contacts` — one row per lead. Sourced from `stg_ghl__contacts` (canonical) left-joined with `stg_typeform__responses` for funnel-source enrichment
-- [ ] `dim_sdrs` — one row per SDR. From `stg_ghl__users` filtered to SDR role
-- [ ] `dim_aes` — one row per AE. From `stg_ghl__users` filtered to AE role (carve out for v2 dashboards)
+- [ ] `dim_users` — single dim, one row per user, with a `role` column (values: `SDR | Setter | Triager | DM_Setter | Closer | Owner | Unknown`). From `stg_ghl__users` enriched by `ghl_sdr_roster` seed. **Supersedes the `dim_sdrs` + `dim_aes` split** — DataOps 2026-04-20 audit mandated single-dim-with-role-attribute per Kimball. View-level `dim_sdrs` / `dim_aes` may be added later as mart-layer filters if BI ergonomics demand; do not split in the warehouse.
+- [ ] `dim_pipeline_stages` (new for v1) — produced by Track D from `stg_ghl__pipelines`; one row per (pipeline_id, stage_id); carries `is_booked_stage` boolean so downstream facts/marts can surface the GHL-native booked attribute without re-deriving the rule.
 - [ ] `dim_offers` — one row per offer/program. May be a seed file in v1 if not in any source system
 - [ ] `dim_calendar_dates` — generated via `dbt-utils.date_spine`, one row per day; needed for "% within SLA, by day" tiles
 
@@ -237,7 +237,7 @@ For every dim:
 
 **Facts:**
 - [ ] `fct_calls_booked` — grain: one row per Calendly booking. Surrogate keys to `dim_contacts`, `dim_sdrs` (assigned SDR if known), `dim_calendar_dates`. Includes `booked_at_utc`, `scheduled_for_utc`, `cancelled_at_utc`, `event_status`
-- [ ] `fct_sdr_outreach` — grain: one row per outbound SDR touch (call or SMS) from `stg_ghl__conversations`. Surrogate keys to `dim_contacts`, `dim_sdrs`, `dim_calendar_dates`. Includes `touched_at_utc`, `channel` (call/sms), `direction`
+- [ ] `fct_outreach` — grain: one row per outbound **user** touch (ANY role, no SDR filter) from `stg_ghl__conversations` / `stg_ghl__messages`. Surrogate keys to `dim_contacts`, `dim_users`, `dim_calendar_dates`. Includes `touched_at_utc`, `channel` (call/sms), `direction`. **Renamed from `fct_sdr_outreach`** per DataOps 2026-04-20 audit — role filter (`WHERE first_toucher.role = 'SDR'`) lives in the `sales_activity_detail` mart, not the warehouse.
 - [ ] `fct_revenue` — grain: one row per payment event. Union of Stripe + Fanbasis. Surrogate keys to `dim_contacts`, `dim_offers`, `dim_calendar_dates`
 
 For every fact:
@@ -255,15 +255,16 @@ For every fact:
 dbt/models/warehouse/
   dimensions/
     _dimensions__models.yml
+    _dimensions__docs.md
     dim_contacts.sql
-    dim_sdrs.sql
-    dim_aes.sql
+    dim_users.sql
+    dim_pipeline_stages.sql
     dim_offers.sql
     dim_calendar_dates.sql
   facts/
     _facts__models.yml
     fct_calls_booked.sql
-    fct_sdr_outreach.sql
+    fct_outreach.sql
     fct_revenue.sql
 ```
 
@@ -273,9 +274,9 @@ dbt/models/warehouse/
 - Spot-check: count of `fct_calls_booked` matches count of distinct Calendly events for the same window
 
 ### Open decisions (mine)
-- **`dim_aes` in v1** — needed for the rep leaderboard tile (SDRs only), so AEs aren't strictly required. Build the dim now anyway — it's nearly free and v2 needs it
+- **AE-only views of `dim_users`** — not needed for v1 (rep leaderboard is SDRs only). If a v2 AE dashboard demands it, add a view-layer `dim_aes` at the mart boundary rather than splitting the warehouse dim
 - **Should `fct_revenue` include refunds as negative rows or as a separate fact?** Lean: negative rows in v1 (simpler), split if v2 finance dashboard demands it
-- **Slowly Changing Dimensions on `dim_sdrs`** — SDRs leave/get promoted. v1: Type 1 (overwrite). Revisit when AE leaderboard needs historical attribution
+- **Slowly Changing Dimensions on `dim_users`** — users leave / change roles. v1: Type 1 (overwrite). Revisit when AE leaderboard needs historical attribution
 - **Whether to model "first SDR outbound touch per booking" as a derived column on `fct_calls_booked` or as a separate intermediate** — derived column for v1 to keep model count down
 
 ---
