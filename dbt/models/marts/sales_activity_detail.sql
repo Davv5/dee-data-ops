@@ -118,7 +118,7 @@ final as (
         b.booking_sk                                as booking_id,
         c.contact_id,
         c.email,
-        c.full_name,
+        c.contact_name                              as full_name,
         b.booked_at,
         b.scheduled_for,
         b.event_status,
