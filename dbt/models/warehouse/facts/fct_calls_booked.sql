@@ -18,6 +18,21 @@ events as (
 
 ),
 
+invitees as (
+
+    select * from {{ ref('stg_calendly__event_invitees') }}
+
+),
+
+contacts as (
+
+    select
+        contact_sk,
+        email_norm
+    from {{ ref('dim_contacts') }}
+
+),
+
 -- Diagnostic join to the opportunity layer: when the booked Calendly event
 -- eventually lands on a GHL opportunity (by invitee email) the resulting
 -- opportunity carries assigned_user_id + pipeline_stage_id we surface on
@@ -51,7 +66,7 @@ final as (
         {{ dbt_utils.generate_surrogate_key(['events.event_id']) }}
                                                                 as booking_sk,
 
-        cast(null as string)                                    as contact_sk,
+        contacts.contact_sk                                     as contact_sk,
         cast(null as string)                                    as assigned_user_sk,
         cast(null as string)                                    as pipeline_stage_sk,
 
@@ -76,6 +91,10 @@ final as (
         events.is_deleted
 
     from events
+    left join invitees
+      on invitees.event_id = events.event_id
+    left join contacts
+      on contacts.email_norm = invitees.invitee_email_norm
 
 )
 
