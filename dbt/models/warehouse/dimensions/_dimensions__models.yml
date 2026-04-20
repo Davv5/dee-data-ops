@@ -1,0 +1,69 @@
+version: 2
+
+models:
+  - name: dim_pipeline_stages
+    description: >
+      One row per (pipeline, stage) pair — flattens the nested `stages`
+      array from `stg_ghl__pipelines` into a flat dim. Carries the
+      metric-critical `is_booked_stage` boolean so downstream facts and
+      marts can surface the GHL-native "booked" attribute on any row
+      without re-deriving it. See `_dimensions__docs.md` for the
+      is_booked_stage rule set.
+
+      **Grain note:** `is_booked_stage` is a dim *attribute* — a
+      downstream descriptor of what a pipeline stage means. It is NOT
+      the grain of the Speed-to-Lead denominator. The denominator grain
+      is Calendly event (one row per booking in `fct_calls_booked`);
+      `dim_pipeline_stages` sits alongside that fact, not replacing it.
+      See `CLAUDE.local.md` "Locked metric" table for the full rationale.
+    columns:
+      - name: pipeline_stage_sk
+        description: >
+          Surrogate key over `(pipeline_id, stage_id)`. Use this for
+          fact-to-dim joins; `pipeline_id`/`stage_id` are retained for
+          traceability.
+        tests:
+          - unique
+          - not_null
+
+      - name: pipeline_id
+        description: FK to `stg_ghl__pipelines.pipeline_id`. GHL pipeline the stage belongs to.
+        tests:
+          - not_null
+
+      - name: pipeline_name
+        description: Display name of the pipeline (denormalized onto every stage row).
+
+      - name: stage_id
+        description: >
+          GHL's native stage id (the value `opportunities.pipelineStageId`
+          points at). Unique within a pipeline.
+        tests:
+          - not_null
+
+      - name: stage_name
+        description: Display name of the stage (e.g. `Booked`, `Set/Triage`, `Disposition`).
+
+      - name: stage_position
+        description: Integer ordering of this stage within its pipeline (0-indexed, per GHL).
+
+      - name: is_booked_stage
+        description: >
+          True if this stage represents a booked-call state in GHL. Rule:
+          `stage_name` contains `booked` (case-insensitive) OR
+          `stage_name IN ('Set', 'Set/Triage', 'Call Booked', 'Booked Call')`.
+          Rule validated against the oracle Revenue-by-Stage tab (2026-04-20
+          corpus audit). This is a GHL-native attribute surfaced on rows —
+          not the Speed-to-Lead metric denominator grain (that is Calendly).
+
+      - name: show_in_funnel
+        description: >
+          Denormalized from the parent pipeline — whether the owning
+          pipeline renders in GHL's funnel UI. Kept at stage grain so
+          downstream filters don't have to rejoin pipelines.
+
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - pipeline_id
+            - stage_id

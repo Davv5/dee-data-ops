@@ -11,6 +11,29 @@ Rolling log of what's been done on this project. Newest entries at the top. Tail
 
 ---
 
+## 2026-04-20 — Track D: `dim_pipeline_stages` warehouse dim + Calendly-grain doc reconciliation
+
+**What happened**
+- Shipped `dbt/models/warehouse/dimensions/dim_pipeline_stages.sql` on branch `Davv5/Track-D-Pipeline-stages-dim-doc-reconciliation`. One row per (pipeline_id, stage_id); unnests `stages_json` from `stg_ghl__pipelines` via `unnest(json_query_array(...))`; 7 columns incl. `pipeline_stage_sk` (dbt_utils surrogate over pipeline_id + stage_id) and the metric-adjacent `is_booked_stage` boolean. Rule: `lower(stage_name) like '%booked%'` OR name ∈ ('Set', 'Set/Triage', 'Call Booked', 'Booked Call') — cross-checked against the oracle Revenue-by-Stage tab per track prompt
+- Wrote `_dimensions__models.yml` (initial — Track E will extend): `unique` + `not_null` on `pipeline_stage_sk`, `not_null` on `pipeline_id`/`stage_id`, compound `dbt_utils.unique_combination_of_columns` on (pipeline_id, stage_id)
+- Wrote `_dimensions__docs.md` — overview doc block explaining the `is_booked_stage` rule set and, critically, why the ~1,825 GHL-native booked stages are complementary to the 3,141 Calendly-grain denominator (they measure different things; the dim attribute hangs off `fct_calls_booked`, it does not replace it)
+- Reconciled the grain-mismatch between `CLAUDE.local.md` and `v1_build_plan.md`:
+  - `CLAUDE.local.md` "Locked metric" table: Event (denominator) row rewritten to Calendly-grain; added 2026-04-20 provenance blockquote citing the cross-notebook audit and `.claude/rules/warehouse.md` lowest-granularity principle
+  - `CLAUDE.local.md` open-questions: removed the resolved `pipelineStageId` bullet; narrowed SDR unknowns to Ayaan Menon + Jake Lynch (Jordan/Kevin have oracle evidence per Track B); added Moayad + Halle roster-gap bullet
+  - `v1_build_plan.md` Phase 3: renamed `fct_sdr_outreach` → `fct_outreach` (grain now "one outbound user touch", SDR filter moves to the mart); replaced `dim_sdrs` + `dim_aes` with single `dim_users` carrying a `role` column; added `dim_pipeline_stages` to the dim list; updated the Files-created block and the `dim_sdrs`/`dim_aes` open-decisions bullets to match
+
+**Decisions**
+- **`is_booked_stage` is a dim attribute, not a metric grain.** *Why:* Calendly (3,141 events) is the system-of-record for bookings; the GHL booked stage (~1,825) is a funnel-subset observation about what happened *after* the booking. Treating it as the grain would silently drop ~1,300 real bookings. Per Kimball + `.claude/rules/warehouse.md` the dim attribute is the right home
+- **Doc edits made in both places atomically.** *Why:* the two documents are the contract for downstream Tracks E/F/L/M — drift between "Locked metric" in CLAUDE.local.md and Phase 3 in v1_build_plan.md is exactly what this track was chartered to close
+- **Role filter moved from warehouse to mart.** *Why:* the warehouse fact is a faithful record of outbound touches regardless of who made them; filtering by `role = 'SDR'` is a reporting concern that belongs at the `sales_activity_detail` mart, which keeps the fact reusable for any future AE/Closer analysis
+
+**Open threads**
+- `stg_ghl__pipelines` is shipped on `phase-1-5/ghl-messages-extractor` (commit `b9e563c`) but not yet merged to `main`; the Track D worktree branch was cut before that merge. `dbt build --select dim_pipeline_stages` will fail-to-resolve the `ref('stg_ghl__pipelines')` until the phase-1-5 PR lands or is merged ahead of this one. Do not ship Track D to main until that dependency is in
+- BQ verification query in the track prompt (`COUNTIF(is_booked_stage) per active pipeline ≥ 1`) not yet run — run after the staging merge lands and the pipelines table is materialized in `dev_david`
+- Track E will extend `_dimensions__models.yml` with the remaining v1 dims (`dim_contacts`, `dim_users`, `dim_offers`, `dim_calendar_dates`). No schema conflicts expected — the file is alphabetically / insertion-ordered
+
+---
+
 ## 2026-04-20 — Track C: non-GHL staging (Calendly / Typeform / Stripe + Fanbasis stub)
 
 **What happened**
