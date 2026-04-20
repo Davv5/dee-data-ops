@@ -1,0 +1,72 @@
+# dbt Deploy (prod) — rebuild the prod warehouse on merge to main.
+#
+# Trigger is a direct push to main (which is what happens when a PR
+# merges). This keeps the workflow simple and avoids the
+# pull_request-closed-+-merged==true pattern, which also fires on
+# closed-without-merge. The paths filter ensures unrelated main pushes
+# (e.g. README-only commits) don't trigger a warehouse rebuild.
+#
+# Slim CI / state:modified+ note: first deploys must be full builds
+# because no prior prod manifest exists to diff against. Once a
+# manifest is uploaded to an artifact store, a follow-up PR can switch
+# this to `--select state:modified+ --defer` for faster deploys.
+#
+# Required repo secrets:
+#   GCP_SA_KEY_PROD — JSON keyfile for the prod service account
+#                     (project: dee-data-ops-prod). Needs BigQuery
+#                     Data Editor on staging/warehouse/marts datasets
+#                     and BigQuery Job User on the project.
+
+name: dbt Deploy (prod)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'dbt/**'
+      - '.github/workflows/dbt-deploy.yml'
+      - 'requirements.txt'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: dbt-deploy-prod
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      DBT_PROFILES_DIR: ./dbt
+      GCP_PROJECT_ID_PROD: dee-data-ops-prod
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install deps
+        run: pip install -r requirements.txt
+
+      - name: Authenticate to GCP (prod)
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY_PROD }}
+
+      - name: dbt deps
+        env:
+          BQ_KEYFILE_PATH_PROD: ${{ steps.auth.outputs.credentials_file_path }}
+        run: cd dbt && dbt deps
+
+      - name: dbt build (target prod)
+        env:
+          BQ_KEYFILE_PATH_PROD: ${{ steps.auth.outputs.credentials_file_path }}
+        run: cd dbt && dbt build --target prod

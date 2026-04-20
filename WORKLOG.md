@@ -11,6 +11,35 @@ Rolling log of what's been done on this project. Newest entries at the top. Tail
 
 ---
 
+## 2026-04-20 — Track G: dbt CI/CD workflows (dbt-ci + dbt-deploy + dbt-nightly)
+
+**What happened**
+- Shipped 3 GitHub Actions workflows on branch `Davv5/Track-G-CI-CD-workflows-dbt-CI-deploy-nightly`:
+  - `.github/workflows/dbt-ci.yml` — on PR to `main`: provisions `ci_pr_<num>` BigQuery dataset, runs `dbt build --target ci` against it, drops the dataset on PR close. Per-PR schema isolation is routed via a new `DBT_CI_SCHEMA` env var wired into the `ci` target in `dbt/profiles.yml`
+  - `.github/workflows/dbt-deploy.yml` — on push to `main`: `dbt build --target prod` against `dee-data-ops-prod`
+  - `.github/workflows/dbt-nightly.yml` — cron `0 8 * * *` UTC: `source freshness` (warn-only) → `snapshot` → full `dbt build --target prod`. Also exposed via `workflow_dispatch`
+- Updated `dbt/profiles.yml` ci target: `dataset: "{{ env_var('DBT_CI_SCHEMA', 'ci') }}"` — falls back to shared `ci` for local runs
+- Updated `.env.example` with `DBT_CI_SCHEMA=ci` + comment
+- Amended `.pre-commit-config.yaml`'s `forbid-dbt-target-prod` hook to add `--exclude="dbt-deploy.yml" --exclude="dbt-nightly.yml"` so the two workflows that are *supposed* to run `dbt --target prod` aren't themselves blocked. Every other file still blocked
+- Did NOT touch `ingest.yml`, `.github/pull_request_template.md`, or `dbt-docs.yml` (Track J's territory)
+- Grounded in Data Ops notebook query on dbt CI/CD patterns — corpus explicitly endorses full `dbt build` in CI (no Slim CI), validates per-PR ephemeral schemas as a recognized customization of the shared-CI default, and flags `generate_schema_name` macro consolidation as the canonical CI fan-out guard (already in place in this repo)
+
+**Decisions**
+- **Full `dbt build` in all three workflows; no `--select state:modified+` / `--defer` on v1.** *Why:* no prod manifest baseline exists yet for Slim CI to diff against, and the corpus's "Simple Stack" pattern prescribes full build for early-stage projects. Follow-up PR can switch to Slim CI once a manifest is persisted from dbt-deploy.yml
+- **Per-PR schema `ci_pr_<num>` via env var, not per-PR `generate_schema_name` override.** *Why:* the macro already consolidates non-prod targets into `target.schema`; wiring via env var is a one-line profiles.yml change and keeps schema routing logic in one place
+- **Deploy trigger: `push` to main, not `pull_request: closed + merged==true`.** *Why:* simpler, avoids the closed-without-merge false trigger, and the `paths:` filter prevents unrelated main pushes (README-only commits) from triggering a full prod rebuild
+- **Nightly order: source freshness (warn-only) → snapshot → build.** *Why:* freshness surfaces upstream staleness without failing the nightly; snapshot captures SCDs against the pre-build state before downstream models overwrite
+- **Pre-commit exclusion is file-scoped (basename), not directory-scoped.** *Why:* excluding all of `.github/workflows/` would let `dbt --target prod` sneak into `ingest.yml` or a future workflow; basename-excluding only the two legitimate files preserves the guardrail everywhere else
+- **Credentials via `google-github-actions/auth@v2` outputs.** *Why:* the action writes a temp keyfile and exposes `steps.auth.outputs.credentials_file_path`; wiring that into `BQ_KEYFILE_PATH` / `BQ_KEYFILE_PATH_PROD` reuses the existing profiles.yml env-var contract without a second auth pattern
+
+**Open threads**
+- Repo secrets not yet set: `GCP_SA_KEY` (dev SA for CI — needs BQ Data Editor on `dee-data-ops`, plus dataset create/drop perms for `ci_pr_*`), `GCP_SA_KEY_PROD` (prod SA for deploy + nightly — needs BQ Data Editor on staging/warehouse/marts in `dee-data-ops-prod`). Prod SA creation is tracked in v1_build_plan Phase 6
+- Slim CI switchover is a follow-up: needs a manifest-persistence step added to `dbt-deploy.yml` (upload `target/manifest.json` as a GHA artifact or to GCS) before `dbt-ci.yml` can consume it via `--defer --state`
+- Track J edits to `.github/workflows/ingest.yml` (Secret Manager + Slack) may touch `requirements.txt`; coordinate merge order so Track G's workflow files don't regress on deps
+- Pre-existing hit in `.pre-commit-config.yaml`'s `forbid-dbt-target-prod` hook: the regex matches *itself* (its own `entry:` line) plus `WORKLOG.md` / `v1_build_plan.md` / handover docs that mention the pattern in prose. Not new from this track — Track A's hook has this issue on main. Out of scope here; Track A should refine the regex (e.g., anchor to shell-invocation patterns) in a follow-up
+
+---
+
 ## 2026-04-20 — Track D: `dim_pipeline_stages` warehouse dim + Calendly-grain doc reconciliation
 
 **What happened**

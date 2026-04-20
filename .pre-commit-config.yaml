@@ -39,11 +39,15 @@ repos:
   # Guardrail: block `dbt ... --target prod` being snuck into committed
   # scripts. Matches the .claude/settings.json PreToolUse hook so the
   # same rule applies to humans running git locally.
+  #
+  # Exempt: the two workflow files that are *supposed* to run
+  # `dbt --target prod` — dbt-deploy.yml (merge-to-main) and
+  # dbt-nightly.yml (cron). Every other file is still blocked.
   - repo: local
     hooks:
       - id: forbid-dbt-target-prod
         name: Forbid `dbt --target prod` in committed files
-        entry: bash -c 'if grep -RniE "dbt[[:space:]][^|;&]*--target[[:space:]]+prod" --include="*.sh" --include="*.py" --include="*.md" --include="*.yaml" --include="*.yml" --exclude-dir=".venv" --exclude-dir="dbt_packages" --exclude-dir="target" .github .; then echo "BLOCKED: dbt --target prod must run only in the post-merge GHA workflow."; exit 1; fi'
+        entry: bash -c 'if grep -RniE "dbt[[:space:]][^|;&]*--target[[:space:]]+prod" --include="*.sh" --include="*.py" --include="*.md" --include="*.yaml" --include="*.yml" --exclude="dbt-deploy.yml" --exclude="dbt-nightly.yml" --exclude-dir=".venv" --exclude-dir="dbt_packages" --exclude-dir="target" .github .; then echo "BLOCKED: dbt --target prod must run only in the post-merge GHA workflow."; exit 1; fi'
         language: system
         pass_filenames: false
 

@@ -27,7 +27,9 @@ dee_data_ops:
       type: bigquery
       method: service-account
       project: "{{ env_var('GCP_PROJECT_ID_DEV', 'dee-data-ops') }}"
-      dataset: ci
+      # Per-PR ephemeral schema when set by GH Actions (ci_pr_<num>);
+      # falls back to shared "ci" for local runs.
+      dataset: "{{ env_var('DBT_CI_SCHEMA', 'ci') }}"
       keyfile: "{{ env_var('BQ_KEYFILE_PATH') }}"
       threads: 4
       timeout_seconds: 300
