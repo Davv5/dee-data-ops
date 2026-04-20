@@ -65,7 +65,7 @@ jobs:
     needs: provision
     runs-on: ubuntu-latest
     env:
-      DBT_PROFILES_DIR: ./dbt
+      DBT_PROFILES_DIR: .
       GCP_PROJECT_ID_DEV: dee-data-ops
       DBT_CI_SCHEMA: ci_pr_${{ github.event.pull_request.number }}
     steps:
