@@ -1,8 +1,9 @@
 """GHL (GoHighLevel) extractor → raw_ghl.* in BigQuery.
 
-Pulls four v2 / LeadConnector API endpoints — contacts, conversations,
-opportunities, users — and lands each as `WRITE_APPEND` to its own table in
-`raw_ghl`, with per-endpoint wall-clock watermarks in `raw_ghl._sync_state`.
+Pulls five v2 / LeadConnector API endpoints — contacts, conversations,
+opportunities, users, messages — and lands each as `WRITE_APPEND` to its own
+table in `raw_ghl`, with per-endpoint wall-clock watermarks in
+`raw_ghl._sync_state`.
 
 Corpus guidance applied:
 - Land raw, unformatted (no casts, no renames, no joins here). Source:
@@ -13,17 +14,21 @@ Corpus guidance applied:
 Reasoned defaults (NOT corpus-prescribed):
 - Append-only + `_ingested_at` column; dedupe in staging (Phase 2).
 - Watermark per endpoint stored in BQ, keyed by endpoint name.
-- Only `conversations` honors `since` (via `startAfterDate`); other endpoints
-  do a full pull and rely on staging dedupe. GHL's GET endpoints don't expose
-  a clean updated-since filter; the POST /contacts/search variant has an
-  undocumented body schema — revisit if volume forces incremental.
+- Only `conversations` and `messages` honor `since`; other endpoints do full
+  pulls and rely on staging dedupe. `messages` fans out from
+  `raw_ghl.conversations` (latest-per-id), filtered to conversations whose
+  `lastMessageDate` is newer than the cursor.
+- Token-bucket throttle keeps request rate under GHL's 100/10s per-location
+  limit; 429 responses retry with Retry-After backoff.
 """
 
 from __future__ import annotations
 
+import collections
 import json
 import os
 import sys
+import time
 from argparse import ArgumentParser
 from datetime import datetime, timezone
 from typing import Any, Callable, Iterable, Optional
@@ -37,16 +42,25 @@ STATE_TABLE = f"{PROJECT_ID}.{RAW_DATASET}._sync_state"
 
 GHL_API_BASE = "https://services.leadconnectorhq.com"
 
-# Per-endpoint Version header. conversations sits on an older version than the
-# other three — confirmed from the published OpenAPI spec.
+# Per-endpoint Version header. conversations + messages sit on an older
+# version than the other three — confirmed from the published OpenAPI spec.
+# Ordering matters: messages fans out from raw_ghl.conversations, so
+# conversations must run first on the same invocation.
 VERSIONS: dict[str, str] = {
     "contacts": "2021-07-28",
     "conversations": "2021-04-15",
     "opportunities": "2021-07-28",
     "users": "2021-07-28",
+    "messages": "2021-04-15",
 }
 
 ENDPOINTS: list[str] = list(VERSIONS.keys())
+
+# Token-bucket throttle. GHL v2 rate limit is 100 req / 10s per location;
+# target 90 so bursts leave headroom for Retry-After-driven retries.
+_RATE_LIMIT_WINDOW_SEC = 10.0
+_RATE_LIMIT_MAX = 90
+_request_times: collections.deque[float] = collections.deque()
 
 
 def _bootstrap_adc() -> None:
@@ -120,15 +134,38 @@ def _headers(endpoint: str) -> dict[str, str]:
     }
 
 
-def _get(endpoint: str, path: str, params: Optional[dict[str, Any]] = None) -> dict[str, Any]:
-    r = requests.get(
-        f"{GHL_API_BASE}{path}",
-        headers=_headers(endpoint),
-        params=params or {},
-        timeout=30,
-    )
-    r.raise_for_status()
-    return r.json()
+def _throttle() -> None:
+    now = time.monotonic()
+    while _request_times and now - _request_times[0] > _RATE_LIMIT_WINDOW_SEC:
+        _request_times.popleft()
+    if len(_request_times) >= _RATE_LIMIT_MAX:
+        wait = _RATE_LIMIT_WINDOW_SEC - (now - _request_times[0]) + 0.05
+        if wait > 0:
+            time.sleep(wait)
+    _request_times.append(time.monotonic())
+
+
+def _get(
+    endpoint: str,
+    path: str,
+    params: Optional[dict[str, Any]] = None,
+    max_retries: int = 3,
+) -> dict[str, Any]:
+    for attempt in range(max_retries + 1):
+        _throttle()
+        r = requests.get(
+            f"{GHL_API_BASE}{path}",
+            headers=_headers(endpoint),
+            params=params or {},
+            timeout=30,
+        )
+        if r.status_code == 429 and attempt < max_retries:
+            retry_after = int(r.headers.get("Retry-After", "5"))
+            time.sleep(max(retry_after, 1))
+            continue
+        r.raise_for_status()
+        return r.json()
+    raise RuntimeError("unreachable")
 
 
 def _to_epoch_ms(value: Any) -> Optional[int]:
@@ -216,11 +253,79 @@ def _fetch_users(location_id: str, since: Optional[datetime]) -> list[dict[str, 
     return data.get("users") or []
 
 
+def _conversations_to_fetch(since: Optional[datetime]) -> list[str]:
+    """Conversation IDs whose lastMessageDate is newer than `since`.
+
+    Dedupes `raw_ghl.conversations` to the latest `_ingested_at` per id, then
+    filters on `lastMessageDate` (epoch-ms in the JSON payload). `since=None`
+    returns every conversation.
+    """
+    since_ms = int(since.timestamp() * 1000) if since else None
+    client = get_client()
+    query = f"""
+    SELECT id
+    FROM (
+      SELECT id, payload,
+        ROW_NUMBER() OVER (PARTITION BY id ORDER BY _ingested_at DESC) AS rn
+      FROM `{PROJECT_ID}.{RAW_DATASET}.conversations`
+    )
+    WHERE rn = 1
+      AND id IS NOT NULL
+      AND (@since_ms IS NULL
+           OR SAFE_CAST(JSON_VALUE(payload, '$.lastMessageDate') AS INT64) > @since_ms)
+    """
+    job = client.query(
+        query,
+        job_config=bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ScalarQueryParameter("since_ms", "INT64", since_ms),
+            ],
+        ),
+    )
+    return [row.id for row in job.result()]
+
+
+def _fetch_messages_for_conversation(conv_id: str) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    params: dict[str, Any] = {"limit": 100}
+    while True:
+        data = _get("messages", f"/conversations/{conv_id}/messages", params)
+        # GHL returns {"messages": {"lastMessageId": ..., "nextPage": ..., "messages": [...]}}
+        # or sometimes flattens it; handle both shapes.
+        envelope = data.get("messages", data)
+        if isinstance(envelope, list):
+            batch = envelope
+            next_page = False
+            last_id = batch[-1].get("id") if batch else None
+        else:
+            batch = envelope.get("messages") or []
+            next_page = bool(envelope.get("nextPage"))
+            last_id = envelope.get("lastMessageId") or (batch[-1].get("id") if batch else None)
+        rows.extend(batch)
+        if not next_page or not last_id:
+            break
+        params["lastMessageId"] = last_id
+    return rows
+
+
+def _fetch_messages(location_id: str, since: Optional[datetime]) -> list[dict[str, Any]]:
+    conv_ids = _conversations_to_fetch(since)
+    sample_n = os.environ.get("GHL_MESSAGES_SAMPLE_N")
+    if sample_n:
+        conv_ids = conv_ids[: int(sample_n)]
+    print(json.dumps({"endpoint": "messages", "conversations_to_fetch": len(conv_ids)}))
+    rows: list[dict[str, Any]] = []
+    for conv_id in conv_ids:
+        rows.extend(_fetch_messages_for_conversation(conv_id))
+    return rows
+
+
 FETCHERS: dict[str, Callable[[str, Optional[datetime]], list[dict[str, Any]]]] = {
     "contacts": _fetch_contacts,
     "conversations": _fetch_conversations,
     "opportunities": _fetch_opportunities,
     "users": _fetch_users,
+    "messages": _fetch_messages,
 }
 
 

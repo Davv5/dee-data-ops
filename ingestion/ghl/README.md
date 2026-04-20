@@ -6,12 +6,15 @@ so this lives in-repo.
 
 ## What it pulls
 
-Four v2 / LeadConnector endpoints (scope §4 / v1 plan Phase 1):
+Five v2 / LeadConnector endpoints (scope §4 / v1 plan Phase 1 + 1.5):
 
 - `contacts` — lead roster, tags, attribution fields
-- `conversations` — calls + SMS (the "SDR touched the lead" signal)
+- `conversations` — conversation-level metadata (one row per thread)
 - `opportunities` — pipeline stages
 - `users` — SDR / AE roster
+- `messages` — per-message rows under each conversation (the load-bearing
+  source for message-level SDR attribution; powers the Speed-to-Lead metric
+  numerator and any follow-up-cadence panels)
 
 Everything lands in `raw_ghl.<endpoint>` (WRITE_APPEND) using a fixed three-column
 schema:
@@ -55,11 +58,35 @@ Ingestion / Raw Landing Zone"*, Data Ops notebook.
 | `conversations` | **incremental** | `startAfterDate` seeded from `_sync_state.last_synced_at` |
 | `opportunities` | full pull, page through | `meta.startAfter` / `meta.startAfterId` (pagination only) |
 | `users` | full pull, one page | — |
+| `messages` | **incremental fan-out** | conversation IDs where `lastMessageDate > _sync_state.last_synced_at` (empty cursor = full backfill) |
 
-Only `conversations` honors a since-filter cleanly. For the others, the GET
-endpoints don't expose a reliable `updated_since` parameter, so we accept a full
-pull and let staging dedupe on `id` + latest `_ingested_at` (Phase 2). Revisit if
-daily volume becomes a cost or latency concern.
+Only `conversations` and `messages` honor a since-filter cleanly. For the
+others, the GET endpoints don't expose a reliable `updated_since` parameter,
+so we accept a full pull and let staging dedupe on `id` + latest
+`_ingested_at` (Phase 2). Revisit if daily volume becomes a cost or latency
+concern.
+
+### `messages` fan-out
+
+`GET /conversations/{conversationId}/messages` is nested under a conversation,
+so the fetcher first queries BigQuery for conversation IDs (deduped to latest
+`_ingested_at` per id, filtered to `lastMessageDate > cursor`), then iterates
+and paginates per conversation. First run sees no cursor → fans out across
+every conversation (~15,500 at D-DEE, a ~1-2h backfill). Subsequent runs
+typically touch a few hundred updated conversations.
+
+**Rate limiting:** GHL v2 caps each location at **100 requests / 10s**. A
+token-bucket throttle in `_get()` targets 90/window to leave headroom for
+Retry-After-driven retries on 429s. Also applies to the other endpoints (no
+behavior change — their volume never approaches the limit).
+
+**Local testing:** set `GHL_MESSAGES_SAMPLE_N=<N>` to limit the fan-out to
+the first `N` conversation IDs instead of all of them. Useful for iterating
+on pagination / response-shape logic without burning a 2-hour backfill:
+
+```bash
+GHL_MESSAGES_SAMPLE_N=5 python ingestion/ghl/extract.py --dry-run
+```
 
 ## Schema organization — one dataset per source
 
@@ -74,7 +101,7 @@ permissions, easier to read at a glance.
 
 | column | type | note |
 |---|---|---|
-| `endpoint` | STRING | one of `contacts` / `conversations` / `opportunities` / `users` |
+| `endpoint` | STRING | one of `contacts` / `conversations` / `opportunities` / `users` / `messages` |
 | `last_synced_at` | TIMESTAMP | UTC; the time *this run started*, written after a successful load |
 | `updated_at` | TIMESTAMP | row-write audit |
 
@@ -132,6 +159,11 @@ Required GitHub Actions secrets: `GCP_SA_KEY`, `GHL_API_KEY`, `GHL_LOCATION_ID`.
   created under.
 - **`400 Bad Request` on `/conversations/search`** — usually a Version-header
   mismatch. Conversations uses `2021-04-15`, not `2021-07-28`.
+- **`429 Too Many Requests` on `/conversations/{id}/messages`** — the
+  token-bucket throttle is conservative (90/10s) but concurrent runs or an
+  upstream limit change can still trip it. `_get()` retries up to 3×
+  honoring `Retry-After`; persistent 429s suggest either a lowered quota or
+  a stuck concurrent workflow — check GH Actions for another `Ingest` run.
 - **`google.api_core.exceptions.Forbidden: 403 Access Denied`** — the active SA
   doesn't have `BigQuery Data Editor` + `Job User` on `dee-data-ops`.
 - **`KeyError: 'GCP_PROJECT_ID_DEV'`** — `.env` not sourced. `set -a && source .env && set +a`.
