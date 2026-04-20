@@ -98,7 +98,7 @@ latest_opportunity as (
 ),
 
 -- SDR attribution: the user_sk that touched a contact most often,
--- restricted to users whose roster role is `sdr`. Ties broken by
+-- restricted to users whose roster role is `SDR`. Ties broken by
 -- touch count. fct_outreach carries NULL user_sk for GHL system /
 -- automation actors — naturally dropped by the role-filtered join
 -- below.
@@ -111,7 +111,7 @@ sdr_touches as (
     from {{ ref('fct_outreach') }} o
     inner join {{ ref('dim_users') }} u
         on u.user_sk = o.user_sk
-    where u.role = 'sdr'
+    where u.role = 'SDR'
     group by o.contact_sk, u.name
 
 ),
@@ -130,9 +130,9 @@ assigned_sdr as (
 ),
 
 -- Closer attribution: the assigned_user on the latest opportunity,
--- joined to dim_users and filtered to role = 'ae'. Per the v1
--- roster, "closer" maps to the `ae` role (no distinct Closer role
--- exists in the roster seed today).
+-- joined to dim_users and filtered to role = 'Closer' per the 5-role
+-- taxonomy (SDR / Setter / Triager / DM_Setter / Closer / Owner /
+-- unknown) declared in dim_users.
 assigned_closer as (
 
     select
@@ -141,7 +141,7 @@ assigned_closer as (
     from latest_opportunity lo
     inner join {{ ref('dim_users') }} u
         on u.user_id = lo.closer_user_id
-    where u.role = 'ae'
+    where u.role = 'Closer'
 
 ),
 
