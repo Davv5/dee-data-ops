@@ -11,6 +11,27 @@ Rolling log of what's been done on this project. Newest entries at the top. Tail
 
 ---
 
+## 2026-04-20 — Track A: rules + AI-workflow guardrails landed
+
+**What happened**
+- Ported + adapted three path-scoped `.claude/rules/` files on branch `Davv5/Track-A-Rules-Guardrails`: `staging.md`, `warehouse.md`, `ingest.md`. All three auto-synced to the Data Ops NotebookLM notebook via the existing PostToolUse hook (sync log `/tmp/dataops-sync-rule.log` confirms source IDs)
+- Added `.claude/commands/handover.md` (session-continuity slash command, ported AS-IS from `fanbasis-ingest`) + `docs/handovers/TEMPLATE.md` (Branch / Timestamp / Changed files / Run IDs / Decisions / Unresolved risks / First task)
+- Added three lint configs: `.sqlfluff` (BigQuery + jinja templater), `.pre-commit-config.yaml` (trailing-whitespace/ruff/sqlfluff + 4 local guardrail hooks: forbid-dbt-target-prod, no-joins-in-staging, no-raw-refs-outside-staging, no-legacy-table-refs), `pyproject.toml` (ruff + isort)
+- Edited `.claude/settings.json` via `Edit` — added a `PreToolUse` Bash hook blocking `dbt ... --target prod` from local shell (bypassed inside `$GITHUB_ACTIONS`). PostToolUse notebook-sync + SessionStart worklog-tail hooks preserved verbatim. Hook verified live by the verification bash command firing it mid-test
+
+**Decisions**
+- **Adapted `dim_contact` identity-spine section in `warehouse.md` to GHL-only anchor** for v1 (removed Calendly/Stripe/Fanbasis/Fathom bridges). *Why:* D-DEE v1 scope uses GHL as the single anchor; cross-source bridges are deferred to v1+N. Left a forward-looking paragraph so the rule still guides when bridges are added
+- **Adapted `ingest.md` orchestration contract from Cloud Run Jobs → GitHub Actions `workflow_dispatch` + `schedule:` cron** throughout. Trimmed the source inventory to D-DEE's 5 (GHL + Fanbasis via Python/GH Actions; Typeform + Calendly + Stripe via Fivetran). *Why:* matches v1 build plan Phase 1; Fivetran-managed sources follow the same raw-dataset contract but have no repo-local extractor
+- **Did NOT port `GTM lead warehouse/.claude/rules/marts.md`** — the current project's `.claude/rules/mart-naming.md` is the canonical marts rule and already correct
+- **Kept `pyproject.toml`'s `known-first-party` as `["ingestion", "ingest"]`** — the project uses `ingestion/` on disk but leaving `ingest` in the list keeps isort sorted correctly if files under sibling projects land here via copy/paste
+
+**Open threads**
+- PR targets `main` from `Davv5/Track-A-Rules-Guardrails`. No shared-file edits except `.claude/settings.json`, which was merged into the existing hooks array (not overwritten)
+- `pre-commit install` not yet run in this worktree — the hooks config is committed but not locally active. Enable on any clone by running `pre-commit install`
+- `.github/pull_request_template.md` not yet in this repo (Track J owns); used plain PR description
+
+---
+
 ## 2026-04-19 — Phase 2: `stg_ghl__conversations` staging view (Speed-to-Lead numerator source)
 
 **What happened**
