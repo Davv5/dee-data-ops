@@ -67,3 +67,137 @@ models:
           combination_of_columns:
             - pipeline_id
             - stage_id
+
+  - name: dim_contacts
+    description: >
+      Golden-contact dimension anchored on GHL (`stg_ghl__contacts`).
+      Surrogate key over `(location_id, contact_id)`; carries the
+      `attribution_era` bucket (`utm` / `pre_utm`) that downstream marts
+      use to gate era-aware joins, plus placeholder psychographic columns
+      reserved for the Typeform-answers pivot model when it ships. One
+      row per GHL contact — the v1 identity spine. Per `.claude/rules/
+      warehouse.md`, multi-source bridges land upstream of the dim, not
+      by widening the PK.
+    columns:
+      - name: contact_sk
+        description: Surrogate key over `(location_id, contact_id)`. FK target.
+        tests:
+          - unique
+          - not_null
+      - name: contact_id
+        description: Native GHL contact id. Natural key.
+        tests:
+          - not_null
+      - name: location_id
+        description: GHL location id. Composite with `contact_id` in the SK.
+        tests:
+          - not_null
+      - name: email
+        description: Raw GHL email.
+      - name: email_norm
+        description: Lowercased / trimmed email — canonical join key for bridges.
+      - name: attribution_era
+        description: >
+          `utm` when `lead_source` matches a paid/tracked pattern;
+          otherwise `pre_utm`. Per-contact, not per-campaign — drives
+          era-aware mart joins.
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['utm', 'pre_utm']
+      - name: has_typeform_utm
+        description: >
+          True when the Typeform-join yielded a response carrying any
+          `hidden_utm_*` value. Placeholder today (Typeform email-join
+          bridge still owed); shape preserved for drop-in.
+
+  - name: dim_users
+    description: >
+      Unified users dim — supersedes the previously-planned split
+      `dim_sdrs` + `dim_aes`. From `stg_ghl__users` left-joined with
+      `ghl_sdr_roster` to attach the human-maintained `role` column.
+      Per Track D's grain-audit decision, SDR filtering moves to the
+      mart layer, so this dim is reusable for any downstream cut
+      (SDR / AE / Closer). Dual-role history is tracked via
+      `dim_users_snapshot` (SCD2, check strategy on `role` + `email`).
+    columns:
+      - name: user_sk
+        description: Surrogate key over `user_id`. FK target in fct_outreach.
+        tests:
+          - unique
+          - not_null
+      - name: user_id
+        description: Native GHL user id. Natural key. Joins to the roster seed.
+        tests:
+          - unique
+          - not_null
+      - name: email
+        description: GHL user email.
+      - name: role
+        description: >
+          `sdr`, `ae`, or `unknown`. Source: `ghl_sdr_roster.csv`. Users
+          not in the roster default to `unknown`. Role history preserved
+          by `dim_users_snapshot`.
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['sdr', 'ae', 'unknown']
+      - name: is_active
+        description: >
+          `not is_deleted` from GHL. True when the user currently exists
+          in the GHL users endpoint and is not soft-deleted.
+        tests:
+          - not_null
+
+  - name: dim_offers
+    description: >
+      D-DEE v1 offer stack. Hand-coded inline (not a seed) because the
+      list is tiny and ships with the repo, not a source-system export.
+      One row per SKU. Extend this model when the offer list changes.
+    columns:
+      - name: offer_sk
+        description: Surrogate key over `offer_id`.
+        tests:
+          - unique
+          - not_null
+      - name: offer_id
+        description: Business-friendly offer identifier (e.g. `OFFER_DDEE_CORE`).
+        tests:
+          - unique
+          - not_null
+      - name: offer_name
+        description: Display name shown in marts / dashboards.
+        tests:
+          - not_null
+      - name: product_type
+        description: Product category (e.g. `coaching`).
+      - name: offer_tier
+        description: Price tier label (e.g. `high_ticket`).
+
+  - name: dim_calendar_dates
+    description: >
+      Standard calendar dimension from
+      `dbt_utils.date_spine(start_date='2024-01-01', end_date=current_date+1)`.
+      One row per day with day/week/month/quarter/year enrichment for
+      date-bucketed mart joins and Looker Studio filters.
+    columns:
+      - name: date_sk
+        description: Surrogate key over `date_day`.
+        tests:
+          - unique
+          - not_null
+      - name: date_day
+        description: The calendar date (UTC). Natural key.
+        tests:
+          - unique
+          - not_null
+      - name: year_number
+        description: Four-digit year.
+      - name: quarter_number
+        description: Calendar quarter (1-4).
+      - name: month_number
+        description: Calendar month (1-12).
+      - name: week_number
+        description: ISO-ish week-of-year.
+      - name: is_weekday
+        description: True Mon-Fri; false Sat/Sun.
