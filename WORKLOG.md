@@ -11,6 +11,37 @@ Rolling log of what's been done on this project. Newest entries at the top. Tail
 
 ---
 
+## 2026-04-20 — Track K: observability — Slack alerts + source-freshness test + volume monitor
+
+**What happened**
+- Branch `Davv5/Track-K-Observability-Slack-alerts-freshness-volume-monitors` rebased onto Track G's branch (Track G not yet on `main`) so the three workflow files exist as an edit target. PR diff will include Track G's commit until Track G merges first; documented in PR body
+- Added `if: failure()` Slack-notify step (`slackapi/slack-github-action@v1.27.0`, incoming-webhook) to all four workflows:
+  - `.github/workflows/dbt-ci.yml` — on CI failures (PR builds against `ci_pr_<num>`)
+  - `.github/workflows/dbt-deploy.yml` — on prod-deploy failures
+  - `.github/workflows/dbt-nightly.yml` — on nightly failures
+  - `.github/workflows/ingest.yml` — on extractor failures; matrix-aware payload shows `${{ matrix.source }}`. Coordinate merge order with Track J which also edits this file (Secret Manager migration)
+- Wired the volume-monitor soft-alert into `dbt-nightly.yml`: a second `dbt test --select volume_drift --warn-error` step (continue-on-error: true) runs after the main build. If the warn fires, a dedicated ⚠️ Slack step posts to `#dee-dataops-alerts` without failing the workflow
+- Created `dbt/tests/source_freshness.sql` — hard-fail singular test: any declared raw source with `_ingested_at` (GHL) or `_fivetran_synced` (Calendly/Typeform/Stripe) older than 25h returns a row. 9 sources covered; complements dbt's built-in warn-only `source freshness` in the nightly
+- Created `dbt/models/warehouse/volume_monitor/mart_volume_history.sql` — incremental model keyed on (`snapshot_date`, `mart_name`); one row per mart per day. Refs `sales_activity_detail` (Track F), `lead_journey` (Track L), `revenue_detail` (Track M) — all unmerged; model will not compile until those three are on main
+- Created `dbt/tests/volume_drift.sql` — warn-severity singular test (`{{ config(severity='warn') }}`) flagging any mart whose day-over-day row count moves >10%. The nightly `--warn-error` wrapper converts warn into exit-code-1 so the Slack step fires; `continue-on-error: true` prevents build failure
+- Created `dbt/models/warehouse/volume_monitor/_volume_monitor__models.yml` documenting `mart_volume_history` with `not_null` on the three columns and an `accepted_values` test on `mart_name`
+
+**Decisions**
+- **Slack webhook via repo secret (`SLACK_WEBHOOK_URL`), not Secret Manager.** *Why:* simpler than gating webhook retrieval on a pre-auth `gcloud secrets` call in the failure path — if auth itself is what failed, we still want the alert to post. Track J's Secret Manager pattern still applies to long-lived app secrets (GHL tokens); the webhook is operational infra, not an app secret
+- **Drift soft-alert via a dedicated `--warn-error` test step, not by parsing `run_results.json`.** *Why:* simpler and more robust than post-processing — `dbt test --select volume_drift --warn-error` exits non-zero only when the one test we care about warns; `continue-on-error` isolates the workflow from the failure; `steps.volume_drift.outcome == 'failure'` gates the Slack post. One extra BQ query per night is negligible
+- **Singular test with inline `{{ config(severity='warn') }}`, not a generic test declared in YAML.** *Why:* matches the `dbt/tests/<name>.sql` layout the prompt specified and avoids inventing a generic test signature just to pass `severity: warn`. The `_volume_monitor__models.yml` still documents the model's schema tests
+- **`mart_volume_history` materialized incremental, not snapshot.** *Why:* snapshots are for SCDs (tracking changes to a dimension); this is an append-only time-series (`(date, mart)` is the natural PK). The `if is_incremental()` guard prevents reprocessing prior days on a backfill
+- **Freshness threshold 25h, not 24h.** *Why:* the ingest cron runs at 06:00 UTC and the nightly at 08:00 UTC — a 24h threshold would false-positive on the window between the prior nightly run and the next ingest. 25h gives a 1h buffer for ingest latency without masking a stuck cron
+- **Rebase onto Track G's branch rather than abort-and-wait.** *Why:* the prompt's "abort and wait" clause assumes sequential merges; in the parallel-worktree orchestration every dependent track would stall on G. Rebasing on G's branch lets Track K's PR review proceed in parallel; when G merges first, `git rebase main` drops G's commit and the Track K PR reduces to its own delta
+
+**Open threads**
+- `SLACK_WEBHOOK_URL` repo secret not yet set (David pre-flight). Verification step "trigger a failed PR, confirm message in `#dee-dataops-alerts` within 2min" is blocked on secret provisioning
+- `mart_volume_history` cannot compile until Tracks F, L, M all merge (refs three marts that don't exist yet). Until then the nightly should run with `--exclude mart_volume_history` or the model should be disabled in `dbt_project.yml`. Flagged in-file with a compile-note
+- Track J and Track K both edit `.github/workflows/ingest.yml`. Merge order matters: whichever merges second will need to resolve the conflict against the other's additions. Recommend merging Track J first (bigger change: Secret Manager refactor), then rebasing Track K on main and re-applying the single failure-notify step
+- Hosted docs (Track J) could surface `mart_volume_history` lineage visually — no blocker, just a nice follow-up once both are on main
+
+---
+
 ## 2026-04-20 — Track M: `revenue_detail` payment-grain mart scaffolded (Track-E-blocked)
 
 **What happened**

@@ -97,6 +97,26 @@ jobs:
           BQ_KEYFILE_PATH: ${{ steps.auth.outputs.credentials_file_path }}
         run: cd dbt && dbt build --target ci
 
+      - name: Slack notify on failure
+        if: failure()
+        uses: slackapi/slack-github-action@v1.27.0
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload: |
+            {
+              "text": "🔴 ${{ github.workflow }} failed on ${{ github.ref_name }}",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*${{ github.workflow }}* failed\n• Branch: `${{ github.ref_name }}`\n• Run: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|#${{ github.run_number }}>\n• Commit: `${{ github.sha }}`"
+                  }
+                }
+              ]
+            }
+
   cleanup:
     if: github.event.action == 'closed'
     runs-on: ubuntu-latest
