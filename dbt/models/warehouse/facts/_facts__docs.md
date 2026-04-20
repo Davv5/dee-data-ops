@@ -35,7 +35,7 @@ duplicating facts.
 
 Per Track D's grain-audit decisions: the warehouse fact is a faithful
 record of outbound touches regardless of who made them; filtering
-by `role = 'sdr'` is a reporting concern that belongs at the
+by `role = 'SDR'` is a reporting concern that belongs at the
 `sales_activity_detail` mart. Keeps the fact reusable.
 
 ### Contact / user matching

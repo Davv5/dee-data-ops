@@ -373,7 +373,7 @@ models:
         - `direction = 'outbound'`
         - `message_type in ('TYPE_CALL','TYPE_SMS')`
         - `message_source` IS NULL (human) rather than `'workflow'` / `'api'` (automation)
-        - `user_id` present and mapped to role='sdr' in the ghl_sdr_roster seed
+        - `user_id` present and mapped to role='SDR' in the ghl_sdr_roster seed
     columns:
       - name: message_id
         description: GHL message id. Primary key.
