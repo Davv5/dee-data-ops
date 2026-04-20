@@ -40,7 +40,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     env:
-      DBT_PROFILES_DIR: ./dbt
+      DBT_PROFILES_DIR: .
       GCP_PROJECT_ID_PROD: dee-data-ops-prod
     steps:
       - uses: actions/checkout@v4
