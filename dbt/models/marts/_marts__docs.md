@@ -59,5 +59,53 @@ revenue-parity assertion fires with a shortfall that lines up with
 Fanbasis volume, the tolerance should be widened in the PR with a note
 linking the Fanbasis blocker — **not** by filtering unmatched rows out
 of the mart.
+{% docs mart_lead_journey_overview %}
+
+# `lead_journey` — contact-grain golden-lead surface
+
+One row per GHL contact, whether they ever booked a call or not.
+Powers Page 2 of the D-DEE dashboard:
+
+- **Funnel** — lead → applicant → booker → shower → buyer
+- **Attribution** — first-touch / last-touch / self-reported source
+- **Psychographics** — Typeform-sourced quiz answers
+- **Lost reason** — latest opportunity status + lost_reason
+- **Applicant → booker conversion** — `application_to_booker_flag`
+
+Expected row count: ~15,598 (anchored on `dim_contacts`, which is 1:1
+with GHL contacts per the v1 single-anchor identity spine rule).
+
+## Placeholder inventory
+
+Columns that ship as typed NULLs today until their upstream bridge
+or pivot lands. Contract stays stable; the join fills in when
+upstream ships.
+
+| Column | Upstream owed |
+|---|---|
+| `application_submitted`, `application_date` | Typeform-answers pivot |
+| `lead_magnet_first_engaged`, `lead_magnet_history` | GHL-tag pivot |
+| `age`, `business_stage`, `investment_range`, `core_struggle`, `emotional_goal_value`, `current_situation` | Typeform-answers pivot |
+| `self_reported_source`, `self_reported_vs_utm_match` | `stg_calendly__event_questions_and_answers` |
+| `engagement_score` | Not surfaced on GHL opportunity endpoint |
+
+## Known parity gaps (v1)
+
+- `bookings_count` will report 0 for every contact until
+  `fct_calls_booked.contact_sk` resolves (Calendly invitee staging —
+  Track C open thread). The oracle says 3,141 contacts have at
+  least one booking; v1 will under-report until that bridge lands.
+- `application_submitted` is NULL today — `release_gate_lead_journey`
+  fails on the applicant-count assertion until the Typeform pivot
+  ships. This is expected and correctly signals the dependency.
+
+## DQ flag semantics
+
+`attribution_quality_flag` values:
+
+- `clean` — every signal present and mutually consistent
+- `pre_utm_era` — the contact's `attribution_era = pre_utm`
+- `no_sdr_touch` — the contact is a booker but no SDR touch is
+  attributed (`fct_outreach` row count = 0 for SDR-role users)
 
 {% enddocs %}

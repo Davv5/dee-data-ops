@@ -10,6 +10,29 @@ models:
           Source-system payment identifier (Stripe charge_id or Fanbasis
           equivalent). Primary key of the mart — every payment appears exactly
           once, including unmatched payments.
+  - name: lead_journey
+    description: >
+      Contact-grain "golden lead" surface — one row per GHL contact
+      whether the lead ever booked a call or not. Powers Page 2 of
+      the D-DEE dashboard (funnel, attribution, psychographics,
+      lost-reason, applicant → booker conversion). Widest mart in the
+      project. See `_marts__docs.md` for column-level documentation
+      and placeholder inventory.
+
+      **Placeholders:** several columns ship as typed NULLs today
+      because their upstream pivot / bridge hasn't landed yet
+      (applications, lead magnets, psychographics, self-reported
+      source, engagement score, multi-touch first-vs-last). The
+      schema contract stays stable; the join fills in when upstream
+      ships. The release-gate applicant assertion documents the
+      dependency and will fail until the Typeform-answers pivot lands.
+
+      **Coordination:** this file will be extended by Tracks F
+      (`sales_activity_detail`) and M (`revenue_detail`) at merge.
+      Do not rewrite — add new `- name:` entries under `models:`.
+    columns:
+      - name: contact_id
+        description: Primary key — GHL contact_id, 1:1 with `dim_contacts`.
         tests:
           - unique
           - not_null
@@ -155,3 +178,166 @@ models:
         description: Timestamp the mart was last materialized, in UTC.
         tests:
           - not_null
+      - name: email_canonical
+        description: Lowercased / trimmed email (from `dim_contacts.email_norm`).
+
+      - name: full_name
+        description: Display name from GHL (`dim_contacts.contact_name`).
+
+      - name: client
+        description: Client / tenant label. Literal `D-DEE` in v1 single-tenant.
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['D-DEE']
+
+      - name: opt_in_date
+        description: First-contact timestamp (`dim_contacts.contact_created_at`).
+
+      - name: tracking_era
+        description: >
+          `utm` vs `pre_utm` bucket — derived from `dim_contacts.
+          attribution_era`. Drives era-aware dashboard joins.
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['utm', 'pre_utm']
+
+      - name: application_submitted
+        description: >
+          Placeholder (NULL today) — Typeform-answers pivot owed.
+          True when the contact submitted the application Typeform.
+      - name: application_date
+        description: Placeholder (NULL today) — Typeform submission timestamp.
+      - name: lead_magnet_first_engaged
+        description: Placeholder (NULL today) — GHL-tag pivot owed.
+      - name: lead_magnet_history
+        description: Placeholder (NULL today) — CSV of all magnets engaged.
+
+      - name: bookings_count
+        description: >
+          Count of Calendly booking events matched to the contact
+          via `fct_calls_booked.contact_sk`. Reports 0 until the
+          Calendly-invitee staging (Track C open thread) lands.
+        tests:
+          - not_null
+      - name: latest_booking_at
+        description: Most recent booking timestamp; NULL when no bookings.
+      - name: showed_calls_count
+        description: >
+          Count of bookings whose `event_status` is neither
+          `canceled` nor `no_show`.
+        tests: [not_null]
+      - name: cancelled_bookings_count
+        description: Count of bookings with `event_status = canceled`.
+        tests: [not_null]
+      - name: application_to_booker_flag
+        description: >
+          True when the contact both submitted an application AND
+          booked at least one call. NULL today (depends on the
+          application-submitted placeholder).
+
+      - name: current_pipeline_name
+        description: Pipeline name of the contact's latest opportunity.
+      - name: current_stage_name
+        description: Stage name of the contact's latest opportunity.
+      - name: is_booked_stage
+        description: >
+          `dim_pipeline_stages.is_booked_stage` for the latest
+          opportunity's stage. False when the contact has no
+          opportunity or the stage doesn't match the booked rule.
+        tests: [not_null]
+      - name: is_closed_stage
+        description: True when opportunity status is `won` / `closed_won`.
+        tests: [not_null]
+      - name: days_since_stage_change
+        description: >
+          Days between `current_date` and the opportunity's
+          `last_stage_change_at`. NULL when the contact has no
+          opportunity.
+      - name: engagement_score
+        description: >
+          Placeholder (NULL today) — not surfaced on the GHL
+          opportunity endpoint in v1.
+
+      - name: closed_won_flag
+        description: Same rule as `is_closed_stage`, kept for contract clarity.
+        tests: [not_null]
+      - name: lost_reason
+        description: >
+          `lost_reason_id` from the latest opportunity. Raw id
+          today — resolution to display text is owed.
+      - name: has_any_payment_flag
+        description: True when any `fct_revenue` row matched this contact.
+        tests: [not_null]
+      - name: first_payment_at
+        description: Earliest payment transaction timestamp.
+      - name: latest_payment_at
+        description: Most recent payment transaction timestamp.
+      - name: total_net_revenue
+        description: >
+          Sum of `fct_revenue.net_amount`. Defaults to 0 when no
+          payments matched. Face-value across currencies (multi-
+          currency handling is a mart-consumer concern).
+        tests: [not_null]
+
+      - name: first_touch_campaign
+        description: >
+          First touch UTM campaign. Mirrors the single UTM trio on
+          `dim_contacts` today; widens when the multi-touch bridge
+          ships.
+      - name: first_touch_source
+      - name: first_touch_medium
+      - name: last_touch_campaign
+      - name: last_touch_source
+      - name: last_touch_medium
+      - name: first_vs_last_touch_campaign_match
+        description: >
+          Trivially true today (single-touch). Will become a real
+          signal when multi-touch attribution lands.
+        tests: [not_null]
+
+      - name: self_reported_source
+        description: Placeholder (NULL today) — Calendly Q&A staging owed.
+      - name: self_reported_vs_utm_match
+        description: Placeholder (NULL today) — cross-check of Q&A vs UTM.
+
+      - name: age
+        description: Placeholder (NULL today) — Typeform pivot owed.
+      - name: business_stage
+      - name: investment_range
+      - name: core_struggle
+      - name: emotional_goal_value
+      - name: current_situation
+
+      - name: assigned_sdr_name
+        description: >
+          SDR who touched the contact most often (role = `sdr` in
+          `dim_users`). NULL when no SDR touch exists.
+      - name: assigned_closer_name
+        description: >
+          Closer assigned to the latest opportunity (role = `ae`
+          in `dim_users`). NULL when the opportunity's
+          `assigned_user_id` isn't an AE in the roster.
+      - name: number_of_dials
+        description: >
+          Count of `fct_outreach` rows with `channel = call` for
+          this contact.
+        tests: [not_null]
+
+      - name: attribution_quality_flag
+        description: >
+          DQ bucket. Values:
+          `clean` — every signal present and consistent;
+          `pre_utm_era` — contact lands in pre-UTM era;
+          `no_sdr_touch` — booker with no SDR attributed.
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['clean', 'pre_utm_era', 'no_sdr_touch']
+      - name: attribution_era
+        description: Raw `dim_contacts.attribution_era` for downstream grouping.
+        tests: [not_null]
+      - name: mart_refreshed_at
+        description: `current_timestamp()` at build time — freshness marker.
+        tests: [not_null]
