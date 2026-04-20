@@ -40,3 +40,5 @@ seeds:
     +schema: staging
     ghl_sdr_roster:
       +quote_columns: false
+    validation:
+      +schema: validation

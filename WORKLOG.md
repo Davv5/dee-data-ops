@@ -11,6 +11,28 @@ Rolling log of what's been done on this project. Newest entries at the top. Tail
 
 ---
 
+## 2026-04-20 — Track B: oracle validation seeds + roster-update proposal
+
+**What happened**
+- Landed 6 zero-PII oracle CSVs from Master Lead Sheet.xlsx snapshot 2026-03-19 as dbt seeds under `dbt/seeds/validation/`: `oracle_dashboard_metrics_20260319` (43 rows), `oracle_show_rate_by_campaign_20260319` (56), `oracle_show_rate_by_period_20260319` (4), `oracle_revenue_by_stage_20260319` (55), `oracle_sdr_leaderboard_20260319` (6 incl. TOTAL), `oracle_closer_leaderboard_20260319` (8 incl. TOTAL)
+- Declared all 6 in `dbt/seeds/_seeds__models.yml` with column schemas + `source: Master Lead Sheet.xlsx snapshot 2026-03-19` descriptions. `not_null` + `unique` tests on identity columns (sdr_name, closer_name, campaign, period, pipeline_stage, metric)
+- Added `seeds.dee_data_ops.validation: {+schema: validation}` block to `dbt_project.yml`; preserved the anticipated `ghl_sdr_roster` block shape from the `phase-1-5/ghl-messages-extractor` branch verbatim
+- `dbt seed --target dev --select validation` → PASS=6 into `dev_david` schema. `dbt test --select validation` → PASS=11 (6 not_null + 5 unique)
+- Wrote `docs/proposals/roster_update_from_oracle.md` — evidence-backed table for 16 current roster rows + 2 roster-gap additions (Moayad departed, Halle confirm), each citing oracle leaderboard row. David reviews + commits roster CSV manually in a separate PR
+
+**Decisions**
+- **Dashboard-metrics CSV normalized to a 3-column `(section, metric, value)` shape** before loading. *Why:* raw oracle file has section dividers (`--- GHL PIPELINE ---`) and blank spacer rows that produce ragged-column CSVs dbt agate rejects. Preserving the section grouping as a column keeps semantic grouping intact without losing any KPI rows
+- **Headers snake-cased on copy** (`Show Rate %` → `show_rate_pct`, `Cash All Time` → `cash_all_time`, etc.). *Why:* BigQuery identifiers disallow spaces, percents, and parens; sanitizing at the seed layer keeps downstream SQL clean. Original labels preserved in column descriptions
+- **TOTAL row in closer leaderboard padded** to 8 cols (source CSV drops the trailing `state` field on the aggregate row). *Why:* dbt seed requires consistent column count per row
+- **`ghl_sdr_roster.csv` not modified** — enforced by the DataOps rule on person-identifying seeds. Proposal doc is the only artifact; David drives the commit
+
+**Open threads**
+- `ghl_sdr_roster.csv` is not yet on `main` (lives on branch `phase-1-5/ghl-messages-extractor`). The `ghl_sdr_roster` config block in `dbt_project.yml` currently shows as "unused" in dbt warnings — resolves automatically when that branch merges
+- PR description flags conflict risk with Track D (if D also edits `seeds.dee_data_ops:` in `dbt_project.yml`, coordinate at merge)
+- 2 proposed roster additions (Moayad, Halle) need David decision on whether to add with `status=departed` or leave off
+
+---
+
 ## 2026-04-20 — Track A: rules + AI-workflow guardrails landed
 
 **What happened**

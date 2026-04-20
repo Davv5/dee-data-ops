@@ -1,0 +1,93 @@
+version: 2
+
+seeds:
+  - name: oracle_dashboard_metrics_20260319
+    description: "Oracle validation fixture — dashboard-level KPIs. source: Master Lead Sheet.xlsx snapshot 2026-03-19 (Dashboard tab, zero-PII aggregates)."
+    columns:
+      - name: section
+        description: "Section grouping from the source tab (GHL PIPELINE, AI QUALIFICATION, SDR EOD, CLOSER EOD, SLACK, TEAM ATTRIBUTION, or blank for top-level KPIs)."
+      - name: metric
+        description: "KPI name."
+        tests:
+          - not_null
+      - name: value
+        description: "KPI value as string (mixed types: integer, percentage, currency, timestamp)."
+
+  - name: oracle_show_rate_by_campaign_20260319
+    description: "Oracle validation fixture — show rate and revenue by campaign source. source: Master Lead Sheet.xlsx snapshot 2026-03-19."
+    columns:
+      - name: campaign
+        description: "Campaign / UTM source label."
+        tests:
+          - not_null
+          - unique
+      - name: calls_booked
+      - name: calls_showed
+      - name: show_rate_pct
+        description: "Show rate as formatted percentage string (e.g. 47.4%)."
+      - name: applications
+      - name: paying_customers
+      - name: revenue_usd
+        description: "Revenue as formatted currency string (e.g. $64,103.84)."
+
+  - name: oracle_show_rate_by_period_20260319
+    description: "Oracle validation fixture — show rate across 4 time windows. source: Master Lead Sheet.xlsx snapshot 2026-03-19."
+    columns:
+      - name: period
+        description: "Time window label: Last 30/60/90 Days, All Time."
+        tests:
+          - not_null
+          - unique
+      - name: calls_booked
+      - name: calls_showed
+      - name: show_rate_pct
+
+  - name: oracle_revenue_by_stage_20260319
+    description: "Oracle validation fixture — revenue and customer counts by pipeline stage. source: Master Lead Sheet.xlsx snapshot 2026-03-19."
+    columns:
+      - name: pipeline_stage
+        description: "GHL pipeline stage name."
+        tests:
+          - not_null
+          - unique
+      - name: total_leads
+      - name: paying_customers
+      - name: total_revenue_usd
+        description: "Revenue as formatted currency string."
+      - name: avg_revenue_per_customer
+
+  - name: oracle_sdr_leaderboard_20260319
+    description: "Oracle validation fixture — SDR leaderboard (5 SDRs + TOTAL row). source: Master Lead Sheet.xlsx snapshot 2026-03-19."
+    columns:
+      - name: sdr_name
+        description: "SDR first name (matches roster seed on name). TOTAL row aggregates all SDRs."
+        tests:
+          - not_null
+          - unique
+      - name: dials
+      - name: pickups
+      - name: sets
+      - name: cash_this_month
+        description: "Currency string."
+      - name: cash_all_time
+        description: "Currency string."
+
+  - name: oracle_closer_leaderboard_20260319
+    description: "Oracle validation fixture — closer leaderboard (7 closers + TOTAL row). source: Master Lead Sheet.xlsx snapshot 2026-03-19."
+    columns:
+      - name: closer_name
+        description: "Closer first name (matches roster seed on name). TOTAL row aggregates all closers."
+        tests:
+          - not_null
+          - unique
+      - name: booked
+      - name: showed
+      - name: closed
+      - name: cash_this_month
+        description: "Currency string."
+      - name: cash_all_time
+        description: "Currency string."
+      - name: show_rate_pct
+        description: "Formatted percentage string."
+      - name: state
+        description: "State / region code (mixed numeric and N/A)."

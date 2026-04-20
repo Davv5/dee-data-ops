@@ -1,0 +1,44 @@
+section,metric,value
+,Total Leads,15598
+,GHL Leads (with email),14594
+,Orphan Leads,1004
+,Calls Booked,3141
+,Calls Taken (Showed Up),1713
+,Calls Canceled,1365
+,Calls No-Show,63
+,Show Rate (Calendly),54.5%
+,Applications Submitted,6113
+,Paying Customers,879
+,Total Revenue (USD),"$356,935.16"
+,Closed (paid + booked),626
+,Close Rate,19.9%
+GHL PIPELINE,Pipeline Leads,14279
+GHL PIPELINE,Pipeline: Booked,1645
+GHL PIPELINE,Pipeline: No Show,154
+GHL PIPELINE,Pipeline: Closed/Won,646
+GHL PIPELINE,Pipeline: Lost,0
+AI QUALIFICATION,Leads with AI Score,594
+AI QUALIFICATION,AI Qualified: Yes,71
+AI QUALIFICATION,AI Qualified: No,522
+AI QUALIFICATION,AI Qualification Rate,12.0%
+SDR EOD,SDR Report Days,200
+SDR EOD,Total Dials,22826
+SDR EOD,Total Pickups,3796
+SDR EOD,Total Sets Booked,262
+SDR EOD,Pickup Rate,16.6%
+SDR EOD,SDR → Call Show Rate,38.2%
+CLOSER EOD,Closer Report Days,63
+CLOSER EOD,Total Booked Calls,257
+CLOSER EOD,Total Showed Calls,156
+CLOSER EOD,Total Closed Calls,56
+CLOSER EOD,Total Canceled,32
+CLOSER EOD,Closer Show Rate,60.7%
+CLOSER EOD,Closer Close Rate,35.9%
+SLACK,Slack Leads Matched,118
+SLACK,Slack No-Shows,13
+SLACK,Slack Qualified,90
+SLACK,Slack Payments (cross-ref),15
+TEAM ATTRIBUTION,Leads with Closer,491
+TEAM ATTRIBUTION,Leads with Setter,13
+TEAM ATTRIBUTION,Leads with SDR,66
+TEAM ATTRIBUTION,Run Date,2026-03-19 18:10
