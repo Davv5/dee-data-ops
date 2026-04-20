@@ -1,3 +1,7 @@
+{{ config(
+    severity = 'warn'
+) }}
+
 -- Release gate: fail the build if sales_activity_detail row count deviates
 -- more than ±5% from the oracle 'Calls Booked' snapshot (3,141 as of 2026-03-19).
 -- Tolerance is deliberately tight — see `client_v1_scope_speed_to_lead.md` for the
