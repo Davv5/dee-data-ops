@@ -1,0 +1,48 @@
+version: 2
+
+sources:
+  - name: raw_stripe
+    description: >
+      Raw landing zone for Stripe, populated by the Fivetran Stripe connector.
+      Source-side sync gap was flagged on 2026-04-19 in CLAUDE.local.md
+      (customer/charge/invoice tables reported zero rows despite ~4.7K
+      checkout sessions). As of 2026-04-20 the gap has partially resolved:
+      `charge` has 3,375 rows and `customer` has 516 rows — but a full reconcile
+      against Stripe Dashboard is still owed before marts depend on these
+      figures for revenue. Staging ships regardless for structural correctness.
+    database: dee-data-ops
+    schema: raw_stripe
+    config:
+      loaded_at_field: _fivetran_synced
+      freshness:
+        warn_after: {count: 48, period: hour}
+    tables:
+      - name: charge
+        description: >
+          One row per Stripe charge (the revenue event). Amounts are in
+          **minor units** (cents for USD). Zero-row gap was flagged on
+          2026-04-19; as of 2026-04-20 ~3.4K rows are present but a full
+          Fivetran ↔ Stripe Dashboard reconcile is still pending.
+        columns:
+          - name: id
+            description: Stripe charge id. Primary key of the source record.
+            tests:
+              - not_null
+          - name: _fivetran_synced
+            description: Wall-clock UTC time Fivetran last synced this row.
+            tests:
+              - not_null
+
+      - name: customer
+        description: >
+          One row per Stripe customer. Same zero-row gap caveat as `charge` —
+          partial sync as of 2026-04-20 (~516 rows).
+        columns:
+          - name: id
+            description: Stripe customer id. Primary key of the source record.
+            tests:
+              - not_null
+          - name: _fivetran_synced
+            description: Wall-clock UTC time Fivetran last synced this row.
+            tests:
+              - not_null

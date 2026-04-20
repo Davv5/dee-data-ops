@@ -1,0 +1,200 @@
+version: 2
+
+models:
+  - name: stg_stripe__charges
+    description: >
+      1:1 staging view on `raw_stripe.charge`. Deduped on `id` keeping the
+      latest `_fivetran_synced`. One row per Stripe charge — the revenue
+      event.
+
+      Amounts are preserved in **minor units** (cents for USD) to match
+      Stripe's API contract; conversion to major units happens downstream in
+      a fact model. The `*_id` FKs (`customer_id`, `invoice_id`,
+      `payment_intent_id`, etc.) are carried through for downstream joins but
+      not enforced here — the corresponding source tables may still be
+      partially synced.
+
+      **Sync-gap caveat:** Fivetran reported a zero-row state on
+      customer/charge/invoice/payment_intent tables as of 2026-04-19 per
+      CLAUDE.local.md. As of 2026-04-20 ~3.4K charge rows are present; a full
+      Fivetran ↔ Stripe Dashboard reconcile is still owed before revenue
+      marts depend on these figures. Model ships green for structural
+      correctness.
+    columns:
+      - name: charge_id
+        description: Stripe charge id. Primary key.
+        tests:
+          - unique
+          - not_null
+
+      - name: customer_id
+        description: FK to stg_stripe__customers. Nullable (guest checkout).
+
+      - name: invoice_id
+        description: FK to the Stripe invoice that produced this charge, when applicable.
+
+      - name: payment_intent_id
+        description: FK to the Stripe payment intent this charge fulfilled.
+
+      - name: payment_method_id
+        description: FK to the payment method used on this charge.
+
+      - name: balance_transaction_id
+        description: FK to the Stripe balance transaction for fee reconciliation.
+
+      - name: transfer_id
+        description: FK to the Stripe transfer, when applicable (Connect flows).
+
+      - name: status
+        description: Stripe charge status (`succeeded`, `pending`, `failed`).
+
+      - name: currency
+        description: ISO 4217 currency code for `amount_minor` (e.g. `usd`).
+
+      - name: amount_minor
+        description: >
+          Charge amount in **minor units** (cents for USD). Convert to major
+          units in a fact model (e.g. divide by 100 for USD).
+
+      - name: amount_captured_minor
+        description: Amount captured, in minor units.
+
+      - name: amount_refunded_minor
+        description: Amount refunded, in minor units.
+
+      - name: is_captured
+        description: True if the charge was captured (not just authorized).
+
+      - name: is_paid
+        description: True if the charge reached paid status.
+
+      - name: is_refunded
+        description: True if the charge was refunded (fully or partially).
+
+      - name: is_livemode
+        description: True for livemode charges; false for test-mode charges.
+
+      - name: failure_code
+        description: Stripe-provided failure code when `status = 'failed'`.
+
+      - name: failure_message
+        description: Human-readable failure message when `status = 'failed'`.
+
+      - name: outcome_type
+        description: Stripe outcome type (`authorized`, `blocked`, `issuer_declined`, etc.).
+
+      - name: outcome_network_status
+        description: Network-level status as reported by the card network.
+
+      - name: outcome_reason
+        description: Stripe-internal reason code explaining the outcome.
+
+      - name: outcome_risk_level
+        description: Stripe-assigned risk level for the charge (`normal`, `elevated`, `highest`).
+
+      - name: outcome_risk_score
+        description: Stripe-assigned numeric risk score (0–100).
+
+      - name: outcome_seller_message
+        description: Seller-facing explanation of the outcome.
+
+      - name: billing_email
+        description: Email on the billing detail for the charge.
+
+      - name: billing_name
+        description: Name on the billing detail for the charge.
+
+      - name: billing_phone
+        description: Phone on the billing detail for the charge.
+
+      - name: billing_country
+        description: ISO country code on the billing address.
+
+      - name: description
+        description: Merchant-provided description for the charge.
+
+      - name: receipt_email
+        description: Email address the Stripe receipt was sent to.
+
+      - name: receipt_url
+        description: URL of the hosted receipt.
+
+      - name: statement_descriptor
+        description: Statement descriptor shown on the card statement.
+
+      - name: charged_at
+        description: UTC timestamp the charge was created in Stripe (from `created`).
+
+      - name: _ingested_at
+        description: Wall-clock UTC time Fivetran last synced the underlying row.
+
+  - name: stg_stripe__customers
+    description: >
+      1:1 staging view on `raw_stripe.customer`. Deduped on `id` keeping the
+      latest `_fivetran_synced`. One row per Stripe customer.
+
+      Same zero-row-gap caveat as `stg_stripe__charges` (see CLAUDE.local.md
+      2026-04-19 note); ~516 customer rows present as of 2026-04-20, full
+      reconcile still owed.
+    columns:
+      - name: customer_id
+        description: Stripe customer id. Primary key.
+        tests:
+          - unique
+          - not_null
+
+      - name: email
+        description: Customer's email address.
+
+      - name: customer_name
+        description: Customer's display name as stored in Stripe.
+
+      - name: phone
+        description: Customer's phone number.
+
+      - name: description
+        description: Free-text description attached to the customer in Stripe.
+
+      - name: currency
+        description: Default ISO 4217 currency for the customer.
+
+      - name: balance_minor
+        description: >
+          Customer's account balance in **minor units** (cents for USD).
+          Negative = credit, positive = amount owed.
+
+      - name: address_city
+        description: Billing address city.
+
+      - name: address_state
+        description: Billing address state / region.
+
+      - name: address_postal_code
+        description: Billing address postal / ZIP code.
+
+      - name: address_country
+        description: Billing address ISO country code.
+
+      - name: is_delinquent
+        description: Stripe delinquency flag (unpaid invoice outstanding).
+
+      - name: is_livemode
+        description: True for livemode customers; false for test-mode customers.
+
+      - name: is_deleted
+        description: True if the customer has been deleted in Stripe.
+
+      - name: invoice_prefix
+        description: Stripe-assigned invoice-number prefix for this customer.
+
+      - name: default_payment_method_id
+        description: FK to the default payment method on file.
+
+      - name: tax_exempt
+        description: Stripe tax-exempt status (`none`, `exempt`, `reverse`).
+
+      - name: customer_created_at
+        description: UTC timestamp the customer was created in Stripe (from `created`).
+
+      - name: _ingested_at
+        description: Wall-clock UTC time Fivetran last synced the underlying row.
