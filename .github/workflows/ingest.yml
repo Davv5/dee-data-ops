@@ -68,3 +68,23 @@ jobs:
 
       - name: Run extractor
         run: python ingestion/${{ matrix.source }}/extract.py
+
+      - name: Slack notify on failure
+        if: failure()
+        uses: slackapi/slack-github-action@v1.27.0
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload: |
+            {
+              "text": "🔴 Ingest (${{ matrix.source }}) failed on ${{ github.ref_name }}",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Ingest* (`${{ matrix.source }}`) failed\n• Branch: `${{ github.ref_name }}`\n• Run: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|#${{ github.run_number }}>\n• Commit: `${{ github.sha }}`"
+                  }
+                }
+              ]
+            }
