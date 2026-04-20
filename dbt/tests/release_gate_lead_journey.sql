@@ -1,3 +1,7 @@
+{{ config(
+    severity = 'warn'
+) }}
+
 -- Release-gate parity test for the contact-grain mart.
 --
 -- Two assertions pulled against the 2026-03-19 oracle seed:

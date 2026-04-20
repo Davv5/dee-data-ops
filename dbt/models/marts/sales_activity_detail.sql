@@ -5,7 +5,21 @@ fct_bookings as (
 ),
 
 contacts as (
-    select * from {{ ref('dim_contacts') }}
+    -- dim_contacts doesn't expose multi-touch attribution columns yet (Track E
+    -- ships single-touch utm_* only). Stub multi-touch + lead-magnet fields as
+    -- NULL so the mart keeps its column contract; Looker tiles will render
+    -- empty for these until the upstream enrichment lands.
+    select
+        dc.*,
+        cast(null as string) as first_touch_campaign,
+        cast(null as string) as first_touch_source,
+        cast(null as string) as first_touch_medium,
+        cast(null as string) as last_touch_campaign,
+        cast(null as string) as last_touch_source,
+        cast(null as string) as last_touch_medium,
+        cast(null as string) as lead_magnet_first_engaged,
+        cast(null as string) as lead_source_self_reported
+    from {{ ref('dim_contacts') }} as dc
 ),
 
 users as (
