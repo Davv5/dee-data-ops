@@ -1,0 +1,73 @@
+# Pre-commit hooks for Track-A-Rules-Guardrails (D-DEE data ops).
+# Install:
+#     pip install pre-commit
+#     pre-commit install
+# Run manually:
+#     pre-commit run --all-files
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+        args: [--allow-multiple-documents]
+      - id: check-added-large-files
+        args: [--maxkb=500]
+      - id: detect-private-key
+      - id: check-merge-conflict
+      - id: mixed-line-ending
+        args: [--fix=lf]
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.4.4
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: https://github.com/sqlfluff/sqlfluff
+    rev: 2.3.5
+    hooks:
+      - id: sqlfluff-lint
+        files: ^dbt/models/.*\.sql$
+        additional_dependencies:
+          - dbt-bigquery==1.7.7
+          - sqlfluff-templater-dbt==2.3.5
+
+  # Guardrail: block `dbt ... --target prod` being snuck into committed
+  # scripts. Matches the .claude/settings.json PreToolUse hook so the
+  # same rule applies to humans running git locally.
+  - repo: local
+    hooks:
+      - id: forbid-dbt-target-prod
+        name: Forbid `dbt --target prod` in committed files
+        entry: bash -c 'if grep -RniE "dbt[[:space:]][^|;&]*--target[[:space:]]+prod" --include="*.sh" --include="*.py" --include="*.md" --include="*.yaml" --include="*.yml" --exclude-dir=".venv" --exclude-dir="dbt_packages" --exclude-dir="target" .github .; then echo "BLOCKED: dbt --target prod must run only in the post-merge GHA workflow."; exit 1; fi'
+        language: system
+        pass_filenames: false
+
+      # ELT boundary: staging is 1:1 with raw. Any `join` keyword in a
+      # staging model means the logic belongs in warehouse/ or marts/.
+      # Scoped to .sql only — YAML descriptions may mention "join" in prose.
+      - id: no-joins-in-staging
+        name: Forbid `join` in dbt/models/staging/**/*.sql
+        entry: bash -c 'if grep -RniE "\b(inner|left|right|full|cross)?[[:space:]]*join[[:space:]]" --include="*.sql" dbt/models/staging/ 2>/dev/null; then echo "BLOCKED: no join in staging — move to warehouse/ or marts/."; exit 1; fi'
+        language: system
+        pass_filenames: false
+
+      # ELT boundary: only staging may call source() or select from
+      # raw_*.  Warehouse and marts must ref() staging views.
+      - id: no-raw-refs-outside-staging
+        name: Forbid source() or raw_* refs outside staging
+        entry: bash -c 'if grep -RnE "source\(|raw_[a-z_]+\." dbt/models/warehouse/ dbt/models/marts/ 2>/dev/null; then echo "BLOCKED: warehouse/ and marts/ must ref() staging, never source() raw."; exit 1; fi'
+        language: system
+        pass_filenames: false
+
+      # ELT boundary: no references to the legacy pre-v2 tables in any
+      # dbt code. Those tables are going away in Phase 3.
+      - id: no-legacy-table-refs
+        name: Forbid legacy Raw.ghl_objects_raw / STG.stg_ghl_* refs
+        entry: bash -c 'if grep -RnE "Raw\.ghl_objects_raw|STG\.stg_ghl_" dbt/ 2>/dev/null; then echo "BLOCKED: legacy pre-v2 table references are not permitted in dbt/."; exit 1; fi'
+        language: system
+        pass_filenames: false

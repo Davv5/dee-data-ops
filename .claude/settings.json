@@ -5,6 +5,17 @@
     ]
   },
   "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cmd=$(jq -r '.tool_input.command // empty'); if [ -z \"${GITHUB_ACTIONS:-}\" ] && printf '%s' \"$cmd\" | grep -qE 'dbt[[:space:]][^|;&]*--target[[:space:]]+prod'; then printf 'BLOCKED: --target prod from local shell. Use GitHub Actions.\\n' >&2; exit 2; fi"
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "Write|Edit",
