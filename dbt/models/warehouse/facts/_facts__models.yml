@@ -74,9 +74,14 @@ models:
               to: ref('dim_contacts')
               field: contact_sk
       - name: user_sk
-        description: FK to `dim_users.user_sk`. The rep who made the touch.
+        description: >
+          FK to `dim_users.user_sk`. The rep who made the touch.
+          Nullable: GHL /messages carries `user_id`s for system /
+          automation actors that never appear in /users/search, so
+          ~3.6k touches resolve to NULL `user_sk`. Mart-layer filters
+          (SDR / AE leaderboards) naturally drop these via the role
+          join; unattributed-touch diagnostics can count them.
         tests:
-          - not_null
           - relationships:
               to: ref('dim_users')
               field: user_sk

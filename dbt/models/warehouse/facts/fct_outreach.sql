@@ -6,8 +6,13 @@
 -- natively. No role filter here: per Track D's decisions the SDR filter
 -- moves to the mart so this fact stays reusable for AE/Closer analysis.
 --
--- contact/user match is GHL-native (`contact_id`/`user_id` on the message
--- row) so match_method = 'ghl_native', match_score = 1.00 for every row.
+-- contact match is GHL-native (`contact_id` on the message row) so
+-- match_method = 'ghl_native', match_score = 1.00 for every row.
+-- user_sk is resolved via LEFT JOIN to dim_users rather than hashed
+-- directly from the message's user_id, because GHL /messages carries
+-- user_ids for system/automation actors that never appear in
+-- /users/search. Those rows get user_sk NULL (unattributed) instead
+-- of emitting a dangling SK that breaks the relationships test.
 
 with
 
@@ -40,6 +45,15 @@ manual_touches as (
 
 ),
 
+users as (
+
+    select
+        user_id,
+        user_sk
+    from {{ ref('dim_users') }}
+
+),
+
 final as (
 
     select
@@ -50,8 +64,7 @@ final as (
             ['manual_touches.location_id', 'manual_touches.contact_id']
         ) }}                                                    as contact_sk,
 
-        {{ dbt_utils.generate_surrogate_key(['manual_touches.user_id']) }}
-                                                                as user_sk,
+        users.user_sk,
 
         manual_touches.message_id,
         manual_touches.conversation_id,
@@ -71,6 +84,8 @@ final as (
         1.00                                                    as match_score
 
     from manual_touches
+    left join users
+        on manual_touches.user_id = users.user_id
 
 )
 

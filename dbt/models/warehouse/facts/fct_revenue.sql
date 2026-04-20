@@ -60,6 +60,7 @@ fanbasis_payments as (
         cast(null as bool)                                    as is_captured,
         cast(null as bool)                                    as is_paid,
         cast(null as bool)                                    as is_refunded
+    from unnest([struct(1 as _placeholder)])
     where false
 
 ),
