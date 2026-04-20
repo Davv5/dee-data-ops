@@ -74,3 +74,21 @@ models:
 
       - name: _ingested_at
         description: Wall-clock UTC time Fivetran last synced the underlying row.
+
+  - name: stg_calendly__event_invitees
+    description: >
+      Primary invitee per Calendly event — provides the invitee email that
+      bridges bookings to GHL contacts. One row per event_id.
+    columns:
+      - name: invitee_id
+        description: Invitee URI (primary key).
+        tests:
+          - unique
+          - not_null
+      - name: event_id
+        description: Foreign key into stg_calendly__events.event_id.
+        tests:
+          - unique
+          - not_null
+      - name: invitee_email_norm
+        description: Lowercased + trimmed email; join key to dim_contacts.email_norm.
