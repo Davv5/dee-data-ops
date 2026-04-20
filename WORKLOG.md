@@ -11,6 +11,31 @@ Rolling log of what's been done on this project. Newest entries at the top. Tail
 
 ---
 
+## 2026-04-20 — Track L: `lead_journey` mart (contact grain, widest)
+
+**What happened**
+- Shipped `dbt/models/marts/lead_journey.sql` on branch `Davv5/Track-L-lead_journey-mart-contact-grain-widest` — contact-grain "golden lead" surface, one row per GHL contact regardless of booking status. Joins `dim_contacts` (spine) + `fct_calls_booked` / `fct_revenue` / `fct_outreach` / latest opportunity × `dim_pipeline_stages` / `dim_users` (SDR + AE attribution). Powers Page 2 of the dashboard (funnel, attribution, psychographics, lost-reason, applicant→booker)
+- Wrote `_marts__models.yml` (initial — will be extended by Tracks F + M at merge) with model-level description, column docs, and column tests: `unique` + `not_null` on `contact_id`, `accepted_values` on `tracking_era` / `client` / `attribution_quality_flag`, `not_null` on all count/flag columns
+- Wrote `_marts__docs.md` — overview doc block with placeholder inventory (tabular), known parity gaps, DQ flag semantics
+- Wrote `dbt/tests/release_gate_lead_journey.sql` — singular test, two assertions (row count ±5%, applicant count ±10%) anchored on `oracle_dashboard_metrics_20260319`
+- Column contract honored in full — every column from the track-prompt spec is present, with typed NULLs for columns whose upstream pivot/bridge hasn't landed yet
+
+**Decisions**
+- **Placeholder NULLs over scope-cutting.** *Why:* the track-prompt column contract assumes upstream work (Typeform-answers pivot for applications + psychographics + lead magnets, Calendly Q&A staging for self-reported source, multi-touch attribution bridge) that hasn't shipped. Shape-preserving typed NULLs let downstream consumers (dashboards, later marts) lock to the final schema today — the join fills in when upstream ships without a breaking schema change
+- **`closer` role maps to `ae`, not a distinct role.** *Why:* the `ghl_sdr_roster` seed + `dim_users.role` (per Track E) only declares `sdr` / `ae` / `unknown`. There is no separate "Closer" role in v1 — AEs close in the D-DEE setup. Documented in column description; will widen only if the roster adds the distinction
+- **Multi-touch first/last currently mirror the single UTM trio on `dim_contacts`.** *Why:* v1 staging carries only one captured UTM per contact. Emitting first_touch_* = last_touch_* = that single value (with `first_vs_last_touch_campaign_match = true`) is the honest representation today and keeps the contract stable for the future multi-touch bridge drop-in
+- **`client` is a literal `D-DEE` string.** *Why:* v1 is single-tenant. Enforced via `accepted_values`. When multi-tenant ships, either a `dim_clients` join or a config-driven literal replaces this
+- **Track F was spec'd to initialize `_marts__models.yml`; Track L lands first.** *Why:* L + F + M fire in parallel; either L or F + M will be the first merged. I wrote a standalone `_marts__models.yml` with only the `lead_journey` entry so F and M can add new `- name:` blocks without rewriting. Noted in the file's header comment
+
+**Open threads**
+- **Verification blocked on Track E merge.** Track E (warehouse dims + facts + bridge + snapshot) ships the five `ref()` targets this mart joins (`dim_contacts`, `dim_users`, `fct_calls_booked`, `fct_revenue`, `fct_outreach`). That branch is on `origin/Davv5/Track-E-Warehouse-dims-facts-bridge-SCD2-snapshot` but not yet merged to `main`. This branch was cut before E merged; `dbt build --select lead_journey` will fail-to-resolve refs until E lands. Column mapping was cross-checked against E's branch files on disk, so rebasing on `main` after E merges should compile cleanly
+- **Release-gate applicant assertion will fail until the Typeform-answers pivot ships.** `application_submitted` is a typed-NULL placeholder today; `countif(null)` returns 0; `applicant_pct_delta = 1.0 > 0.10` → fails. This is intentional — the failing test correctly signals the missing upstream. Flips green automatically when the pivot lands
+- **`bookings_count` under-reports (reports 0 for every contact) until Calendly-invitee staging lands.** Per Track C open threads, `stg_calendly__events` exposes no invitee email, so `fct_calls_booked.contact_sk` resolves to NULL in Track E's v1. The mart's `contact_sk is not null` filter in the bookings CTE yields 0 rows matched. `application_to_booker_flag` is therefore always false (and NULL today because of the applicant placeholder). Flips on when invitee staging + contact join ship
+- BQ parity query from the track prompt (total_leads / applicants / bookers / closed / total_revenue) is owed — run after Track E + this mart both land in `dev_david`
+- Tracks F (`sales_activity_detail`) and M (`revenue_detail`) will extend `_marts__models.yml` at merge — straightforward append, no schema conflicts expected (file is insertion-ordered)
+
+---
+
 ## 2026-04-20 — Track K: observability — Slack alerts + source-freshness test + volume monitor
 
 **What happened**
