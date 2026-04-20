@@ -6,11 +6,13 @@ so this lives in-repo.
 
 ## What it pulls
 
-Five v2 / LeadConnector endpoints (scope §4 / v1 plan Phase 1 + 1.5):
+Six v2 / LeadConnector endpoints (scope §4 / v1 plan Phase 1 + 1.5):
 
 - `contacts` — lead roster, tags, attribution fields
 - `conversations` — conversation-level metadata (one row per thread)
 - `opportunities` — pipeline stages
+- `pipelines` — pipeline + stage metadata (names, ids, positions); resolves
+  opaque `pipelineStageId` on opportunities and powers the lead-magnet panel
 - `users` — SDR / AE roster
 - `messages` — per-message rows under each conversation (the load-bearing
   source for message-level SDR attribution; powers the Speed-to-Lead metric

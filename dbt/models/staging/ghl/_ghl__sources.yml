@@ -92,3 +92,47 @@ sources:
             description: JSON string — full contact object as returned by GHL /contacts/search.
             tests:
               - not_null
+
+      - name: messages
+        description: >
+          One row per GHL message, fanned out from `conversations` via
+          `/conversations/{id}/messages`. Per-touch SDR attribution lives here
+          (`userId`) because `conversations.assignedTo` is only populated on
+          ~1% of rows. Load-bearing for the Speed-to-Lead numerator.
+        config:
+          freshness:
+            warn_after: {count: 36, period: hour}
+            error_after: {count: 48, period: hour}
+        columns:
+          - name: id
+            description: GHL message id.
+            tests:
+              - not_null
+          - name: _ingested_at
+            description: Wall-clock UTC time this row was written into BigQuery.
+            tests:
+              - not_null
+          - name: payload
+            description: JSON string — full message object as returned by GHL /conversations/{id}/messages.
+            tests:
+              - not_null
+
+      - name: pipelines
+        description: >
+          One row per GHL pipeline (with nested `stages` array in payload).
+          Resolves opaque `pipelineStageId` on opportunities into human-readable
+          stage names; also powers the lead-magnet performance panel (each
+          pipeline = one lead magnet funnel at D-DEE). ~20 rows.
+        columns:
+          - name: id
+            description: GHL pipeline id.
+            tests:
+              - not_null
+          - name: _ingested_at
+            description: Wall-clock UTC time this row was written into BigQuery.
+            tests:
+              - not_null
+          - name: payload
+            description: JSON string — full pipeline object (including nested stages) as returned by GHL /opportunities/pipelines.
+            tests:
+              - not_null

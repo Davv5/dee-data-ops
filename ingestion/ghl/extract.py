@@ -1,8 +1,8 @@
 """GHL (GoHighLevel) extractor → raw_ghl.* in BigQuery.
 
-Pulls five v2 / LeadConnector API endpoints — contacts, conversations,
-opportunities, users, messages — and lands each as `WRITE_APPEND` to its own
-table in `raw_ghl`, with per-endpoint wall-clock watermarks in
+Pulls six v2 / LeadConnector API endpoints — contacts, conversations,
+opportunities, users, messages, pipelines — and lands each as `WRITE_APPEND`
+to its own table in `raw_ghl`, with per-endpoint wall-clock watermarks in
 `raw_ghl._sync_state`.
 
 Corpus guidance applied:
@@ -50,6 +50,7 @@ VERSIONS: dict[str, str] = {
     "contacts": "2021-07-28",
     "conversations": "2021-04-15",
     "opportunities": "2021-07-28",
+    "pipelines": "2021-07-28",
     "users": "2021-07-28",
     "messages": "2021-04-15",
 }
@@ -253,6 +254,11 @@ def _fetch_users(location_id: str, since: Optional[datetime]) -> list[dict[str, 
     return data.get("users") or []
 
 
+def _fetch_pipelines(location_id: str, since: Optional[datetime]) -> list[dict[str, Any]]:
+    data = _get("pipelines", "/opportunities/pipelines", {"locationId": location_id})
+    return data.get("pipelines") or []
+
+
 def _conversations_to_fetch(since: Optional[datetime]) -> list[str]:
     """Conversation IDs whose lastMessageDate is newer than `since`.
 
@@ -324,6 +330,7 @@ FETCHERS: dict[str, Callable[[str, Optional[datetime]], list[dict[str, Any]]]] =
     "contacts": _fetch_contacts,
     "conversations": _fetch_conversations,
     "opportunities": _fetch_opportunities,
+    "pipelines": _fetch_pipelines,
     "users": _fetch_users,
     "messages": _fetch_messages,
 }
