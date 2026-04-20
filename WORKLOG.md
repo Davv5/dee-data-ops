@@ -11,6 +11,27 @@ Rolling log of what's been done on this project. Newest entries at the top. Tail
 
 ---
 
+## 2026-04-20 — Track M: `revenue_detail` payment-grain mart scaffolded (Track-E-blocked)
+
+**What happened**
+- Shipped the `revenue_detail` payment-grain mart on branch `Davv5/Track-M-revenue_detail-mart-payment-grain-unmatched-revenue-transparency` (Orca worktree at `/Users/david/orca/workspaces/data ops/Track-M-revenue_detail-mart-payment-grain-unmatched-revenue-transparency`): `dbt/models/marts/revenue_detail.sql` (payment grain, left-join to bridge so unmatched payments stay in the mart), `dbt/models/marts/_marts__models.yml` (18-column contract incl. `match_method` / `match_status` / `attribution_quality_flag` with `accepted_values` tests), `dbt/models/marts/_marts__docs.md` (doc block explains the unmatched-revenue transparency intent + the 4-bucket DQ flag semantics + the Fanbasis caveat)
+- Singular release-gate test at `dbt/tests/release_gate_revenue_detail.sql`: joins mart to `oracle_dashboard_metrics_20260319` seed and fails on any of — revenue delta >5%, row count outside 1,350–1,494, unmatched-revenue share >10%
+- Linted with `python3 -m sqlfluff lint` (jinja templater, `.sqlfluff` config); only residual diagnostics are the multi-space-before-`as` pattern (LT01) that every merged staging file already carries, and a single `where`-on-same-line LT02 that matches the in-repo `dbt_style_guide.md` example
+
+**Decisions**
+- **Kept unmatched rows in the mart.** *Why:* Page 3 of the dashboard has an unmatched-revenue transparency tile as a deliberate trust signal; dropping unmatched rows to pass the revenue-parity test would silently understate total revenue and is exactly the failure mode the Fanbasis-note section of the track prompt warns against
+- **Closer resolution = latest GHL opportunity with Closer-role assignee.** *Why:* the `stg_ghl__opportunities` row order is the authoritative "who owns this contact right now" signal in v1; `qualify row_number() over (partition by contact_id order by opportunity_updated_at desc) = 1` keeps the lookup deterministic without needing a separate intermediate
+- **Column name from staging is `opportunity_updated_at`, not `updated_at`.** *Why:* the draft in the track prompt references `opp.updated_at` — the actual `stg_ghl__opportunities.sql` aliases it to `opportunity_updated_at`. Using the real column name, not the prompt draft's shorthand
+- **Join ON uses left-table-first convention.** *Why:* matches the `trips`-first example in `dbt_style_guide.md` §227 and resolves the sqlfluff ST09 check; the track-prompt draft had these reversed
+
+**Open threads**
+- **Blocker — Track E not merged.** `revenue_detail.sql` refs `fct_revenue`, `bridge_identity_contact_payment`, `dim_contacts`, `dim_users` — none of those exist on `main` yet. `dbt build --select revenue_detail` and `dbt test --select release_gate_revenue_detail` will fail-to-resolve until Track E lands. Not a code defect in this PR; flagged in the PR body. Verification parity query + actual revenue totals + unmatched-share number will be captured in a follow-up worklog entry once Track E merges and the mart materializes in `dev_david`
+- **Fanbasis parity risk.** If the oracle's $356,935 includes Fanbasis revenue and v1 ships with Stripe-only (per CLAUDE.local.md Week-0 Fanbasis credentials blocker), the revenue-delta assertion in the release-gate test will fire. Per the track prompt, the handling is to widen tolerance in the PR with a Fanbasis link — **not** to filter unmatched rows. Doc block in `_marts__docs.md` spells this out
+- **`_marts__models.yml` coordination.** Tracks F (`sales_activity_detail`) and L (`lead_journey`) are also extending this file in parallel worktrees. Whoever merges second should rebase and combine the `models:` list; no schema conflicts expected since the entries are independent
+- `/handover` not yet invoked — will run after PR opens
+
+---
+
 ## 2026-04-20 — Track E: warehouse dims + facts + bridge + SCD2 snapshot
 
 **What happened**
