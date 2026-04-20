@@ -18,7 +18,8 @@ contacts as (
         cast(null as string) as last_touch_source,
         cast(null as string) as last_touch_medium,
         cast(null as string) as lead_magnet_first_engaged,
-        cast(null as string) as lead_source_self_reported
+        cast(null as string) as lead_source_self_reported,
+        cast('Dee' as string) as client  -- v1 is single-tenant; widen when multi-tenant ships
     from {{ ref('dim_contacts') }} as dc
 ),
 
