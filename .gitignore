@@ -24,3 +24,6 @@ logs/
 .vscode/
 .idea/
 *.swp
+
+# Claude Code agent worktrees (ephemeral, per-track)
+.claude/worktrees/

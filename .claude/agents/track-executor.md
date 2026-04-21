@@ -30,7 +30,10 @@ Either way, your first move is to make sure you have the full track content load
 
 2. **Orient to the repo.** Read `CLAUDE.md`, `CLAUDE.local.md`, and the tail of `WORKLOG.md` so you understand the current state. Check which `.claude/rules/*.md` apply to the paths you'll touch — they load automatically when you open matching files, but read them up front.
 
-3. **Confirm the branch.** You're running inside a worktree created by the parent. Check `git branch --show-current`. If it doesn't match the track's specified branch, rename: `git branch -m <track-branch-name>`.
+3. **Confirm the branch + worktree.** You're running inside a worktree. Two invocation modes are possible:
+   - **Pre-created worktree** (preferred, per `.claude/rules/agents.md` Rule 1): the main session created the worktree with a readable path like `.claude/worktrees/track-<Letter>-<slug>/` and a branch like `Davv5/Track-<Letter>-<PascalCaseSlug>`. `pwd` shows the readable path; `git branch --show-current` shows the track-specified branch. No rename needed.
+   - **Agent-tool worktree** (fallback): you were fired with `isolation: "worktree"` and the path is `.claude/worktrees/agent-<hash>/` with an auto-generated branch. Rename: `git branch -m <track-branch-name>`.
+   In both cases, verify the branch matches the track's specified name before proceeding.
 
 4. **Ground before scaffolding.** Before writing any new `.claude/rules/*.md`, dbt model, macro, test, or workflow file, invoke the `ask-corpus` skill with your design question. The corpus is free (no Pro quota). Cite the source title inline in the file you write.
 

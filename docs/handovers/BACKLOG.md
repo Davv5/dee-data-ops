@@ -58,29 +58,55 @@ If you want to offload the full backlog in one sweep:
 **Wave 3 — gated**
 - Q (Severity flip) — fire only after data catches up
 
-## Invoking the executor
+## Invoking the pipeline
+
+Full conventions in `.claude/rules/agents.md`. Summary:
+
+### Step 1 — pre-create the worktree with a readable name
+
+Per agents.md Rule 1, skip `isolation: "worktree"` (auto-generates an opaque hash path) and pre-create instead:
+
+```bash
+git worktree add \
+  .claude/worktrees/track-N-evidence-decommission \
+  -b Davv5/Track-N-Evidence-Decommission \
+  main
+```
+
+### Step 2 — fire the executor, pointing at the pre-created worktree
 
 From the main Claude Code session:
 
 ```
-Use the track-executor agent, isolation: "worktree", with this prompt:
-  "Execute docs/handovers/Davv5-Track-N-Evidence-Decommission-2026-04-21_10-04.md"
+Use the track-executor agent with
+  cwd: .claude/worktrees/track-N-evidence-decommission
+  prompt: "Execute docs/handovers/Davv5-Track-N-Evidence-Decommission-2026-04-21_10-04.md"
 ```
 
-The executor opens the track, works through the tasks, commits locally, reports back with `Ready for review: yes`. Then hand that report to pr-reviewer.
+The executor works the track, commits locally in that worktree, reports back: branch, commit hash, files changed, ready-for-review yes/no.
 
-## Invoking the reviewer
+### Step 3 — main session gates with `proceed`
 
-After executor reports back:
+Per agents.md Rule 2, the main session does NOT auto-chain. After the executor reports back, the main session summarizes and ends with:
+
+> **Reply `proceed` to fire pr-reviewer, `hold` to stop, or name a fix.**
+
+### Step 4 — on `proceed`, fire the reviewer
 
 ```
 Use the pr-reviewer agent with this prompt:
-  "Review branch <branch-name> (commit <hash>). Track file:
-   docs/handovers/Davv5-Track-N-Evidence-Decommission-2026-04-21_10-04.md.
-   Executor report: <paste executor's final report>"
+  "Review branch <branch> (commit <hash>) at <worktree-path>.
+   Track file: docs/handovers/Davv5-Track-N-*-*.md.
+   Executor report: <paste>"
 ```
 
-Reviewer classifies Clean / Push-with-notes / Request-changes. On Clean or Push-with-notes, pushes + opens PR. On Request-changes, returns a fix list you hand back to the executor.
+Reviewer classifies Clean / Push-with-notes / Request-changes. Clean or notes → push + open PR. Changes → returns fix list.
+
+### Step 5 — cleanup after merge
+
+```bash
+git worktree remove .claude/worktrees/track-N-evidence-decommission
+```
 
 ## Adding a new track to the backlog
 
