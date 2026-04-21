@@ -11,6 +11,29 @@ Rolling log of what's been done on this project. Newest entries at the top. Tail
 
 ---
 
+## 2026-04-20 — Track T: corpus config decouple (ask-corpus skill + `.claude/corpus.yaml`)
+
+**What happened**
+- Created `.claude/corpus.yaml` declaring 3 notebooks: `methodology.data_ops` (7c7cd5d4), `methodology.metabase` (ce484bbc), `engagement` (741d85c6). Schema: `methodology:` is a LIST (room for more craft notebooks); `engagement:` is singular.
+- Refactored `.claude/skills/ask-corpus/SKILL.md` — removed hardcoded notebook id, added Step 1 python+pyyaml resolver that reads `corpus.yaml` and accepts optional `scope` param (`methodology.data_ops`, `methodology.metabase`, `methodology` = cross-query default, `engagement`). Fallback to hardcoded Data Ops id if `corpus.yaml` missing.
+- Rewrote `.claude/rules/using-the-notebook.md` — documents 3 routing modes + rule of thumb + "how to add a new methodology notebook" section.
+- Added "Corpus config" pointer to `CLAUDE.md` near the existing Reference Corpus section.
+- Verified end-to-end: 3 test queries returned cited answers from correct notebooks.
+  - `methodology.metabase` "backup Metabase app DB?" → cited "Backing up Metabase" doc (PostgreSQL, RDS, H2 Docker/JAR variants).
+  - `methodology.data_ops` "canonical 3-layer dbt architecture?" → cited "How to Create a Data Modeling Pipeline (3 Layer Approach)" + warehouse/marts rule files.
+  - `engagement` "Speed-to-Lead metric grain?" → cited the sorted-rabbit plan confirming Calendly-event grain (3,141 bookings), DataOps-corrected from GHL pipeline stage.
+
+**Decisions**
+- **`methodology` as a LIST** (not a single dict) so future craft notebooks (dlthub, great-expectations, etc.) register by adding an entry — no skill change needed. *Why:* track file originally had it as a single dict; David's Metabase notebook made a 2nd methodology notebook concrete and the schema had to generalize.
+- **Default scope = `methodology` cross-query** (not engagement). *Why:* "how should I structure X?" questions should hit craft notebooks first; engagement scope is narrower and more intentional.
+- **python+pyyaml over bash+yq.** *Why:* pyyaml is already in the dbt-bigquery venv on this machine; no extra install. `yq` isn't a hard dep of the project.
+- **Fallback to hardcoded Data Ops id if `corpus.yaml` missing.** *Why:* template forks that haven't added a corpus.yaml yet shouldn't break the skill.
+
+**Open threads**
+- None that block further work. The three agent personas (architect/executor/reviewer) now pick up scope routing automatically via this skill.
+
+---
+
 ## 2026-04-20 — Pivot to Looker Studio (Track H) + 6 Speed-to-Lead rollup views + Page 1 click-spec
 
 **What happened**

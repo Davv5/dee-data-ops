@@ -1,0 +1,28 @@
+# .claude/corpus.yaml — declares the NotebookLM corpora this project uses
+# Loaded by the ask-corpus skill so notebook IDs aren't hardcoded.
+
+methodology:
+  - key: data_ops
+    notebook_id: 7c7cd5d4-22df-4ef0-8b74-ed87e0ca4e6a
+    name: Data Ops
+    purpose: |
+      Portable craft knowledge — dbt conventions, modeling patterns,
+      CI/CD, MDS starter guides. Query for general "how should I
+      structure X?" questions and anything not Metabase-specific.
+  - key: metabase
+    notebook_id: ce484bbc-546b-4fe4-a7db-bc01b847dbe5
+    name: Metabase Craft
+    purpose: |
+      Self-hosted Metabase OSS — install + ops (Docker, Cloud SQL
+      backup, upgrade), developer guide (build, dev-branch), BigQuery
+      connection + cost gotchas, dbt-metabase integration, Metabot +
+      MCP server, license + AGPL. Query for any Metabase-specific
+      operational, integration, or licensing question.
+
+engagement:
+  notebook_id: 741d85c6-39a7-4612-af7c-cca65043cf19
+  name: D-DEE Engagement Memory
+  purpose: |
+    This engagement's history + oracle + scope docs. Query for
+    "what did D-DEE decide about Y?" type questions. Disposable
+    when the engagement ends.
