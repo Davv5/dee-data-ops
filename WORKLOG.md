@@ -11,6 +11,32 @@ Rolling log of what's been done on this project. Newest entries at the top. Tail
 
 ---
 
+## 2026-04-21 — Track V: `Metabase Craft` NotebookLM notebook created (14 sources)
+
+**What happened**
+- Created a third NotebookLM notebook **`Metabase Craft`** (`notebook_id: ce484bbc-546b-4fe4-a7db-bc01b847dbe5`) on David's account alongside the existing "Data Ops" (`7c7cd5d4-…`) and "D-DEE Engagement Memory" (`741d85c6-…`) notebooks. Role: methodology-slot retrieval for Metabase OSS self-host questions (install, ops, dev, warehouse integration, AI, licensing, cost gotchas)
+- Uploaded 14/14 sources via `mcp__notebooklm-mcp__source_add` — all returned `status=success`:
+  - Install+ops (4): Docker run, Cloud-vs-self-host, Backing up, Upgrading
+  - Developer path (3): Developer Guide start, Building Metabase, Dev-branch Docker
+  - Warehouse integration (2): BigQuery connector doc, `gouline/dbt-metabase` GitHub repo
+  - AI (2): Metabot doc, Metabase 60 release notes
+  - Licensing (2): license overview + AGPL
+  - Field notes (1): Kevin Leary's BigQuery cost/speed optimization blog
+- `notebook_describe` confirms `source_count=14`; AI-generated summary correctly spans all four topic pillars (licensing, Docker ops, AI/Metabot, BigQuery integration)
+- Sanity query *"…recommended way to back up Metabase's application database when running on Docker with an external Postgres instance?"* → answer cites the Backing-up-Metabase source (`56b12aa0-…`) with correct guidance (follow standard PostgreSQL backup procedure; Metabase stores all runtime app data in one SQL DB)
+- Handover doc: `docs/handovers/Davv5-Track-V-Execution-2026-04-21_17-02.md`
+
+**Decisions**
+- **One notebook, not two or three.** *Why:* content-route via NotebookLM's retrieval, not by manually picking notebooks per question. Name "Metabase Craft" mirrors the "Data Ops" naming of the existing methodology notebook to signal portable craft (not client-scoped).
+- **No PII scrubbing — all 14 sources are public web content.**
+- **Recorded `notebook_id` in this WORKLOG entry** so Track T (corpus config decouple) can wire it into `.claude/corpus.yaml` when that track fires; no code change in `.claude/rules/` or `corpus.yaml` yet.
+
+**Open threads**
+- Track T: add `ce484bbc-546b-4fe4-a7db-bc01b847dbe5` to `.claude/corpus.yaml` and update `using-the-notebook.md` to mention the Metabase Craft notebook as the routing target for Metabase questions
+- Audio overview / Studio artifact for onboarding: not generated (not in track scope)
+
+---
+
 ## 2026-04-20 — Pivot to Looker Studio (Track H) + 6 Speed-to-Lead rollup views + Page 1 click-spec
 
 **What happened**
