@@ -11,6 +11,31 @@ Rolling log of what's been done on this project. Newest entries at the top. Tail
 
 ---
 
+## 2026-04-21 — Agent infrastructure + 7-track backlog (offload the adjacent work)
+
+**What happened**
+- Reviewed David's three agent definitions (`plan-architect`, `track-executor`, `pr-reviewer`) in `.claude/agents/`. Structure and model split (Opus / Sonnet / Opus) both match the sprint workflow we've been running.
+- Closed two gaps on `pr-reviewer`:
+  - Added `mcp__notebooklm-mcp__notebook_query` to its `tools:` so review comments can be grounded in the corpus instead of opinion
+  - Added a "DataOps hygiene check" step (non-negotiable): WORKLOG entry diff must be non-empty, matching handover doc must exist, new rules/models/workflows must cite a corpus source. Any failure = hard "Request changes"
+- Built the backlog: 7 self-sufficient track files under `docs/handovers/Davv5-Track-{N,O,P,Q,R,S,T}-*.md` covering evidence decommission, stale GH secrets, Slack webhook fix, release-gate severity flip (gated), dim_contacts enrichment, WORKLOG index refactor, corpus config decouple
+- Added `docs/handovers/BACKLOG.md` — one-page index listing every track with status, gate conditions, and recommended fire-wave ordering
+
+**Decisions**
+- **Three-agent pattern is portable; only the corpus config is client-specific.** Track T captures this — future PS clients get a fresh `.claude/corpus.yaml`, but the architect/executor/reviewer triad carries forward unchanged.
+- **pr-reviewer checks WORKLOG + handover deterministically, not via review skill.** *Why:* skill output is advisory; these checks must block the push. `git diff <base>..HEAD -- WORKLOG.md` + matching handover filename existence are grep-able facts, not opinions.
+- **Release-gate flip (Track Q) gated behind 1 week of ±5% oracle parity.** *Why:* severity='error' while data is still catching up red-bars every CI run — worse than the current warn-level state.
+- **6-step Metabase path stays on main session, not delegated.** Dashboard shape decisions (Page 1 cards, colors, which drill-downs) benefit from tight feedback with David; wrong agent for that loop. Backlog = delegable; dashboards = collaborative.
+- **Wave-ordered fire sequence**: Wave 1 (N, O, T — fully independent, no user input) in parallel; Wave 2 (P, S, R) with light sequencing; Wave 3 (Q) gated. Codified in BACKLOG.md.
+
+**Open threads**
+- `.claude/corpus.yaml` schema (Track T): 2-slot design (methodology + engagement) hasn't been ratified with the ask-corpus skill author. Design is in the track; executor validates against live skill.
+- Track S (WORKLOG index) has an open question whether Claude Code supports EndSession hooks — executor will fall back to manual regeneration if unclear
+- Track R (dim_contacts enrichment) has 2 stop-and-ask points for UTM field history + lead-magnet tag taxonomy — David may need to be available mid-execution
+- No merge-conductor agent exists for cascade fixups. David still owns that in Orca
+
+---
+
 ## 2026-04-20 — Pivot to Looker Studio (Track H) + 6 Speed-to-Lead rollup views + Page 1 click-spec
 
 **What happened**
