@@ -11,6 +11,34 @@ Rolling log of what's been done on this project. Newest entries at the top. Tail
 
 ---
 
+## 2026-04-20 — Pivot to Looker Studio (Track H) + 6 Speed-to-Lead rollup views + Page 1 click-spec
+
+**What happened**
+- Aborted the Co-Work / BQ MCP connector path after OAuth multi-account friction made it non-workable (primary browser Google account ≠ `dforero122@gmail.com` that owns `dee-data-ops-prod`; Claude account ≠ either)
+- Queried both NotebookLM notebooks; corpus answer was unambiguous: **Looker Studio** is the methodology's pick for this engagement (quote: *"Looker Studio wins because it is free, zero hosting, Google-native auth that the client likely already has"*)
+- Built the dashboard-as-code compromise: 6 rollup tables under `dbt/models/marts/rollups/speed_to_lead/` (stl_headline_7d, stl_headline_trend_daily, stl_daily_volume_by_source, stl_sdr_leaderboard_30d, stl_attribution_quality_30d, stl_lead_detail_recent) + `_stl__models.yml`
+- `dbt parse` + `dbt compile` green on all 6; land in `dee-data-ops-prod.marts.stl_*` when built against prod
+- Wrote `docs/looker-studio/page-1-speed-to-lead.md` — mechanical tile-by-tile click-spec for Page 1, including prereqs (SA setup, rollup build, data-source creation), 9 tile grid with exact positions + data sources + formatting + conditional rules, Page 1b lead-drill-down spec, share settings, done-criteria, and failure playbook
+- Wrote `docs/looker-studio/theme.md` — typography, color palette (PS muted pro-BI palette), stacked-series palette, traffic-light conditional rules, grid + chart defaults
+- Wrote `docs/looker-studio/README.md` — explains the "click-spec in repo, GUI render in Looker" pattern + client-#2 reuse via Reports API copy
+
+**Decisions**
+- **Looker Studio over Evidence / Hashboard / Co-Work / custom React.** *Why:* direct corpus guidance, and the practical pain points from today's experiments (OAuth, Claude-account match, hosting, public-repo requirement for free GH Pages) all disappear at once. Client-delivery story is clean: bare share link, Google Viewer permissions.
+- **Pre-aggregated rollups over direct-to-wide-mart connections.** *Why:* Looker Studio's 3k-row cap + cache-per-source mean a dashboard pointed at `sales_activity_detail` directly (5,409 rows today, growing) is fragile. Rollups are 1-row / 30-row / top-10-bucketed; sized for BI.
+- **Owner's-credentials sharing mode over per-viewer OAuth.** *Why:* corpus explicitly rejects per-viewer OAuth for reliability reasons; owner's-creds means clients click a link and see data without needing their own GCP access.
+- **Spec-in-repo + GUI-render-in-Looker as the dashboards-as-code compromise.** *Why:* Looker Studio has no real code-first API, but version-controlled SQL + tile-by-tile click specs + theme JSON capture enough of the design decisions that client #2 is a ~15 min clone-and-swap rather than a fresh design session.
+
+**Open threads**
+- Build the rollups in prod: `dbt build --target prod --select path:models/marts/rollups/speed_to_lead` (owed before Looker tiles can point at them)
+- Looker Studio report build: David, ~3h mechanical, follow `docs/looker-studio/page-1-speed-to-lead.md` top-to-bottom
+- Capture the share URL into `CLAUDE.local.md` after report exists
+- Page 2 (`lead_journey`) + Page 3 (`revenue_detail`) click-specs + rollups owed post-Page-1 proof-of-life
+- Hourly marts refresh workflow (`dbt-marts-hourly.yml`) owed if freshness ≤ 1hr is wanted; daily is fine for now
+- Stale Evidence scaffolding on `mockup/evidence-preview` branch — delete after Looker Studio report ships and proves out
+- GH Pages / gh-pages branch: was hosting the Evidence preview; can stay or be deleted depending on whether we publish `dbt docs` there later
+
+---
+
 ## 2026-04-20 — Track F: `sales_activity_detail` mart scaffolded (booked-call grain)
 
 **What happened**
