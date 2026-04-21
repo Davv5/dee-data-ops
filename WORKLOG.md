@@ -36,6 +36,34 @@ Rolling log of what's been done on this project. Newest entries at the top. Tail
 
 ---
 
+## 2026-04-21 — Dashboard pivot: Metabase OSS self-host on GCP (scaffold-only; infra not applied)
+
+**What happened**
+- Researched Metabase vs Looker Studio vs Evidence via Perplexity (mostly free Sonar tier — 6 of 300 Pro Search used). Key findings: REST-API authoring gives PR-reviewable dashboards on OSS; v60 ships an official MCP server; AGPL self-host commercially is safe for B2B. Summary captured in `/Users/david/.claude/plans/this-is-a-sorted-rabbit.md`.
+- Chose dashboard authoring workflow: **Option 1 — REST-API script is the source of truth** (matches the DataOps workflow we've been running). OSS + scripted authoring gives Pro-serialization equivalence for $0.
+- Scaffolded `ops/metabase/` end-to-end on `feat/metabase-self-host`:
+  - `.claude/rules/metabase.md` — the 5 conventions (dashboards-are-code, app-DB backup, connections-as-code, dbt-metabase sync, one-script-per-mart)
+  - `ops/metabase/terraform/` — GCE VM + Cloud SQL Postgres (private IP) + VPC peering + static IP + GCS ops bucket + Secret Manager + firewall + two SAs (runtime + BQ reader) with correct IAM
+  - `ops/metabase/runtime/` — docker-compose (metabase + caddy + cloud_sql_proxy), Caddyfile (ACME via nip.io), startup-script.sh (Secret Manager pull → compose up)
+  - `ops/metabase/authoring/` — client.py (HTTP wrapper), sync.py (entity_id-keyed upserts), infrastructure/bigquery_connection.py, dashboards/speed_to_lead.py (scaffold with one headline card; Phase 3 fills in the rest)
+  - `ops/metabase/README.md` + `.env.metabase.example`
+
+**Decisions**
+- **Single GCP project** (`dee-data-ops-prod`) hosts both BigQuery marts and Metabase infra. *Why:* simpler auth (same project IAM), template-ability intact, credits apply to everything. Splitting out a `-infra` project is a post-v1 concern.
+- **Caddy + nip.io for TLS, not Cloud Load Balancer.** *Why:* LB adds ~$20/mo. Caddy container handles ACME automatically against a `<ip>.nip.io` hostname — real cert, no domain purchase. Swap to a custom domain later without infra changes.
+- **Cloud SQL Postgres private-IP, not co-located Docker Postgres.** *Why:* managed backups + point-in-time recovery + cleaner upgrade story. Template-ability matters — future clients deserve this. Cost delta ~$10/mo covered by credits.
+- **Cloud SQL `deletion_protection = true`.** *Why:* it's the app-DB. Accidental `terraform destroy` without the explicit unlock step shouldn't nuke dashboards.
+- **Metabase is in the authoring-scripts-as-truth paradigm.** GUI is view-only on prod; edits there get overwritten on next authoring run. Prototyping happens on dev (local Docker) or via the MCP server.
+
+**Open threads**
+- **Infra NOT applied yet.** `terraform apply` awaits David's explicit go-ahead — touches production GCP resources, binds credit budget. Scaffold is in PR form for review first.
+- State bucket `dee-data-ops-prod-tfstate` is referenced in `terraform { backend "gcs" }` — needs to exist before `terraform init`. Documented in `ops/metabase/terraform/README.md`.
+- The `apis-enabled` gcloud step (compute, sqladmin, secretmanager, servicenetworking, storage) is a prerequisite — also in README.
+- Phase 3 deliverable (fill in speed_to_lead.py with all 6 cards) is blocked on the Metabase instance being live so payloads can be tested.
+- The Evidence mockup branch (`mockup/evidence-preview`) can be archived once the Metabase pivot is ratified — worth keeping around for another 1–2 weeks as a comparison artifact.
+
+---
+
 ## 2026-04-20 — Pivot to Looker Studio (Track H) + 6 Speed-to-Lead rollup views + Page 1 click-spec
 
 **What happened**
