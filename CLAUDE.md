@@ -21,6 +21,10 @@ Existing today:
 
 Everything else in Project Structure below is planned.
 
+## Corpus config
+
+Per-project NotebookLM corpus declaration lives in **`.claude/corpus.yaml`** — notebook IDs are no longer hardcoded in the `ask-corpus` skill or in rule files. To swap or add a notebook, edit that file. The skill reads it at invocation time. See `.claude/rules/using-the-notebook.md` for routing modes (`methodology.data_ops`, `methodology.metabase`, `methodology` cross-query, `engagement`).
+
 ## Reference Corpus (NotebookLM)
 
 This project is paired with a NotebookLM notebook containing ~50 expert sources on dbt, modeling, CI/CD, and the modern data stack.
