@@ -11,6 +11,24 @@ Rolling log of what's been done on this project. Newest entries at the top. Tail
 
 ---
 
+## 2026-04-21 — Track S: swap SessionStart tail-injection for curated project-state index
+
+**What happened**
+- Replaced the SessionStart hook's `tail -n 200 WORKLOG.md` injection with a curated 43-line index at `.claude/state/project-state.md`, loaded by a new `.claude/scripts/sessionstart-inject-state.sh`. `.claude/settings.json` hook command swapped; PostToolUse (notebook-sync) + PreToolUse (dbt prod-block) hooks preserved; `jq .` validates
+- Updated `.claude/rules/worklog.md` to document the split: WORKLOG.md is the append-only audit log (unchanged); `.claude/state/project-state.md` is the auto-injected stateful snapshot; regeneration is a manual end-of-session command for v1
+- Grounded the retrieval-over-injection pattern in the Data Ops notebook (cited `CLAUDE.md` "Claude Code Rules" section — same path-scoped rule loader idea applied to project state)
+
+**Decisions**
+- **Index at `.claude/state/project-state.md`, not root.** *Why:* co-located with other Claude Code infrastructure (`rules/`, `scripts/`, `skills/`, `settings.json`); `.claude/state/` implies machine-regenerated, not human-authored prose
+- **Manual regeneration for v1, not an EndSession hook.** *Why:* EndSession is not a confirmed Claude Code hook event in this environment; a documented `tail | pbcopy | $EDITOR` command is good enough for one regeneration per session. v2 can wire automation once the hook event is verified
+- **Kept WORKLOG.md append-only + uncapped.** *Why:* the index solves the context-bloat problem; pruning the worklog would destroy audit history. `grep -n` against the full worklog is cheap and on-demand
+
+**Open threads**
+- First run of the new hook from the main repo after merge: confirm `.claude/state/project-state.md` loads (rather than the fallback message) by eyeballing the injected context in a fresh session
+- Index will drift as tracks merge; whoever ships the next WORKLOG entry should refresh the index in the same commit per the regeneration norm
+
+---
+
 ## 2026-04-21 — Agent infrastructure + 7-track backlog (offload the adjacent work)
 
 **What happened**
