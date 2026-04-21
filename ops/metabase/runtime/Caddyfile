@@ -1,0 +1,29 @@
+# Caddy handles TLS via Let's Encrypt (ACME HTTP-01 challenge on port 80).
+# The nip.io hostname is chosen by startup-script.sh based on the VM's static
+# external IP (e.g., 34-123-45-67.nip.io), so ACME sees a real public
+# A-record pointing at this VM and issues a valid cert.
+
+{$METABASE_HOSTNAME} {
+    encode gzip
+    reverse_proxy metabase:3000 {
+        # Metabase uses long-polling for dashboard updates; bump read timeout
+        # so cards don't die mid-query.
+        transport http {
+            response_header_timeout 5m
+            read_timeout 5m
+        }
+    }
+
+    # Security headers
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+        Referrer-Policy "strict-origin-when-cross-origin"
+    }
+
+    log {
+        output stdout
+        format json
+    }
+}

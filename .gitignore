@@ -2,6 +2,10 @@
 .env
 .env.local
 .env.*.local
+.env.metabase
+ops/metabase/terraform/.terraform/
+ops/metabase/terraform/tfplan
+ops/metabase/terraform/*.tfstate*
 
 # Personal / engagement-specific Claude overlay
 CLAUDE.local.md
@@ -24,3 +28,6 @@ logs/
 .vscode/
 .idea/
 *.swp
+
+# Claude Code agent worktrees (ephemeral, per-track)
+.claude/worktrees/
