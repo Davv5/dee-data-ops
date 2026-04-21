@@ -1,0 +1,91 @@
+version: 2
+
+models:
+  - name: stl_headline_7d
+    description: |
+      Speed-to-Lead Page 1 — headline scorecards (last 7 days).
+      Grain: one row (aggregate). Each column backs one scorecard tile.
+      Materialized as a table so Looker Studio gets predictable cache behavior.
+    columns:
+      - name: bookings_7d
+        description: Total Calendly bookings in the last 7 days, all roles, all sources.
+      - name: sdr_attributed_7d
+        description: Bookings where the first outbound toucher was an SDR.
+      - name: within_5min_7d
+        description: SDR-attributed bookings where first touch happened in under 5 minutes.
+      - name: pct_within_5min_7d
+        description: within_5min_7d / sdr_attributed_7d × 100. The headline SLA metric.
+      - name: median_mins_7d
+        description: Median minutes from booking to first SDR touch (SDR-attributed rows only).
+      - name: pct_with_1hr_activity_7d
+        description: DQ diagnostic — % of SDR-attributed bookings with any SDR activity within 1 hour. Distinguishes "nobody touched" from "missed SLA but still attempted."
+      - name: computed_at
+        description: Wall-clock timestamp the rollup was built. Useful for cache-busting in Looker if needed.
+
+  - name: stl_headline_trend_daily
+    description: |
+      30-day daily trend feeding the sparklines under each headline scorecard.
+      Grain: one row per day for the last 30 days (including zero days).
+    columns:
+      - name: booking_date
+      - name: bookings
+      - name: sdr_attributed
+      - name: within_5min
+      - name: with_1hr_activity
+      - name: pct_within_5min
+
+  - name: stl_daily_volume_by_source
+    description: |
+      Daily booking volume stacked by lead_source — powers the main area chart
+      on Page 1. Top-10 sources by 90-day volume; everything else bucketed as
+      'other' to keep the legend readable.
+    columns:
+      - name: booking_date
+      - name: lead_source
+        description: Top-10 labelled sources + 'other' bucket + 'unknown' for null.
+      - name: bookings
+
+  - name: stl_sdr_leaderboard_30d
+    description: |
+      30-day SDR leaderboard — backs the main results table on Page 1.
+      Grain: one row per SDR who was first-toucher on at least one booking
+      in the last 30 days.
+    columns:
+      - name: sdr_name
+      - name: bookings
+      - name: within_5min
+      - name: with_1hr_activity
+      - name: pct_within_5min
+        description: within_5min / bookings × 100.
+      - name: median_mins
+      - name: mean_mins
+      - name: closed_won
+      - name: pct_closed_won
+
+  - name: stl_attribution_quality_30d
+    description: |
+      Attribution-quality mix — transparency donut showing what portion of
+      the volume is clean vs DQ-flagged.
+    columns:
+      - name: flag
+        description: clean | no_sdr_touch | role_unknown | pre_utm_era | ambiguous_contact_match
+      - name: bookings
+      - name: pct_of_total
+
+  - name: stl_lead_detail_recent
+    description: |
+      Last-30-day lead-level drill-down for Page 1's detail table. One row
+      per booking. Searchable + filterable in Looker Studio.
+    columns:
+      - name: booked_at
+      - name: full_name
+      - name: email
+      - name: sdr_name
+      - name: mins_to_touch
+      - name: is_within_5_min_sla
+      - name: had_any_sdr_activity_within_1_hr
+      - name: lead_source
+      - name: first_touch_campaign
+      - name: close_outcome
+      - name: lost_reason
+      - name: attribution_quality_flag
