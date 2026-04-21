@@ -40,6 +40,7 @@ These can fire in parallel while the critical path advances. Ordered by recommen
 | [R — dim_contacts enrichment](Davv5-Track-R-DimContacts-Enrichment-2026-04-21_10-04.md) | Populate first_touch_*, last_touch_*, lead_magnet_first_engaged, full_name on `dim_contacts` | **Ready with stop-points** | UTM field history and lead-magnet tag taxonomy may require David's input mid-execution |
 | [S — WORKLOG → index refactor](Davv5-Track-S-Worklog-Index-Refactor-2026-04-21_10-04.md) | Replace tail-injection with curated project-state index at SessionStart | **Ready** | — |
 | [T — Corpus config decouple](Davv5-Track-T-Corpus-Config-Decouple-2026-04-21_10-04.md) | Add `.claude/corpus.yaml`; `ask-corpus` reads from it (portability for future clients) | **Ready** | — |
+| [V — Build Metabase craft notebook](Davv5-Track-V-Metabase-Craft-Notebook-2026-04-21_16-57.md) | Create `Metabase Craft` NotebookLM notebook + upload 14 curated sources | **Ready** | Touches David's NotebookLM account (external state) — executor stops-and-asks if a notebook named `Metabase Craft` already exists |
 
 ## Recommended fire order
 

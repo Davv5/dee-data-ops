@@ -1,7 +1,7 @@
 ---
 name: track-executor
 description: Executes a single track file end-to-end in an isolated worktree. Invoke with `isolation: "worktree"` and pass the track file path (or contents) as the prompt. Reads the track, works through the ordered task list, grounds scaffolding decisions in the Data Ops corpus, and stops at "locally committed, ready for review." Does NOT push, does NOT open PRs, does NOT touch production. Use this agent for any track file under `docs/handovers/Davv5-Track-*.md`.
-tools: Read, Write, Edit, Glob, Grep, Bash, Skill, mcp__notebooklm-mcp__notebook_query
+tools: Read, Write, Edit, Glob, Grep, Bash, Skill, mcp__notebooklm-mcp__notebook_query, mcp__notebooklm-mcp__notebook_create, mcp__notebooklm-mcp__notebook_describe, mcp__notebooklm-mcp__notebook_list, mcp__notebooklm-mcp__source_add
 model: sonnet
 ---
 
