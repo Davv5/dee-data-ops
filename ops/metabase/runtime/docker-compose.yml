@@ -1,0 +1,77 @@
+# docker-compose.yml — runs on the GCE VM alongside a cloud_sql_proxy sidecar.
+#
+# Environment expectations (all set by startup-script.sh before `docker compose up`):
+#   METABASE_DB_NAME              — Postgres DB name (metabase)
+#   METABASE_DB_USER              — Postgres user (metabase)
+#   METABASE_DB_PASSWORD          — resolved from Secret Manager
+#   METABASE_DB_HOST              — 127.0.0.1 (cloud_sql_proxy listens here)
+#   METABASE_HOSTNAME             — <dashed-ip>.nip.io (for Caddy ACME)
+#   METABASE_BQ_KEY_PATH          — /run/metabase/bq-reader.json (mounted from host)
+#
+# Volumes:
+#   /var/lib/metabase/bq-reader.json → /run/metabase/bq-reader.json (ro)
+#     — populated by startup-script.sh from Secret Manager
+#   caddy-data, caddy-config        → persist Caddy's ACME state across reboots
+#   metabase-plugins                → for drivers / MCP jars if we add any
+
+version: "3.8"
+
+services:
+  metabase:
+    image: metabase/metabase:v0.60.1
+    container_name: metabase
+    restart: unless-stopped
+    depends_on:
+      - cloud-sql-proxy
+    environment:
+      MB_DB_TYPE: postgres
+      MB_DB_DBNAME: ${METABASE_DB_NAME}
+      MB_DB_PORT: 5432
+      MB_DB_USER: ${METABASE_DB_USER}
+      MB_DB_PASS: ${METABASE_DB_PASSWORD}
+      MB_DB_HOST: cloud-sql-proxy
+      MB_SITE_URL: https://${METABASE_HOSTNAME}
+      MB_CHECK_FOR_UPDATES: "false"
+      MB_ANON_TRACKING_ENABLED: "false"
+      JAVA_OPTS: "-Xmx1g"
+    volumes:
+      - metabase-plugins:/plugins
+    networks: [mbnet]
+
+  cloud-sql-proxy:
+    image: gcr.io/cloud-sql-connectors/cloud-sql-proxy:2.11.0
+    container_name: cloud-sql-proxy
+    restart: unless-stopped
+    # COMPOSE_SQL_CONNECTION_NAME is set by startup-script.sh from VM metadata.
+    command:
+      - "--address=0.0.0.0"
+      - "--port=5432"
+      - "--private-ip"
+      - "${CLOUD_SQL_CONNECTION_NAME}"
+    # Attached-VM authentication uses the VM's service account — no key mount.
+    networks: [mbnet]
+
+  caddy:
+    image: caddy:2.8-alpine
+    container_name: caddy
+    restart: unless-stopped
+    depends_on:
+      - metabase
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      METABASE_HOSTNAME: ${METABASE_HOSTNAME}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    networks: [mbnet]
+
+volumes:
+  metabase-plugins:
+  caddy-data:
+  caddy-config:
+
+networks:
+  mbnet:
