@@ -8,6 +8,11 @@
     )
 }}
 
+-- era_flag: inline CASE on booked_at using a hardcoded 2026-03-16 cutover
+-- (Monday of ISO-W12, the week the median first-touch time dropped below 60 min).
+-- Option B chosen over a seed — one binary cutover, no business-editable nuance,
+-- no seed-maintenance overhead, no extra DAG node / join per row. Flip to a seed
+-- only if the era taxonomy grows beyond ramping/stable.
 with
 
 fct_bookings as (
@@ -228,6 +233,10 @@ final as (
             else 'clean'
         end                                         as attribution_quality_flag,
         c.attribution_era,
+        case
+            when date(b.booked_at) < date '2026-03-16' then 'ramping'
+            else 'stable'
+        end                                         as era_flag,
         c.client,
 
         current_timestamp()                         as mart_refreshed_at

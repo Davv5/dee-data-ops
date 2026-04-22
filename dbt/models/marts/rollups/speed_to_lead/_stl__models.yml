@@ -36,28 +36,41 @@ models:
 
   - name: stl_headline_trend_weekly
     description: |
-      Weekly headline trend for Speed-to-Lead — feeds the smart-scalar
-      trend indicator on Page 1. Grain: one row per ISO week (Monday start)
-      for the last 12 completed weeks. The in-progress current week is
-      excluded so the trend comparator never flips on partial data.
+      12-week headline trend — one row per ISO week (Monday-starting) for the
+      last 12 completed weeks. Current in-progress week is excluded so the
+      smart-scalar trend comparator never flips on partial data.
+
+      Correctness contract: median, P90, and 5-min SLA rate are scoped to
+      SDR-attributed bookings only (otherwise no-touch rows pollute the
+      quantile pool and deflate the SLA ratio). The 1-hour reachability
+      metric stays denominated on total bookings — it's a "was anyone home?"
+      diagnostic, not an SDR scorecard.
     columns:
       - name: week_start
-        description: ISO week start (Monday) of each bucket.
-        tests: [unique, not_null]
+        description: ISO-week Monday (DATE). One row per week.
+        tests:
+          - not_null
+          - unique
+      - name: bookings
+        description: Total Calendly bookings that week (all roles, all sources).
+        tests:
+          - not_null
+      - name: sdr_attributed
+        description: Bookings where first_toucher_role = 'SDR'.
+        tests:
+          - not_null
+      - name: within_5min
+        description: SDR-attributed bookings where first touch was under 5 minutes.
+        tests:
+          - not_null
       - name: pct_within_5min
-        description: |
-          % of Calendly bookings that week where the first SDR touch
-          happened within 5 minutes. Scale 0.0–100.0. Denominator is
-          SDR-attributed bookings.
-      - name: median_mins
-        description: |
-          Median minutes_to_first_sdr_touch for SDR-attributed bookings
-          that week.
+        description: within_5min / sdr_attributed × 100, rounded to 1 decimal. NULL when sdr_attributed = 0.
+      - name: median_mins_sdr_only
+        description: Median minutes to first SDR touch, SDR-attributed rows only. NULL when no SDR-attributed bookings that week.
+      - name: p90_mins_sdr_only
+        description: P90 minutes to first SDR touch, SDR-attributed rows only. approx_quantiles(_, 10)[offset(9)]. NULL when no SDR-attributed bookings that week.
       - name: pct_with_1hr_activity
-        description: |
-          % of bookings with any SDR activity within 1 hour. Scale 0.0–100.0.
-          Denominator is all bookings (DQ diagnostic — distinguishes
-          "nobody touched" from "missed SLA but still attempted").
+        description: Bookings with any SDR activity within 1 hour / total bookings × 100. Reachability diagnostic, NOT SDR-scoped.
 
   - name: stl_daily_volume_by_source
     description: |
