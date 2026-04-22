@@ -34,6 +34,85 @@ Rolling log of what's been done on this project. Newest entries at the top. Tail
 - Q3 (public share interactive filters): public URL returns HTTP 200. Interactive filter behaviour for anonymous viewers not verified — known Metabase OSS limitation; filters work for authenticated users and Track D's email subscription.
 - `sales_activity_detail` not materialised in dev_david at track start; had to build upstream first. Not a blocker but note for future tracks.
 
+## 2026-04-22 (pm) — Metabase Learn corpus + v1.3.1 polish (Track D shipped, Track E in flight) + OSS permissions research
+
+**What happened**
+- **Metabase Learn notebook** created (NotebookLM id `417bc4d3-59b4-4732-b8cb-d537dacf8477`) — 149 sources: 133 `metabase.com/learn` articles (4 "Redirecting…" stubs + 1 malformed URL dropped from source CSV) plus 16 official YouTube walkthroughs transcribed independently. Complements the existing Metabase Craft notebook (ops/licensing, 14 sources). Wired into `.claude/corpus.yaml` as `methodology.metabase_learn`; scope table + rule-of-thumb updated in `.claude/skills/ask-corpus/SKILL.md` and `.claude/rules/using-the-notebook.md`.
+- **Track D** (PR #49 open — https://github.com/Davv5/dee-data-ops/pull/49) ships per-dashboard `cache_ttl=21600s` via new `ops/metabase/authoring/infrastructure/caching_config.py` + scaffolds `dashboard_subscriptions.py` (weekly Mon 06:00 ET digest) behind an SMTP guard. Commit `be95494`. Partial-ship authorized: dashboard-level TTL persists on OSS v0.60.1 (contradicts corpus "Pro-only" claim — empirical finding noted in `.claude/rules/metabase.md` Lessons Learned); server-wide `enable-query-caching` is read-only via REST and needs `MB_ENABLE_QUERY_CACHING=true` env var + container restart.
+- **Track E** in flight on `Davv5/Track-E-STL-v131-Authoring-Polish` (worktree `.claude/worktrees/track-E-stl-v131-authoring-polish/`, commit `f56415d`): dashboard Date + SDR filters, four markdown section dividers, footer text card, `Data as of HH:MM` freshness tile, new `stl_data_freshness` dbt rollup. Executor done, pr-reviewer not yet fired.
+- **Two-round gap analysis** of Speed-to-Lead v1.3 vs Metabase Learn corpus. Round 1 surfaced 5 gaps (filters, dividers, footer, freshness, column click-through) + 7 validations. Round 2 went deeper and flagged **public-URL + BigQuery = silent cost exposure** (11 rollup queries billed per byte per visitor refresh); zero alerts/subscriptions; drill hierarchy one level short of the canonical 3-level pattern; filter defaults should be 7d (not 30d) with "include current period" ON. Incomplete-period anti-pattern audit passed for live rollups.
+- **OSS permissions research** via `methodology.metabase` + `methodology.metabase_learn`: data sandboxes + column-level security are Pro/Enterprise only. Chosen OSS-compatible path = three groups (Administrators / Sales Managers / SDRs) + three collections (Sales Official / Sales Management / Sales Playground) + native-SQL leaderboard (drill-through auto-disabled → row-level sandbox substitute) + `Blocked` DB permissions for SDRs on raw BQ tables. Public URL retires when auth comes online. Cultural calls confirmed with David: leaderboard-with-names is fine (motivational); SDRs already see lead PII in GHL daily.
+
+**Decisions**
+- **Ship Track D as partial.** *Why:* server-wide caching env-var flip requires VM access + restart (not in this PR's loop); SMTP bootstrap is a human setup step. Better to ship the dashboard-TTL win now with a clean `check_smtp()` short-circuit than block everything.
+- **Metabase Learn split out from Metabase Craft as its own notebook.** *Why:* Craft is ops/licensing (14 tight sources); Learn is analyst how-to (149 sources). Cross-queryable as `methodology` default; targeted scopes available when the question clearly fits one side.
+- **OSS data-permissions pattern = native SQL + collections + Blocked DB**, not Pro sandboxes. *Why:* pay-to-unlock would require a Pro seat per viewer; the 3-group / 3-collection approach meets D-DEE's real sensitivity profile (leaderboard-with-names is fine, PII already in GHL) at zero license cost.
+
+**Open threads**
+- **PR #49 (Track D)** awaiting merge.
+- **Track E** committed on branch, pr-reviewer not yet run — will follow after commit.
+- **Metabase Docs ingestion planned next session** — rename "Metabase Craft" notebook → "Metabase Docs" and ingest a full `metabase.com/docs` crawl. David to supply CSV.
+- **`MB_ENABLE_QUERY_CACHING=true`** env var still owed on prod VM (add to `docker-compose.yml`, `docker compose down && up -d`, rerun `caching_config.py`).
+- **SMTP bootstrap** still owed (SendGrid free tier recommended per Track D handover) before `dashboard_subscriptions.py` can create the Monday digest.
+- **Public URL must die** when SDR/Manager accounts are introduced — public links bypass all user-based permissions.
+- Pre-existing carryover: GHL PIT rotation (transcript-exposed 2026-04-19), `GCP_SA_KEY_PROD` unset, `dbt_metadata_sync.py` never run, roster gaps (Ayaan, Jake, Moayad, Halle), Stripe Fivetran sync gap.
+
+## 2026-04-22 — Track D: Speed-to-Lead Metabase caching config + subscription scaffold (partial ship)
+
+**What happened**
+- Added `ops/metabase/authoring/infrastructure/caching_config.py` — checks the
+  server-wide caching toggle (read-only on v0.60.1) and sets `cache_ttl=21600s`
+  (6h) on the Speed-to-Lead dashboard. Script is idempotent; second run is a
+  no-op. Verified live: dashboard `cache_ttl` persisted to 21600 s.
+- Discovered `enable-query-caching` is a **read-only setting** on Metabase v0.60.1
+  — `PUT /api/setting/enable-query-caching` returns HTTP 500 "read-only setting."
+  Fix: set `MB_ENABLE_QUERY_CACHING=true` in `ops/metabase/runtime/docker-compose.yml`
+  and restart the container. Documented in the script docstring + Lessons Learned.
+- Added `ops/metabase/authoring/infrastructure/dashboard_subscriptions.py` — upserts
+  the weekly Monday 06:00 ET digest pulse once SMTP is configured. Includes SMTP
+  guard (`check_smtp()` exits 1 with setup instructions if SMTP is not live),
+  report-timezone assertion (`America/New_York`), and recipient list from
+  `STL_WEEKLY_DIGEST_RECIPIENTS` env var. Verified guard fires correctly.
+- SMTP is NOT configured on the instance (`email-configured? = False`, all smtp
+  settings null). Item 6 (subscription creation) skipped per David's partial-ship
+  authorization. See Open threads for SMTP bootstrap steps.
+- Added `STL_WEEKLY_DIGEST_RECIPIENTS=` (empty) to `.env.metabase.example`.
+- Added two "Lessons learned" bullets to `.claude/rules/metabase.md` covering
+  caching (read-only toggle, env var path, per-dashboard TTL) and subscriptions
+  (SMTP prerequisite, timezone assertion, recipient list in env). Rule auto-synced
+  to Data Ops notebook (source id 65c7f876).
+- Pre-flight BQ cost-gotcha check: `auto_run_queries=False` and
+  `include-user-id-and-hash=False` — state matches desired, no PUT fired.
+- BQ cache-hit verification (second page load) not run: caching toggle is still OFF
+  pending the env var change. Document after David completes the server restart.
+
+**Decisions**
+- 6-hour dashboard `cache_ttl` because dbt prod refreshes daily and rollups don't
+  change intraday — fewer BQ scans on public-share page loads (cost-saver).
+- Monday 06:00 America/New_York schedule: matches SDR-management decision cadence
+  per Metabase Learn "match frequency of pushing a metric with cadence of
+  decision-making." (source: *"Pushing data"*, Metabase Learn, source 46e8daaf.)
+- Recipients in `STL_WEEKLY_DIGEST_RECIPIENTS` env var (gitignored), never in
+  repo — addresses are PII and change across PS engagements.
+- Subscription item skipped (not blocked): SMTP not configured. Partial-ship
+  explicitly authorized by David before execution.
+- `report-timezone` assert (`America/New_York`) placed in `dashboard_subscriptions.py`
+  before pulse creation — `schedule_hour=6` fires at 06:00 ET, not 06:00 UTC.
+  Pre-change value was `null` (system default).
+
+**Open threads**
+- ACTION REQUIRED: Set `MB_ENABLE_QUERY_CACHING=true` in
+  `ops/metabase/runtime/docker-compose.yml` and restart Metabase. Re-run
+  `caching_config.py` to confirm `enable-query-caching=true`. Then verify second
+  public-share page load hits cache (zero new `stl_*` BQ scans in GCP job history).
+- SMTP bootstrap needed for subscription delivery: (1) choose provider (SendGrid
+  recommended — free tier 100/day), (2) store creds in Secret Manager under
+  `dee-data-ops-prod`, (3) configure SMTP in Metabase Admin UI, (4) run
+  `dashboard_subscriptions.py`. See script docstring for full steps.
+- Dashboard footer does not yet mention the 6-hour cache window — add to a future
+  `speed_to_lead.py` edit (Track A/B/C territory).
+- Monitor first Monday digest (2026-04-28 06:00 ET) after SMTP is live.
+
 ## 2026-04-22 — Speed-to-Lead v1.6: vocabulary pass + heatmap table-pivot + permanent orphan cleanup (Track C)
 
 **What happened**

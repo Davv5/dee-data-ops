@@ -145,3 +145,50 @@ Add a new-client adaptation to `NEW_CLIENT_METABASE_SOP.md` post-v1.
   when the rollup doesn't carry the filter's dimension
   (sources: "Field Filters" + "Adding filters and making interactive BI
   dashboards", Metabase Learn notebook).
+
+- Enable query-result caching on any public-share dashboard reading
+  BigQuery. Set a per-dashboard `cache_ttl` aligned with the upstream
+  rollup refresh cadence (6h for dbt-prod-daily rollups). Keep
+  `details["include-user-id-and-hash"] = False` on the BQ connection
+  so cache misses can still fall through to BigQuery's free 24-hour
+  native result cache.
+  (source: *"Google BigQuery | Metabase Documentation"*, Metabase Craft
+  notebook; *"Caching query results"*, Metabase Learn notebook, source
+  d6a8e3ae.)
+  **OSS v0.60.1 gotcha:** `enable-query-caching` is a **read-only
+  setting** via the REST API — `PUT /api/setting/enable-query-caching`
+  returns HTTP 500 "read-only setting." Enable via the
+  `MB_ENABLE_QUERY_CACHING=true` environment variable on the server
+  (docker-compose.yml), then restart Metabase. The per-dashboard
+  `cache_ttl` can be set via the dashboard PUT endpoint even on OSS.
+
+- Dashboard subscriptions (pulses) are admin-config, not dashboard-code.
+  Per Metabase Learn's "Pushing data" guidance, match the subscription
+  cadence to the decision-making cadence (weekly for SDR-management
+  decisions). Recipient lists live in env (gitignored), never in the
+  repo. SMTP must be configured first — check `email-configured?` in
+  `GET /api/setting` before running the subscriptions script; the
+  `/api/email` endpoint returns 404 on OSS v0.60.1 (not a valid route
+  on this build). When SMTP is not configured, the
+  `dashboard_subscriptions.py` script exits 1 with setup instructions.
+  `schedule_hour` is interpreted in the instance's report-timezone —
+  assert `report-timezone = America/New_York` before creating the pulse
+  so Monday 06:00 fires at 06:00 ET, not UTC.
+  (source: *"Pushing data"*, Metabase Learn notebook, source 46e8daaf;
+  *"Dashboard subscriptions"*, Metabase Learn notebook, source 9fe1ca85.)
+
+- **Any track introducing a new `stl_*` rollup (or any new dbt model
+  referenced by a Metabase card) must run `dbt build --target prod
+  --select <model>` BEFORE the authoring script pushes the dashboard
+  change to prod Metabase.** The authoring script mutates the live
+  prod dashboard; if the backing table doesn't exist in prod BQ yet,
+  the new tile errors and the dashboard shows a top-level banner for
+  end users. Track E (PR #50) hit this exact trap on 2026-04-22 when
+  `stl_data_freshness.sql` was built in dev but not prod. Future
+  plan-architect track files must include a "dbt prod build" pre-step
+  for any new model, and pr-reviewer should request-changes if the
+  track introduces a new rollup without that step.
+  *Caveat:* local-shell `--target prod` is hook-blocked until the
+  Phase-6 CI workflow (`dbt-deploy.yml` + `GCP_SA_KEY_PROD`) ships —
+  the step is human-only for now, which is why it must be explicit
+  in the track file.
