@@ -5,13 +5,16 @@ Reads pre-aggregated rollup tables under `dee-data-ops-prod.marts.stl_*`
 prescribed in `docs/looker-studio/page-1-speed-to-lead.md`.
 
 Two dashboards are upserted in the `Speed-to-Lead` collection:
-- `Speed-to-Lead` — v1.5 layout: T1 hero (full-width 24×4), T2+T3
-  supporting chips at row 6, volume scorecards at row 9 (T6 = % With
-  1-Hour Activity), response-time distribution paired with close-rate-by-touch
+- `Speed-to-Lead` — v1.6 layout: T1 hero (full-width 24×4), T2+T3
+  supporting chips at row 6, volume scorecards at row 9 (T6 = % with
+  1-hour activity), response-time distribution paired with close-rate-by-touch
   at row 12, full-width source-performance at row 18 with mini-bar formatting
-  on percentage columns, coverage heatmap at row 24, full-width SDR leaderboard
-  with per-row drill-through at row 31, lead-tracking match-rate donut demoted
-  to footer-row DQ tile at row 39.
+  on percentage columns, coverage heatmap (table-pivot + conditional coloring)
+  at row 24, full-width SDR leaderboard with per-row drill-through at row 31,
+  lead-tracking match-rate donut demoted to footer-row DQ tile at row 39.
+  Vocabulary pass: all "(weekly)"/"(30d)"/"(last 90d)" abbreviations replaced
+  with ", this week vs last week" / ", trailing 30 days" / ", trailing 90 days".
+  Orphan-cleanup block archives superseded cards from Tracks A+B+C renames.
 - `Speed-to-Lead — Lead Detail` — Page 1b lead-grain drill-down table
 
 Run::
@@ -93,8 +96,13 @@ def main() -> None:
     # each). T3 renamed from "P90 Minutes…" to "Slowest 10% — minutes…"
     # for jargon-free client reading. The underlying field + fmt are
     # unchanged — distribution signal is preserved, only the name moves.
+    #
+    # v1.6 vocabulary pass (Track C): "(weekly)" suffix replaced with
+    # ", this week vs last week" throughout all headline tiles. Comma +
+    # sentence-case qualifier reads as description, not a label — consistent
+    # with "% On-Time" / "Lead Source Performance" precedent shipped in v1.3.
     t1 = trend_smartscalar(
-        name="% First Touch in 5 min (weekly)",
+        name="% First Touch in 5 min, this week vs last week",
         field="pct_within_5min",
         fmt=PCT_FMT,
     )
@@ -102,7 +110,7 @@ def main() -> None:
     # to make the SDR-scoped denominator explicit in the column name. T2's
     # scalar.field + column_settings key track the rename.
     t2 = trend_smartscalar(
-        name="Median Minutes to First SDR Touch (weekly)",
+        name="Median minutes to first SDR touch, this week vs last week",
         field="median_mins_sdr_only",
         fmt=MIN_FMT,
     )
@@ -111,8 +119,9 @@ def main() -> None:
     # background. The underlying field + fmt are unchanged — only the card name
     # moves. upsert_card matches on (name, collection_id), so the old card
     # "P90 Minutes to First SDR Touch (weekly)" is orphaned; Track C cleans up.
+    # v1.6 vocabulary pass (Track C): "(weekly)" → ", this week vs last week".
     t3 = trend_smartscalar(
-        name="Slowest 10% — minutes to first touch (weekly)",
+        name="Slowest 10% — minutes to first touch, this week vs last week",
         field="p90_mins_sdr_only",
         fmt=MIN_FMT,
     )
@@ -122,13 +131,14 @@ def main() -> None:
     # direction week-over-week is visible on the headline page. Each tile
     # reads one value column from `stl_headline_trend_weekly`.
     # v1.5: shifted from row 5 to row 9 to make room for hero T1 + chips.
+    # v1.6 vocabulary pass (Track C): "(weekly)" → ", this week vs last week".
     t4 = trend_smartscalar(
-        name="Bookings (weekly)",
+        name="Bookings, this week vs last week",
         field="bookings",
         fmt=NUM_FMT,
     )
     t5 = trend_smartscalar(
-        name="SDR-Attributed (weekly)",
+        name="SDR-attributed, this week vs last week",
         field="sdr_attributed",
         fmt=NUM_FMT,
     )
@@ -140,8 +150,9 @@ def main() -> None:
     # (line 91). No dbt edit required (executor chose Option 3a).
     # click_behavior removed: T6 no longer drills to Lead Detail (tile-level drill
     # was for the raw-count tile's specific DQ context — not meaningful here).
+    # v1.6 vocabulary pass (Track C): "(weekly)" → ", this week vs last week".
     t6 = trend_smartscalar(
-        name="% With 1-Hour Activity (weekly)",
+        name="% with 1-hour activity, this week vs last week",
         field="pct_with_1hr_activity",
         fmt=PCT_FMT,
     )
@@ -152,9 +163,11 @@ def main() -> None:
     # signal this chart carried. Parked here for a future "Volume
     # drilldown" page so the card's history (view-count, metadata)
     # isn't lost.
+    # v1.6 vocabulary pass (Track C): renamed for consistency with the trailing-90-days
+    # qualifier convention even though t7 is parked (not on any dashboard page).
     t7 = upsert_card(
         mb,
-        name="Daily Booked Calls — last 90d, stacked by lead source",
+        name="Daily booked calls, trailing 90 days, stacked by lead source",
         collection_id=coll["id"],
         database_id=db_id,
         display="area",
@@ -180,9 +193,10 @@ def main() -> None:
     # v1.4: shrunk from full-width (24) to half-width (12) to pair with
     # close_rate_by_touch at col 12 — cause beside effect on one row.
     # v1.5: row shifted 8→12 to make room for hero T1 + T2/T3 chips.
+    # v1.6 vocabulary pass (Track C): "(30d)" → ", trailing 30 days".
     response_time_dist = upsert_card(
         mb,
-        name="Response-Time Distribution (30d)",
+        name="Response-time distribution, trailing 30 days",
         collection_id=coll["id"],
         database_id=db_id,
         display="bar",
@@ -290,9 +304,10 @@ def main() -> None:
     # Paired with response_time_dist at row 12 left: cause (distribution
     # curve) beside effect (close-rate). Primary metric close_rate_pct as
     # bar height; bookings in tooltip so viewers can gauge sample size.
+    # v1.6 vocabulary pass (Track C): "(30d)" → ", trailing 30 days".
     close_rate_by_touch = upsert_card(
         mb,
-        name="Close Rate by Touch Time (30d)",
+        name="Close rate by touch time, trailing 30 days",
         collection_id=coll["id"],
         database_id=db_id,
         display="bar",
@@ -324,9 +339,10 @@ def main() -> None:
     # silently (Discourse #23492, #20677). Authenticated users only.
     # source.type = "column" passes the clicked row's lead_source value into
     # the target dashboard's lead_source_param parameter.
+    # v1.6 vocabulary pass (Track C): "(30d)" → ", trailing 30 days".
     source_outcome = upsert_card(
         mb,
-        name="Lead Source Performance (30d)",
+        name="Lead source performance, trailing 30 days",
         collection_id=coll["id"],
         database_id=db_id,
         display="table",
@@ -370,35 +386,66 @@ def main() -> None:
         },
     )
 
-    # ── Row 24 — SDR coverage heatmap (day × hour, 24×6) ────────────────
-    # Uses Metabase's `pivot` display with a column_split: rows=day_of_week,
-    # columns=hour_of_day, values=pct_within_5min. day_sort is selected so
-    # the pivot respects Monday→Sunday ordering (Metabase sorts rows by the
-    # first-selected column when no explicit ordering is provided; including
-    # day_sort keeps day_of_week labels but orders by the numeric sort key).
+    # ── Row 24 — SDR coverage heatmap (day of week × hour of day, 24×6) ──
+    # v1.6 (Track C) heatmap display fallback:
+    #   BEFORE (v1.3–v1.5): display="pivot" + pivot_table.column_split.
+    #   REASON FOR SWAP: pivot_table.column_split is a Pro feature on some
+    #   OSS Metabase builds (61.x). The v1.3 comment flagged this fragility;
+    #   Track C pre-emptively swaps to the table-pivot code path, which is a
+    #   different implementation on the OSS side and does not depend on the
+    #   Pro pivot module.
     #
-    # Fallback: if the `pivot` display shape doesn't render correctly on
-    # Metabase 61.x (pivot_table.column_split is a Pro feature on some
-    # older OSS builds), swap display→"table" and drop the pivot_table
-    # visualization_setting. Query remains identical.
+    #   AFTER: display="table" + table.pivot=True. Metabase's table display
+    #   has a built-in pivot (separate from the standalone "pivot" display
+    #   type). Setting table.pivot_column="hour_of_day" pivots hours across
+    #   columns; the remaining non-pivot non-cell column (day_of_week) becomes
+    #   the row dimension. table.cell_column="pct_within_5min" fills the grid.
+    #   table.column_formatting adds a red→yellow→green conditional range so
+    #   the coverage scan is identical to the old heatmap at a glance.
+    #
+    #   /api/docs returned 302 (auth-gated) on this instance; key names
+    #   confirmed via Metabase OSS 60.x documented table visualization_settings
+    #   (same convention used for show_mini_bar on source_outcome above).
+    #
+    # v1.6 vocabulary pass (Track C): card name "SDR Coverage Heatmap —
+    # Day x Hour (30d)" → "SDR coverage, day of week by hour of day,
+    # trailing 30 days" (parenthetical abbreviations out, comma-qualifier in).
     coverage_heatmap = upsert_card(
         mb,
-        name="SDR Coverage Heatmap — Day x Hour (30d)",
+        name="SDR coverage, day of week by hour of day, trailing 30 days",
         collection_id=coll["id"],
         database_id=db_id,
-        display="pivot",
+        display="table",
         native_query=(
             "SELECT day_of_week, day_sort, hour_of_day, pct_within_5min "
             "FROM `dee-data-ops-prod.marts.stl_coverage_heatmap_30d` "
             "ORDER BY day_sort, hour_of_day"
         ),
         visualization_settings={
-            "pivot_table.column_split": {
-                "rows": ["day_of_week"],
-                "columns": ["hour_of_day"],
-                "values": ["pct_within_5min"],
-            },
-            **_col_settings({"pct_within_5min": PCT_FMT}),
+            "table.pivot": True,
+            "table.pivot_column": "hour_of_day",
+            "table.cell_column": "pct_within_5min",
+            **_col_settings({
+                "pct_within_5min": {
+                    **PCT_FMT,
+                    "column_title": "% within 5 min",
+                },
+            }),
+            # Conditional formatting: red (0%) → yellow (50%) → green (100%)
+            # so operators can spot low-coverage slots at a glance. Range
+            # keys match the Metabase OSS 60.x column_formatting schema.
+            "table.column_formatting": [
+                {
+                    "columns": ["pct_within_5min"],
+                    "type": "range",
+                    "colors": ["#EE6E73", "#FFEB84", "#84BA5B"],
+                    "min_type": "custom",
+                    "min_value": 0,
+                    "max_type": "custom",
+                    "max_value": 100,
+                    "operator": "=",
+                },
+            ],
         },
     )
 
@@ -413,9 +460,10 @@ def main() -> None:
     # Metabase silently swallows the click (Discourse #23492, #20677).
     # source.type = "column" passes the clicked row's sdr_name value into
     # the target dashboard's sdr_name_param parameter.
+    # v1.6 vocabulary pass (Track C): "(30d)" → ", trailing 30 days".
     t8 = upsert_card(
         mb,
-        name="SDR Leaderboard (30d)",
+        name="SDR leaderboard, trailing 30 days",
         collection_id=coll["id"],
         database_id=db_id,
         display="table",
@@ -461,9 +509,10 @@ def main() -> None:
     #   clean         → Matched
     #   no_sdr_touch  → No SDR touch yet
     #   role_unknown  → Unassigned rep
+    # v1.6 vocabulary pass (Track C): "(30d)" → ", trailing 30 days".
     t9 = upsert_card(
         mb,
-        name="Lead Tracking Match Rate (30d)",
+        name="Lead tracking match rate, trailing 30 days",
         collection_id=coll["id"],
         database_id=db_id,
         display="pie",
@@ -542,29 +591,28 @@ def main() -> None:
         },
     }
 
-    # v1.5 layout map (Track B — hero promotion + T3 rename + mini-bars).
+    # v1.6 layout map (Track C — vocabulary pass + heatmap fallback + orphan cleanup).
+    # Layout unchanged from v1.5; only card names + heatmap display type changed.
     # Metabase dashboards use a 24-column grid.
     # Layout map (row, col, size_x, size_y):
     #
-    #   Row  0 — header banner                         (0,  0, 24, 2)
-    #   Row  2 — T1 hero (% First Touch in 5 min)      (2,  0, 24, 4)  ← full-width hero
-    #             Smartscalar auto-scales the central number to fill 24×4;
-    #             the headline metric visually dominates the page.
-    #   Row  6 — T2 | T3 (supporting smart-scalars)    each 12 wide, 3 tall
-    #             (6,  0, 12, 3) Median mins  | (6, 12, 12, 3) Slowest 10% mins
-    #             T3 renamed: "Slowest 10% — minutes to first touch (weekly)"
-    #             (was "P90 Minutes…" — jargon-free per Track B. Orphan cleaned by Track C.)
-    #   Row  9 — T4 | T5 | T6 (volume smart-scalars)   each 8 wide, 3 tall
-    #             T6 = % With 1-Hour Activity (weekly) — orthogonal to T1
-    #   Row 12 — Response-Time Distribution (12) | Close Rate by Touch (12)
-    #             (12, 0, 12, 6)                 | (12, 12, 12, 6)
+    #   Row  0 — header banner                                  (0,  0, 24, 2)
+    #   Row  2 — T1 hero (% First Touch in 5 min, this week vs last week)
+    #             (2,  0, 24, 4)  ← full-width hero; smartscalar auto-scales.
+    #   Row  6 — T2 | T3 (supporting smart-scalars)             each 12 wide, 3 tall
+    #             (6,  0, 12, 3) Median minutes … | (6, 12, 12, 3) Slowest 10% …
+    #   Row  9 — T4 | T5 | T6 (volume smart-scalars)            each 8 wide, 3 tall
+    #             T6 = % with 1-hour activity, this week vs last week
+    #   Row 12 — Response-time distribution (12) | Close rate by touch time (12)
+    #             (12, 0, 12, 6)                  | (12, 12, 12, 6)
     #             Cause (curve) beside effect (close-rate) — one story per row
-    #   Row 18 — Lead Source Performance (full-width 24×6)
+    #   Row 18 — Lead source performance, trailing 30 days (full-width 24×6)
     #             (18, 0, 24, 6) — percentage columns have show_mini_bar:True
-    #   Row 24 — SDR Coverage Heatmap                  (24, 0, 24, 6)
-    #   Row 31 — SDR Leaderboard (full-width 24×7) — per-row click → Lead Detail
-    #             (31, 0, 24, 7)
-    #   Row 39 — Data refreshed footer | Lead Tracking Match Rate (DQ tile)
+    #   Row 24 — SDR coverage, day of week by hour of day (full-width 24×6)
+    #             (24, 0, 24, 6) — table-pivot + conditional cell coloring (v1.6)
+    #   Row 31 — SDR leaderboard, trailing 30 days (full-width 24×7)
+    #             (31, 0, 24, 7) — per-row click → Lead Detail
+    #   Row 39 — Data refreshed footer | Lead tracking match rate (DQ tile)
     #             (39, 0, 12, 2)       | (39, 12, 12, 2)
     set_dashboard_cards(
         mb,
@@ -598,6 +646,42 @@ def main() -> None:
     # persists in the collection as a parking slot for the planned
     # "Volume drilldown" page.
     _ = t7
+
+    # ── Orphan cleanup — PERMANENT, runs on every script invocation ───────
+    # WHY ORPHANS ACCUMULATE: upsert_card matches on (name, collection_id).
+    # A card rename therefore POSTs a NEW card (new name = no match) and
+    # leaves the OLD card unreferenced in the collection. Every rename in
+    # Tracks A, B, and C created one orphan. This pass archives them all.
+    #
+    # DESIGN: archive (not delete) so a mistaken rename is recoverable from
+    # the Metabase trash. Cost on each run: one GET /api/card (returns all
+    # non-archived cards across the instance) — negligible.
+    #
+    # Future-proofing: this block is intentionally permanent. Any future card
+    # rename that goes through this script will be self-cleaning on the next
+    # run, with zero extra work from the author.
+    kept_ids: set[int] = {
+        t1["id"], t2["id"], t3["id"], t4["id"], t5["id"], t6["id"],
+        t7["id"], t8["id"], t9["id"],
+        response_time_dist["id"],
+        close_rate_by_touch["id"],
+        source_outcome["id"],
+        coverage_heatmap["id"],
+        footer["id"],
+        detail_card["id"],
+    }
+    all_collection_cards = [
+        c for c in mb.cards()
+        if c.get("collection_id") == coll["id"]
+    ]
+    orphaned = 0
+    for card in all_collection_cards:
+        if card["id"] not in kept_ids:
+            mb.put(f"/card/{card['id']}", {"archived": True})
+            print(f"Archived orphan card: {card['name']} (id={card['id']})")
+            orphaned += 1
+    if orphaned == 0:
+        print("Orphan cleanup: no orphan cards found.")
 
     print(f"Speed-to-Lead:             {mb.url}/dashboard/{dash['id']}")
     print(f"Speed-to-Lead Lead Detail: {mb.url}/dashboard/{detail_dash['id']}")
