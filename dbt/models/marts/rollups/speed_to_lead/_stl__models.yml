@@ -257,3 +257,21 @@ models:
           100 × COUNTIF(first_toucher_role = 'SDR' AND is_within_5_min_sla)
           / COUNT(*) for this cell. NULL when bookings = 0 (currently unreachable
           because empty cells are skipped).
+
+  - name: stl_data_freshness
+    description: >
+      One-row rollup feeding the "Data as of" freshness number card on the
+      Speed-to-Lead dashboard. Grain: exactly one row. Exposes the latest
+      booking timestamp on sales_activity_detail and the dbt run timestamp
+      so viewers can tell at a glance how current the dashboard is.
+    columns:
+      - name: last_booking_at
+        description: >
+          Max(booked_at) on sales_activity_detail. Represents the latest event
+          the Speed-to-Lead data layer has seen. This is what the "Data as of"
+          freshness tile on the dashboard displays, formatted as a datetime.
+      - name: run_ts
+        description: >
+          current_timestamp() evaluated at dbt build time. Useful for
+          distinguishing "the mart is stale because no new bookings" vs
+          "the mart is stale because dbt hasn't run recently."

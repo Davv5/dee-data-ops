@@ -136,4 +136,12 @@ Add a new-client adaptation to `NEW_CLIENT_METABASE_SOP.md` post-v1.
 
 ## Lessons learned
 
-*(Populate as Metabase issues arise.)*
+- Dashboard filters on native-SQL questions bind via template tags. Use
+  Field Filters (type=dimension, target shape `["dimension", ["template-tag",
+  "<tag>"]]`) for smart date/category widgets; omit the column name and
+  `=` operator in the SQL (Metabase injects the subquery). Wrap the WHERE
+  in `[[...]]` so the card renders standalone when unfiltered. Partial
+  filter coverage — leaving pre-aggregated cards unbound — is acceptable
+  when the rollup doesn't carry the filter's dimension
+  (sources: "Field Filters" + "Adding filters and making interactive BI
+  dashboards", Metabase Learn notebook).
