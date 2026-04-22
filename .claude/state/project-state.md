@@ -27,7 +27,7 @@ _Last regenerated: 2026-04-22 (pm)_
 ## Open threads (what's pending)
 
 - **PR #49 (Track D)** awaiting merge.
-- **Track E** executor committed on `Davv5/Track-E-STL-v131-Authoring-Polish` (`f56415d`) — filters, dividers, footer, freshness tile, `stl_data_freshness` rollup. pr-reviewer not yet fired.
+- **PR #50 (Track E)** awaiting merge — dashboard filters (date + SDR) + 4 section dividers + footer text card + `Data as of` freshness tile + new `stl_data_freshness` rollup. Reviewer classified clean; zero scope drift; `data_as_of` correctly in `kept_ids`.
 - **Metabase Docs notebook planned** — next session: rename "Metabase Craft" → "Metabase Docs" + ingest full `metabase.com/docs` crawl. David supplies CSV.
 - **`MB_ENABLE_QUERY_CACHING=true`** env var owed on prod VM (docker-compose edit + restart), then rerun `caching_config.py` to flip server-wide caching.
 - **SMTP bootstrap** owed (SendGrid free tier recommended) before `dashboard_subscriptions.py` can create the Monday 06:00 ET digest.
