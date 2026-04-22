@@ -50,28 +50,82 @@ chmod 600 /var/lib/metabase/bq-reader.json
 # ──────────────────────────────────────────────────────────────────────────
 # Pull compose + Caddyfile
 # ──────────────────────────────────────────────────────────────────────────
-mkdir -p /opt/metabase
-cd /opt/metabase
-gsutil -q cp "gs://${OPS_BUCKET}/docker-compose.yml" ./docker-compose.yml
-gsutil -q cp "gs://${OPS_BUCKET}/Caddyfile" ./Caddyfile
+# NOTE: /opt is read-only on Container-Optimized OS. Use /var/lib which is
+# writable + persistent. Also, gsutil isn't installed on COS; fetch via
+# curl against the JSON Storage API using the metadata-server access token
+# (same pattern as the Secret Manager fetches above).
+COMPOSE_DIR=/var/lib/metabase/compose
+mkdir -p "$COMPOSE_DIR"
+cd "$COMPOSE_DIR"
+
+fetch_ops_object() {
+  local name=$1
+  curl -sS -H "Authorization: Bearer $TOKEN" \
+    "https://storage.googleapis.com/storage/v1/b/${OPS_BUCKET}/o/${name}?alt=media" \
+    -o "$COMPOSE_DIR/$name"
+}
+
+fetch_ops_object docker-compose.yml
+fetch_ops_object Caddyfile
 
 # ──────────────────────────────────────────────────────────────────────────
 # Render env file (read by docker compose)
 # ──────────────────────────────────────────────────────────────────────────
-cat > /opt/metabase/.env <<EOF
+cat > "$COMPOSE_DIR/.env" <<EOF
 METABASE_DB_NAME=${METABASE_DB_NAME}
 METABASE_DB_USER=${METABASE_DB_USER}
 METABASE_DB_PASSWORD=${METABASE_DB_PASSWORD}
 METABASE_HOSTNAME=${METABASE_HOSTNAME}
 CLOUD_SQL_CONNECTION_NAME=${CLOUD_SQL_CONNECTION_NAME}
 EOF
-chmod 600 /opt/metabase/.env
+chmod 600 "$COMPOSE_DIR/.env"
 
 # ──────────────────────────────────────────────────────────────────────────
 # Bring up stack
 # ──────────────────────────────────────────────────────────────────────────
-# Container-Optimized OS ships with docker + docker compose plugin.
-docker compose -f /opt/metabase/docker-compose.yml --env-file /opt/metabase/.env pull
-docker compose -f /opt/metabase/docker-compose.yml --env-file /opt/metabase/.env up -d
+# COS ships Docker but NOT the docker-compose V2 plugin. Use explicit
+# `docker run` instead — one invocation per container. docker-compose.yml
+# stays in place as documentation/source-of-truth for the topology.
+
+# Shared network
+docker network inspect mbnet >/dev/null 2>&1 || docker network create mbnet
+
+# Cloud SQL Proxy — sidecar that exposes Postgres on port 5432 within mbnet
+docker rm -f cloud-sql-proxy 2>/dev/null || true
+docker run -d --name cloud-sql-proxy \
+  --restart=unless-stopped \
+  --network mbnet \
+  gcr.io/cloud-sql-connectors/cloud-sql-proxy:2.11.0 \
+  --address=0.0.0.0 --port=5432 --private-ip "$CLOUD_SQL_CONNECTION_NAME"
+
+# Metabase
+docker rm -f metabase 2>/dev/null || true
+docker run -d --name metabase \
+  --restart=unless-stopped \
+  --network mbnet \
+  -e MB_DB_TYPE=postgres \
+  -e MB_DB_DBNAME="$METABASE_DB_NAME" \
+  -e MB_DB_PORT=5432 \
+  -e MB_DB_USER="$METABASE_DB_USER" \
+  -e MB_DB_PASS="$METABASE_DB_PASSWORD" \
+  -e MB_DB_HOST=cloud-sql-proxy \
+  -e MB_SITE_URL="https://$METABASE_HOSTNAME" \
+  -e MB_CHECK_FOR_UPDATES=false \
+  -e MB_ANON_TRACKING_ENABLED=false \
+  -e JAVA_OPTS="-Xmx1g" \
+  metabase/metabase:v0.60.1
+
+# Caddy — TLS termination + reverse proxy to metabase:3000
+mkdir -p /var/lib/metabase/caddy-data /var/lib/metabase/caddy-config
+docker rm -f caddy 2>/dev/null || true
+docker run -d --name caddy \
+  --restart=unless-stopped \
+  --network mbnet \
+  -p 80:80 -p 443:443 \
+  -e METABASE_HOSTNAME="$METABASE_HOSTNAME" \
+  -v "$COMPOSE_DIR/Caddyfile:/etc/caddy/Caddyfile:ro" \
+  -v /var/lib/metabase/caddy-data:/data \
+  -v /var/lib/metabase/caddy-config:/config \
+  caddy:2.8-alpine
 
 echo "[$(date -u +%FT%TZ)] metabase startup end — https://${METABASE_HOSTNAME}"
