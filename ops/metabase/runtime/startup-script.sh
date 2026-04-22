@@ -60,7 +60,10 @@ cd "$COMPOSE_DIR"
 
 fetch_ops_object() {
   local name=$1
-  curl -sS -H "Authorization: Bearer $TOKEN" \
+  # -f so HTTP 4xx/5xx propagates through `set -e` instead of silently
+  # writing an empty file — a missing Caddyfile would otherwise leave
+  # the proxy booting with no config and failing TLS without a loud error.
+  curl -fsS -H "Authorization: Bearer $TOKEN" \
     "https://storage.googleapis.com/storage/v1/b/${OPS_BUCKET}/o/${name}?alt=media" \
     -o "$COMPOSE_DIR/$name"
 }
