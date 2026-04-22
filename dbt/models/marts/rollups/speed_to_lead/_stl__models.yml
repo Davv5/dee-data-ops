@@ -34,6 +34,31 @@ models:
       - name: with_1hr_activity
       - name: pct_within_5min
 
+  - name: stl_headline_trend_weekly
+    description: |
+      Weekly headline trend for Speed-to-Lead — feeds the smart-scalar
+      trend indicator on Page 1. Grain: one row per ISO week (Monday start)
+      for the last 12 completed weeks. The in-progress current week is
+      excluded so the trend comparator never flips on partial data.
+    columns:
+      - name: week_start
+        description: ISO week start (Monday) of each bucket.
+        tests: [unique, not_null]
+      - name: pct_within_5min
+        description: |
+          % of Calendly bookings that week where the first SDR touch
+          happened within 5 minutes. Scale 0.0–100.0. Denominator is
+          SDR-attributed bookings.
+      - name: median_mins
+        description: |
+          Median minutes_to_first_sdr_touch for SDR-attributed bookings
+          that week.
+      - name: pct_with_1hr_activity
+        description: |
+          % of bookings with any SDR activity within 1 hour. Scale 0.0–100.0.
+          Denominator is all bookings (DQ diagnostic — distinguishes
+          "nobody touched" from "missed SLA but still attempted").
+
   - name: stl_daily_volume_by_source
     description: |
       Daily booking volume stacked by lead_source — powers the main area chart

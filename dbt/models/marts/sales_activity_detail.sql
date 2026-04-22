@@ -1,7 +1,26 @@
+{{
+    config(
+        partition_by={
+            'field': 'booked_at',
+            'data_type': 'timestamp',
+            'granularity': 'day'
+        }
+    )
+}}
+
 with
 
 fct_bookings as (
-    select * from {{ ref('fct_calls_booked') }}
+    select
+        booking_sk,
+        contact_sk,
+        assigned_user_sk,
+        pipeline_stage_sk,
+        booked_at,
+        scheduled_for,
+        event_status,
+        cancelled_at
+    from {{ ref('fct_calls_booked') }}
 ),
 
 contacts as (
@@ -10,7 +29,12 @@ contacts as (
     -- NULL so the mart keeps its column contract; Looker tiles will render
     -- empty for these until the upstream enrichment lands.
     select
-        dc.*,
+        dc.contact_sk,
+        dc.contact_id,
+        dc.email,
+        dc.contact_name,
+        dc.lead_source,
+        dc.attribution_era,
         cast(null as string) as first_touch_campaign,
         cast(null as string) as first_touch_source,
         cast(null as string) as first_touch_medium,
@@ -24,19 +48,43 @@ contacts as (
 ),
 
 users as (
-    select * from {{ ref('dim_users') }}
+    select
+        user_sk,
+        user_id,
+        name,
+        role
+    from {{ ref('dim_users') }}
 ),
 
 opportunities as (
-    select * from {{ ref('stg_ghl__opportunities') }}
+    select
+        contact_id,
+        assigned_user_id,
+        status,
+        last_status_change_at,
+        last_stage_change_at,
+        lost_reason_id,
+        opportunity_created_at
+    from {{ ref('stg_ghl__opportunities') }}
 ),
 
 outreach as (
-    select * from {{ ref('fct_outreach') }}
+    select
+        contact_sk,
+        user_sk,
+        touched_at,
+        channel,
+        message_id
+    from {{ ref('fct_outreach') }}
 ),
 
 stages as (
-    select * from {{ ref('dim_pipeline_stages') }}
+    select
+        pipeline_stage_sk,
+        pipeline_name,
+        stage_name,
+        is_booked_stage
+    from {{ ref('dim_pipeline_stages') }}
 ),
 
 assigned as (
