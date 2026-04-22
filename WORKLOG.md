@@ -11,6 +11,26 @@ Rolling log of what's been done on this project. Newest entries at the top. Tail
 
 ---
 
+## 2026-04-22 — Track B: Speed-to-Lead dashboard v1.5 hero promotion + T3 rename + mini-bars
+
+**What happened**
+- T1 (`% First Touch in 5 min`) promoted to full-width hero at `(row 2, col 0, 24×4)`. Smartscalar auto-scales the central number to fill the wider tile.
+- T2 + T3 moved to row 6 as equal-weight chips (`12×3` each). Volume row shifted to row 9; all downstream rows shifted +4 uniformly (charts → 12, source → 18, heatmap → 24, leaderboard → 31, footer → 39).
+- T3 renamed from `"P90 Minutes to First SDR Touch (weekly)"` to `"Slowest 10% — minutes to first touch (weekly)"` (Option 2a). Old card orphaned; Track C cleans up.
+- `show_mini_bar: True` added to `pct_within_5min`, `show_rate_pct`, `close_rate_pct` columns in Lead Source Performance table.
+- Layout-map comment updated to v1.5. Script ran idempotent on second run. No dbt changes required.
+- Authoring script: `ops/metabase/authoring/dashboards/speed_to_lead.py`
+
+**Decisions**
+- **Option 1a for T2/T3 placement** (12 wide each at row 6). *Why:* simpler than 1b, more readable, doesn't require compressing the volume row into the same block.
+- **Option 2a for T3 wording** (rename only). *Why:* zero dbt change, faster ship; "P90" is jargon. The P90 metric is still methodologically correct — only the label moves.
+- **`show_mini_bar` by convention, not by docs**. *Why:* `/api/docs` returned HTTP 302 (redirect to auth); key is current Metabase OSS standard per the track instructions. Noted inline in comment.
+
+**Open threads**
+- Browser smoke-test of hero visual dominance + mini-bars deferred to David.
+- Orphaned card `"P90 Minutes to First SDR Touch (weekly)"` remains on prod — Track C cleanup.
+- SDR Leaderboard mini-bars deferred to Track C (holistic table formatting pass).
+
 ## 2026-04-22 — Track A: Speed-to-Lead dashboard v1.4 storytelling restructure
 
 **What happened**
