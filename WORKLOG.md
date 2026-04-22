@@ -11,6 +11,31 @@ Rolling log of what's been done on this project. Newest entries at the top. Tail
 
 ---
 
+## 2026-04-21 — Metabase live on GCP + startup-script COS compatibility hotfix
+
+**What happened**
+- Ran `terraform apply` end-to-end against `dee-data-ops-prod`. 24 resources created: 2 SAs (VM + BQ reader), 7 IAM bindings, Cloud SQL Postgres `metabase-appdb` (15m2s to provision), VPC + private-IP peering, static external IP `34.66.7.243`, 2 firewall rules, GCE e2-small VM, GCS ops bucket, Secret Manager entries. Plan matched spec exactly: 24 add / 0 change / 0 destroy.
+- Post-apply: uploaded runtime assets to ops bucket, generated BQ reader SA key `11b606f3…` into Secret Manager version 1, reset VM.
+- Two COS-compatibility bugs in `startup-script.sh` surfaced on reboot, fixed in this commit:
+  1. **`/opt/metabase` is read-only on COS.** Moved compose dir to `/var/lib/metabase/compose/` (writable + persistent).
+  2. **`gsutil` isn't on COS.** Replaced with `curl` against the Storage JSON API using the same metadata-token pattern the script already uses for Secret Manager.
+  3. **`docker compose` V2 plugin isn't on COS.** Replaced with three explicit `docker run` invocations (cloud-sql-proxy, metabase, caddy) sharing a `mbnet` network. `docker-compose.yml` stays in the runtime dir as topology documentation.
+- Metabase reachable at **https://34-66-7-243.nip.io** (HTTP 200) ~105s after the VM reset that consumed the fixed script.
+
+**Decisions**
+- **Kept `docker-compose.yml` in the runtime dir.** *Why:* it's the clearest documentation of the 3-container topology + env-var shape; future operators read it to understand what's running. The startup script mirrors it; the two stay in lockstep via code review.
+- **Caddy's nip.io hostname preserved end-to-end.** *Why:* fresh Let's Encrypt ACME against the public DNS-as-IP maps worked on first attempt. No need for a custom domain in v1.
+- **Script re-upload + reset twice.** *Why:* two separate COS bugs; fixed serially so each reboot gave clean diagnostic signal. Alternative of "fix everything blindly and reboot once" would've made root-cause attribution harder.
+
+**Open threads**
+- Metabase setup wizard not yet completed (admin user, API key). First click-through owned by David.
+- `bigquery_connection.py` + `speed_to_lead.py` authoring scripts pending — blocked on the API key from the setup wizard.
+- Tracks O (stale GH secrets) + P (Slack webhook fix) still halted on permission / missing secret.
+- Track N (Evidence decommission) still awaiting pr-reviewer run.
+- `.terraform.lock.hcl` committed alongside the startup-script fix — required for reproducible `terraform init`.
+
+---
+
 ## 2026-04-20 — Track T: corpus config decouple (ask-corpus skill + `.claude/corpus.yaml`)
 
 **What happened**
