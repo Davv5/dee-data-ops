@@ -10,6 +10,7 @@ This project is paired with multiple NotebookLM notebooks — portable craft kno
 
 - **`methodology.data_ops`** — Data Ops notebook. 50+ expert sources on dbt, modeling, CI/CD, modern data stack. Portable across clients.
 - **`methodology.metabase`** — Metabase Craft notebook. Self-hosted Metabase OSS: install/ops, BigQuery connection + cost gotchas, dbt-metabase integration, Metabot + MCP, AGPL. Portable across clients.
+- **`methodology.metabase_learn`** — Metabase Learn notebook. Full metabase.com/learn crawl: 133 articles + 16 official YouTube walkthroughs. How-to/authoring/SQL/visualization — the *end-user analyst* side of Metabase. Portable across clients.
 - **`engagement`** — D-DEE Engagement Memory notebook. This engagement's scope docs, oracle metrics, decisions. Disposable when the engagement ends.
 
 To swap or add a notebook, edit `.claude/corpus.yaml`. No code change needed. No rule change needed. The `ask-corpus` skill reads the file at invocation time.
@@ -29,21 +30,24 @@ Grounding answers in the corpus prevents invented conventions from drifting into
 
 ## Which scope to use
 
-Pick the `scope` that matches the question. When in doubt, leave scope unset — the default (`methodology`) cross-queries both craft notebooks.
+Pick the `scope` that matches the question. When in doubt, leave scope unset — the default (`methodology`) cross-queries all craft notebooks.
 
-| scope value               | covers                                                                          |
-| ------------------------- | ------------------------------------------------------------------------------- |
-| `methodology.data_ops`    | dbt conventions, modeling, warehouse design, CI/CD, MDS starter guides          |
-| `methodology.metabase`    | Anything Metabase-specific (ops, integration, licensing, Metabot)               |
-| `methodology` *(default)* | Cross-query both craft notebooks when you aren't sure which has the answer      |
-| `engagement`              | D-DEE history: scope decisions, oracle numbers, prior client conversations      |
+| scope value                   | covers                                                                                                |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `methodology.data_ops`        | dbt conventions, modeling, warehouse design, CI/CD, MDS starter guides                                |
+| `methodology.metabase`        | Metabase **ops / integration / licensing**: install, Cloud SQL backup, upgrade, dbt-metabase, BQ cost, AGPL, Metabot |
+| `methodology.metabase_learn`  | Metabase **how-to / authoring / SQL**: how to build a dashboard or question, which chart to pick, drill-through, SQL tutorials, BI-tool transition guides |
+| `methodology` *(default)*     | Cross-query all craft notebooks when you aren't sure which has the answer                             |
+| `engagement`                  | D-DEE history: scope decisions, oracle numbers, prior client conversations                            |
 
 Rule of thumb:
 
 - Writing a portable `.claude/rules/*.md`? Use `methodology` (default) so a Metabase rule stays cross-checked against Data Ops conventions and vice versa.
-- Writing a Metabase-only file (install doc, connector config, dbt-metabase YAML)? Use `methodology.metabase` to avoid noise from the broader Data Ops corpus.
+- Writing an *operational* Metabase file (install doc, connector config, dbt-metabase YAML, Cloud SQL backup plan)? Use `methodology.metabase`.
+- Writing an *authoring* Metabase decision (dashboard tile, visualization choice, filter wiring, SQL question pattern)? Use `methodology.metabase_learn`.
+- Unsure which Metabase notebook applies? Use `methodology` — it cross-queries both plus Data Ops for free.
 - Writing a D-DEE-only mart, oracle reconciliation, or client-facing deliverable? Use `engagement` to ground it in what was already decided.
-- Unsure which notebook has the answer? Default `methodology` cross-query. Cost is zero; over-querying is fine.
+- Cost is zero; over-querying is fine.
 
 ## Always double-check before finalizing
 

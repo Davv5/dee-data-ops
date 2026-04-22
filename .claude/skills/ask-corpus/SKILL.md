@@ -15,6 +15,7 @@ Resolved from `.claude/corpus.yaml` at invocation time. Today that file declares
 
 - **`methodology.data_ops`** — Data Ops notebook (portable craft: dbt, modeling, CI/CD, MDS starter guides)
 - **`methodology.metabase`** — Metabase Craft notebook (install/ops, dbt-metabase, BigQuery cost gotchas, Metabot/MCP, AGPL)
+- **`methodology.metabase_learn`** — Metabase Learn notebook (133 metabase.com/learn articles + 16 official YouTube walkthroughs — how-to, SQL, visualization choice, dashboards, permissions, BI transition guides)
 - **`engagement`** — D-DEE Engagement Memory (this engagement's history, oracle, scope docs)
 
 ## Scope parameter (optional)
@@ -23,10 +24,11 @@ Pick the scope that matches the question. If unsure, leave it unset and the skil
 
 | scope value                 | what it queries                                                | when to use                                                                 |
 | --------------------------- | -------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| `methodology.data_ops`      | Data Ops notebook only                                         | dbt / modeling / CI/CD / MDS questions where Metabase isn't in the picture  |
-| `methodology.metabase`      | Metabase Craft notebook only                                   | Anything Metabase-specific: install, dbt-metabase, BQ cost, AGPL, Metabot   |
-| `methodology` *(default)*   | Cross-query all methodology notebooks                          | Portable craft questions where you aren't sure which notebook has the answer |
-| `engagement`                | D-DEE Engagement Memory only                                   | "What did we decide about X for this client?" type history questions       |
+| `methodology.data_ops`        | Data Ops notebook only                                       | dbt / modeling / CI/CD / MDS questions where Metabase isn't in the picture  |
+| `methodology.metabase`        | Metabase Craft notebook only                                 | Metabase **ops / integration / licensing**: install, dbt-metabase, BQ cost, AGPL, Metabot |
+| `methodology.metabase_learn`  | Metabase Learn notebook only                                 | Metabase **how-to / authoring / SQL**: building questions, dashboard patterns, chart choice, SQL tutorials, BI transition guides |
+| `methodology` *(default)*     | Cross-query all methodology notebooks                        | Portable craft questions where you aren't sure which notebook has the answer |
+| `engagement`                  | D-DEE Engagement Memory only                                 | "What did we decide about X for this client?" type history questions         |
 
 ## How to use (invocation recipe)
 
