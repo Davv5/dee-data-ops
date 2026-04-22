@@ -28,9 +28,8 @@ bookings_windowed as (
         is_within_5_min_sla,
         had_any_sdr_activity_within_1_hr
     from {{ ref('sales_activity_detail') }}
-    where booked_at >= timestamp_sub(
-            timestamp(date_trunc(current_date(), isoweek)),
-            interval 12 week
+    where booked_at >= timestamp(
+            date_sub(date_trunc(current_date(), isoweek), interval 12 week)
           )
       and booked_at <  timestamp(date_trunc(current_date(), isoweek))
 ),
