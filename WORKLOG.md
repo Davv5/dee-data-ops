@@ -11,6 +11,24 @@ Rolling log of what's been done on this project. Newest entries at the top. Tail
 
 ---
 
+## 2026-04-22 — Speed-to-Lead v1.6: vocabulary pass + heatmap table-pivot + permanent orphan cleanup (Track C)
+
+**What happened**
+- Vocabulary sweep applied to all 12 card names in `ops/metabase/authoring/dashboards/speed_to_lead.py`: `(weekly)` → `, this week vs last week`; `(30d)` → `, trailing 30 days`; `last 90d` → `trailing 90 days`; `Day x Hour` → `day of week by hour of day`. Sentence case + comma-separator pattern consistent with the v1.3 "% On-Time" / "Lead Source" precedent.
+- Heatmap `coverage_heatmap` swapped from `display="pivot"` (Pro-gated on some OSS 61.x builds) to `display="table"` + `table.pivot=True` + `table.column_formatting` red→yellow→green conditional range. `/api/docs` returned 302 (auth-gated); key names confirmed via OSS 60.x convention (same `show_mini_bar` precedent already in the file).
+- Permanent orphan-cleanup block added at end of `main()`: builds `kept_ids` set from every `upsert_card` return value, fetches all collection cards via `mb.cards()`, archives any not in `kept_ids` with `PUT /api/card/:id {"archived": true}`. Runs on every script invocation — cost is one extra `GET /api/card` per run.
+- Track file checkboxes updated; handover doc created at `docs/handovers/Davv5-Track-C-Execution-2026-04-22_15-10.md`.
+- Script live-run deferred: no `.env.metabase` in worktree. Idempotency of second run is guaranteed by logic (upsert PUT on existing new-name cards → kept_ids covers everything → zero orphan log lines).
+
+**Decisions**
+- `upsert_card` matches on `(name, collection_id)` — confirmed in `sync.py` line 47. Every rename creates a new card and orphans the old one. Orphan cleanup is the correct fix; `previous_name` plumbing rejected (adds state, scattered).
+- Table-pivot over bar fallback: `display="table"` + `table.pivot=True` is the OSS-safe code path. Bar fallback (stacked by day_of_week) was the last resort; table-pivot shipped as main path.
+- Archive not delete: reversible if a rename is wrong; restore from Metabase trash.
+
+**Open threads**
+- Live run smoke-test not done in worktree — David or pr-reviewer should run `python -m ops.metabase.authoring.dashboards.speed_to_lead` against the prod instance after merge and confirm orphan archive count + heatmap render.
+- Second-run idempotency (zero orphan log lines) also deferred to the same live run.
+
 ## 2026-04-22 — Track B: Speed-to-Lead dashboard v1.5 hero promotion + T3 rename + mini-bars
 
 **What happened**
