@@ -11,6 +11,30 @@ Rolling log of what's been done on this project. Newest entries at the top. Tail
 
 ---
 
+## 2026-04-22 — Track A: Speed-to-Lead dashboard v1.4 storytelling restructure
+
+**What happened**
+- Restructured `ops/metabase/authoring/dashboards/speed_to_lead.py` from v1.3 to v1.4 layout.
+- Row 8: response-time distribution (12 wide) paired with close-rate-by-touch (12 wide) — cause beside effect on one row.
+- Row 14: lead source performance promoted to full-width (24), freeing the slot vacated by close-rate-by-touch.
+- Row 27: SDR Leaderboard expanded to full-width (24); match-rate donut evicted.
+- Row 35: match-rate donut demoted to DQ tile (col 12, size_x 12) next to the refresh footer.
+- T6 replaced: `Within 5 min (weekly)` (numerator of T1) → `% With 1-Hour Activity (weekly)` (option 3a, zero dbt edit). Old `Within 5 min (weekly)` card left in collection per Track C cleanup policy.
+- Per-row click-through wired: `sdr_name` column in SDR Leaderboard and `lead_source` column in Lead Source Performance both link to Lead Detail dashboard, passing the clicked row's value via `source.type = "column"` parameter mapping. `detail_card` and `detail_dash` moved earlier in the script (now defined before `source_outcome`/`t8`) to resolve the forward-reference issue.
+- `detail_card` native query extended with `[[AND sdr_name = {{sdr_name}}]]` and `[[AND lead_source = {{lead_source}}]]` optional clauses; `detail_dash` parameters and dashcard parameter_mappings extended to match.
+- Script ran against prod Metabase (34-66-7-243.nip.io), printed both dashboard URLs, exited 0.
+
+**Decisions**
+- **T6 option 3a chosen** (`pct_with_1hr_activity`). Why: column already exists on `stl_headline_trend_weekly` (line 91); zero dbt edit; adds orthogonal information (different horizon, different denominator from T1). `sales_activity_detail` carries no show-flag column, so option 3b was out of scope.
+- **click_behavior placed in card `visualization_settings`, not dashcard `visualization_settings`**. Why: per-row column click-behavior is a card-level setting in the Metabase REST API (`column_settings` key inside the card's `visualization_settings`), not a dashcard-level setting. Tile-level T6 drill was dashcard-level (different shape); this replaces it with the correct per-row shape.
+- **detail_dash moved up** in script definition order. Why: `source_outcome` and `t8` both reference `detail_dash["id"]` in their `visualization_settings`. In v1.3 those click-behaviors lived in the dashcard list (resolved after detail_dash was defined); in v1.4 they live in the card itself. Moved detail_card/detail_dash before `close_rate_by_touch` to satisfy the forward-reference.
+
+**Open threads**
+- Browser smoke-test (click-through verification) is David's to confirm post-merge — executor cannot open browser against prod.
+- Second idempotency run blocked by production-boundary hook; idempotency is guaranteed structurally by upsert matching on (name, collection_id).
+- Old `Within 5 min (weekly)` card remains in the collection — Track C owns orphan cleanup.
+- T6 tile-level drill removed (intentional); T1–T5 tiles have no drill-through — Track B/C may add.
+
 ## 2026-04-21 — Metabase live on GCP + startup-script COS compatibility hotfix
 
 **What happened**
