@@ -11,6 +11,62 @@ Rolling log of what's been done on this project. Newest entries at the top. Tail
 
 ---
 
+## 2026-04-22 — Track D: Speed-to-Lead Metabase caching config + subscription scaffold (partial ship)
+
+**What happened**
+- Added `ops/metabase/authoring/infrastructure/caching_config.py` — checks the
+  server-wide caching toggle (read-only on v0.60.1) and sets `cache_ttl=21600s`
+  (6h) on the Speed-to-Lead dashboard. Script is idempotent; second run is a
+  no-op. Verified live: dashboard `cache_ttl` persisted to 21600 s.
+- Discovered `enable-query-caching` is a **read-only setting** on Metabase v0.60.1
+  — `PUT /api/setting/enable-query-caching` returns HTTP 500 "read-only setting."
+  Fix: set `MB_ENABLE_QUERY_CACHING=true` in `ops/metabase/runtime/docker-compose.yml`
+  and restart the container. Documented in the script docstring + Lessons Learned.
+- Added `ops/metabase/authoring/infrastructure/dashboard_subscriptions.py` — upserts
+  the weekly Monday 06:00 ET digest pulse once SMTP is configured. Includes SMTP
+  guard (`check_smtp()` exits 1 with setup instructions if SMTP is not live),
+  report-timezone assertion (`America/New_York`), and recipient list from
+  `STL_WEEKLY_DIGEST_RECIPIENTS` env var. Verified guard fires correctly.
+- SMTP is NOT configured on the instance (`email-configured? = False`, all smtp
+  settings null). Item 6 (subscription creation) skipped per David's partial-ship
+  authorization. See Open threads for SMTP bootstrap steps.
+- Added `STL_WEEKLY_DIGEST_RECIPIENTS=` (empty) to `.env.metabase.example`.
+- Added two "Lessons learned" bullets to `.claude/rules/metabase.md` covering
+  caching (read-only toggle, env var path, per-dashboard TTL) and subscriptions
+  (SMTP prerequisite, timezone assertion, recipient list in env). Rule auto-synced
+  to Data Ops notebook (source id 65c7f876).
+- Pre-flight BQ cost-gotcha check: `auto_run_queries=False` and
+  `include-user-id-and-hash=False` — state matches desired, no PUT fired.
+- BQ cache-hit verification (second page load) not run: caching toggle is still OFF
+  pending the env var change. Document after David completes the server restart.
+
+**Decisions**
+- 6-hour dashboard `cache_ttl` because dbt prod refreshes daily and rollups don't
+  change intraday — fewer BQ scans on public-share page loads (cost-saver).
+- Monday 06:00 America/New_York schedule: matches SDR-management decision cadence
+  per Metabase Learn "match frequency of pushing a metric with cadence of
+  decision-making." (source: *"Pushing data"*, Metabase Learn, source 46e8daaf.)
+- Recipients in `STL_WEEKLY_DIGEST_RECIPIENTS` env var (gitignored), never in
+  repo — addresses are PII and change across PS engagements.
+- Subscription item skipped (not blocked): SMTP not configured. Partial-ship
+  explicitly authorized by David before execution.
+- `report-timezone` assert (`America/New_York`) placed in `dashboard_subscriptions.py`
+  before pulse creation — `schedule_hour=6` fires at 06:00 ET, not 06:00 UTC.
+  Pre-change value was `null` (system default).
+
+**Open threads**
+- ACTION REQUIRED: Set `MB_ENABLE_QUERY_CACHING=true` in
+  `ops/metabase/runtime/docker-compose.yml` and restart Metabase. Re-run
+  `caching_config.py` to confirm `enable-query-caching=true`. Then verify second
+  public-share page load hits cache (zero new `stl_*` BQ scans in GCP job history).
+- SMTP bootstrap needed for subscription delivery: (1) choose provider (SendGrid
+  recommended — free tier 100/day), (2) store creds in Secret Manager under
+  `dee-data-ops-prod`, (3) configure SMTP in Metabase Admin UI, (4) run
+  `dashboard_subscriptions.py`. See script docstring for full steps.
+- Dashboard footer does not yet mention the 6-hour cache window — add to a future
+  `speed_to_lead.py` edit (Track A/B/C territory).
+- Monitor first Monday digest (2026-04-28 06:00 ET) after SMTP is live.
+
 ## 2026-04-22 — Speed-to-Lead v1.6: vocabulary pass + heatmap table-pivot + permanent orphan cleanup (Track C)
 
 **What happened**
