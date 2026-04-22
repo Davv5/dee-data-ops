@@ -11,6 +11,29 @@ Rolling log of what's been done on this project. Newest entries at the top. Tail
 
 ---
 
+## 2026-04-22 (pm) — Metabase Learn corpus + v1.3.1 polish (Track D shipped, Track E in flight) + OSS permissions research
+
+**What happened**
+- **Metabase Learn notebook** created (NotebookLM id `417bc4d3-59b4-4732-b8cb-d537dacf8477`) — 149 sources: 133 `metabase.com/learn` articles (4 "Redirecting…" stubs + 1 malformed URL dropped from source CSV) plus 16 official YouTube walkthroughs transcribed independently. Complements the existing Metabase Craft notebook (ops/licensing, 14 sources). Wired into `.claude/corpus.yaml` as `methodology.metabase_learn`; scope table + rule-of-thumb updated in `.claude/skills/ask-corpus/SKILL.md` and `.claude/rules/using-the-notebook.md`.
+- **Track D** (PR #49 open — https://github.com/Davv5/dee-data-ops/pull/49) ships per-dashboard `cache_ttl=21600s` via new `ops/metabase/authoring/infrastructure/caching_config.py` + scaffolds `dashboard_subscriptions.py` (weekly Mon 06:00 ET digest) behind an SMTP guard. Commit `be95494`. Partial-ship authorized: dashboard-level TTL persists on OSS v0.60.1 (contradicts corpus "Pro-only" claim — empirical finding noted in `.claude/rules/metabase.md` Lessons Learned); server-wide `enable-query-caching` is read-only via REST and needs `MB_ENABLE_QUERY_CACHING=true` env var + container restart.
+- **Track E** in flight on `Davv5/Track-E-STL-v131-Authoring-Polish` (worktree `.claude/worktrees/track-E-stl-v131-authoring-polish/`, commit `f56415d`): dashboard Date + SDR filters, four markdown section dividers, footer text card, `Data as of HH:MM` freshness tile, new `stl_data_freshness` dbt rollup. Executor done, pr-reviewer not yet fired.
+- **Two-round gap analysis** of Speed-to-Lead v1.3 vs Metabase Learn corpus. Round 1 surfaced 5 gaps (filters, dividers, footer, freshness, column click-through) + 7 validations. Round 2 went deeper and flagged **public-URL + BigQuery = silent cost exposure** (11 rollup queries billed per byte per visitor refresh); zero alerts/subscriptions; drill hierarchy one level short of the canonical 3-level pattern; filter defaults should be 7d (not 30d) with "include current period" ON. Incomplete-period anti-pattern audit passed for live rollups.
+- **OSS permissions research** via `methodology.metabase` + `methodology.metabase_learn`: data sandboxes + column-level security are Pro/Enterprise only. Chosen OSS-compatible path = three groups (Administrators / Sales Managers / SDRs) + three collections (Sales Official / Sales Management / Sales Playground) + native-SQL leaderboard (drill-through auto-disabled → row-level sandbox substitute) + `Blocked` DB permissions for SDRs on raw BQ tables. Public URL retires when auth comes online. Cultural calls confirmed with David: leaderboard-with-names is fine (motivational); SDRs already see lead PII in GHL daily.
+
+**Decisions**
+- **Ship Track D as partial.** *Why:* server-wide caching env-var flip requires VM access + restart (not in this PR's loop); SMTP bootstrap is a human setup step. Better to ship the dashboard-TTL win now with a clean `check_smtp()` short-circuit than block everything.
+- **Metabase Learn split out from Metabase Craft as its own notebook.** *Why:* Craft is ops/licensing (14 tight sources); Learn is analyst how-to (149 sources). Cross-queryable as `methodology` default; targeted scopes available when the question clearly fits one side.
+- **OSS data-permissions pattern = native SQL + collections + Blocked DB**, not Pro sandboxes. *Why:* pay-to-unlock would require a Pro seat per viewer; the 3-group / 3-collection approach meets D-DEE's real sensitivity profile (leaderboard-with-names is fine, PII already in GHL) at zero license cost.
+
+**Open threads**
+- **PR #49 (Track D)** awaiting merge.
+- **Track E** committed on branch, pr-reviewer not yet run — will follow after commit.
+- **Metabase Docs ingestion planned next session** — rename "Metabase Craft" notebook → "Metabase Docs" and ingest a full `metabase.com/docs` crawl. David to supply CSV.
+- **`MB_ENABLE_QUERY_CACHING=true`** env var still owed on prod VM (add to `docker-compose.yml`, `docker compose down && up -d`, rerun `caching_config.py`).
+- **SMTP bootstrap** still owed (SendGrid free tier recommended per Track D handover) before `dashboard_subscriptions.py` can create the Monday digest.
+- **Public URL must die** when SDR/Manager accounts are introduced — public links bypass all user-based permissions.
+- Pre-existing carryover: GHL PIT rotation (transcript-exposed 2026-04-19), `GCP_SA_KEY_PROD` unset, `dbt_metadata_sync.py` never run, roster gaps (Ayaan, Jake, Moayad, Halle), Stripe Fivetran sync gap.
+
 ## 2026-04-22 — Speed-to-Lead v1.6: vocabulary pass + heatmap table-pivot + permanent orphan cleanup (Track C)
 
 **What happened**

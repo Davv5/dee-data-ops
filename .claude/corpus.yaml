@@ -18,6 +18,20 @@ methodology:
       connection + cost gotchas, dbt-metabase integration, Metabot +
       MCP server, license + AGPL. Query for any Metabase-specific
       operational, integration, or licensing question.
+  - key: metabase_learn
+    notebook_id: 417bc4d3-59b4-4732-b8cb-d537dacf8477
+    name: Metabase Learn
+    purpose: |
+      Full crawl of metabase.com/learn (133 articles + 16 official
+      YouTube walkthroughs, transcribed): getting started, querying,
+      dashboards, SQL-in-Metabase, time-series, visualization best
+      practices, permissions tutorials, admin & production tips,
+      analytics strategy, database fundamentals, BI-tool transition
+      guides (Looker/Power BI/Tableau → Metabase), SQL cheat sheet +
+      the full "Learn SQL" series. Query for any end-user / analyst /
+      dashboard-author / SQL question — how to build a thing in
+      Metabase, visualization choice, query patterns. Complements the
+      Metabase Craft notebook (which covers ops/integration/licensing).
 
 engagement:
   notebook_id: 741d85c6-39a7-4612-af7c-cca65043cf19
