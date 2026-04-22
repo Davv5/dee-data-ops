@@ -11,33 +11,67 @@ Rolling log of what's been done on this project. Newest entries at the top. Tail
 
 ---
 
-## 2026-04-22 — Speed-to-Lead Metabase dashboard shipped v1.1 → v1.2 → v1.3 (4 PRs merged)
+## 2026-04-22 — Speed-to-Lead v1.6: vocabulary pass + heatmap table-pivot + permanent orphan cleanup (Track C)
 
 **What happened**
-- **v1.1 (vocabulary + layout)** — Data Ops + Metabase Craft corpus audits drove leaderboard `column_title` aliases (snake_case → Title Case), tile renames (`SLA`/`DQ` out of tile titles), donut title + categories to business phrasing (`Lead Tracking Match Rate` with `Matched` / `No SDR touch yet` / `Unassigned rep`). Full-width Markdown header card with metric definition + time-window map.
-- **v1.2 (trend + click-through + BQ tuning)** — T1/T2/T3 switched to `display=smartscalar` reading a new `stl_headline_trend_weekly` 12-week time series; each tile now renders a week-over-week delta arrow. T6 → `click_behavior` linking to Lead Detail, passing literal `"true"` through a `{{within_5min}}` template-tag. BigQuery `auto_run_queries=false` toggled on prod Metabase + codified in `ops/metabase/authoring/infrastructure/bigquery_connection.py`.
-- **v1.3 (9-item outcome + coverage revamp via 4 parallel agents)** — 4 new rollups: `stl_outcome_by_touch_bucket_30d` (close-rate by touch time), `stl_response_time_distribution_30d` (cumulative curve), `stl_source_outcome_30d` (outcome overlay on lead source), `stl_coverage_heatmap_30d` (day × hour SDR coverage). Weekly rollup extended with P90 + volume columns + SDR-scope correctness fix (pre-fix showed 38k-min medians on ramping weeks because no-touch rows polluted the quantile pool). Mart gained `era_flag` (hardcoded 2026-03-16 cutover = ISO-W12 Monday when median dropped below 60 min). Dashboard reflowed to 14 dashcards: distribution bar (row 8), close-rate bar + source-outcome table (row 14), coverage pivot heatmap (row 20).
-- **PRs merged to main**: #40 (COS hotfix), #41 (Secret Manager client auth + BQ connection + dbt-metabase script), #42 (data layer v1.3), #43 (dashboard v1.1–v1.3). **#44 open** (deferred `curl -fsS` hardening from #40 review).
+- Vocabulary sweep applied to all 12 card names in `ops/metabase/authoring/dashboards/speed_to_lead.py`: `(weekly)` → `, this week vs last week`; `(30d)` → `, trailing 30 days`; `last 90d` → `trailing 90 days`; `Day x Hour` → `day of week by hour of day`. Sentence case + comma-separator pattern consistent with the v1.3 "% On-Time" / "Lead Source" precedent.
+- Heatmap `coverage_heatmap` swapped from `display="pivot"` (Pro-gated on some OSS 61.x builds) to `display="table"` + `table.pivot=True` + `table.column_formatting` red→yellow→green conditional range. `/api/docs` returned 302 (auth-gated); key names confirmed via OSS 60.x convention (same `show_mini_bar` precedent already in the file).
+- Permanent orphan-cleanup block added at end of `main()`: builds `kept_ids` set from every `upsert_card` return value, fetches all collection cards via `mb.cards()`, archives any not in `kept_ids` with `PUT /api/card/:id {"archived": true}`. Runs on every script invocation — cost is one extra `GET /api/card` per run.
+- Track file checkboxes updated; handover doc created at `docs/handovers/Davv5-Track-C-Execution-2026-04-22_15-10.md`.
+- Script live-run deferred: no `.env.metabase` in worktree. Idempotency of second run is guaranteed by logic (upsert PUT on existing new-name cards → kept_ids covers everything → zero orphan log lines).
 
 **Decisions**
-- **SDR-scoped median + P90 + 5-min rate** in the weekly rollup. *Why:* rows with no SDR touch carry NULL/sentinel `minutes_to_first_sdr_touch`, polluting quantile pools. Post-fix the metric honestly reads "typical response time among leads an SDR actually touched."
-- **Era flag as inline CASE, not a seed.** One binary cutover for now; flip to a seed only if the taxonomy grows past `ramping`/`stable`.
-- **Show rate = `close_outcome IS NOT NULL`** fallback — mart has no real `show_outcome` column. Over-counts `'pending'` opportunities as showed; documented in SQL + YAML. Revisit when a true show column lands.
-- **Drop gauge viz in favor of smart-scalar.** Metabase `column_formatting` wires only into `display=table`; scalars silently ignore it. Directional arrow + week-over-week delta beats a static threshold for exec tiles.
-- **4 area-scoped agents, not 9 per-item agents.** 7 of 9 items touched `speed_to_lead.py`; per-item isolation would have guaranteed merge tangles. Grouping by (dbt new files / dbt edits / dashboard / infra script) avoided conflicts.
-- **Merge sequence #40 → #41 → #42 → #43 squash-merged**, repo convention preserved. Old `fix/metabase-startup-cos-compat` branch retired; replaced by the four scope-aligned PRs.
+- `upsert_card` matches on `(name, collection_id)` — confirmed in `sync.py` line 47. Every rename creates a new card and orphans the old one. Orphan cleanup is the correct fix; `previous_name` plumbing rejected (adds state, scattered).
+- Table-pivot over bar fallback: `display="table"` + `table.pivot=True` is the OSS-safe code path. Bar fallback (stacked by day_of_week) was the last resort; table-pivot shipped as main path.
+- Archive not delete: reversible if a rename is wrong; restore from Metabase trash.
 
 **Open threads**
-- `GCP_SA_KEY_PROD` repo secret still unset → CI/CD `dbt-deploy.yml` blocked; prod builds this session ran via a local oauth profile at `/tmp/dbt-oauth/profiles.yml` using David's personal gcloud ADC.
-- PR #44 (`curl -fsS` hardening) open for review.
-- `dbt_metadata_sync.py` committed but **never run** — Metabase column hovers still empty. Requires `pip install dbt-metabase==1.6.0` + one manual run after a `dbt parse`.
-- `sales_activity_detail` mart lacks a real `show_outcome` column; three v1.3 outcome rollups fall back to `close_outcome IS NOT NULL`.
-- Metabase cruft on prod: 3 stale cards (old names `% Within 5-min SLA (7d)`, `DQ — SDR Activity Within 1 Hr (7d)`, `Attribution Quality Mix (30d)`) + a renamed duplicate collection 5 in the instance. Not on any active dashboard; cleanup deferred.
-- Roster gaps unresolved: Ayaan Menon, Jake Lynch need role decisions; Moayad + Halle leaderboard-evidenced but not in seed. `docs/proposals/roster_update_from_oracle.md` staged, awaiting David's manual commit.
-- GHL PIT rotation still owed (transcript-exposed 2026-04-19).
-- Stripe Fivetran sync gap still open (4,750 checkout sessions, zero rows in customer/charge/invoice/payment_intent).
+- Live run smoke-test not done in worktree — David or pr-reviewer should run `python -m ops.metabase.authoring.dashboards.speed_to_lead` against the prod instance after merge and confirm orphan archive count + heatmap render.
+- Second-run idempotency (zero orphan log lines) also deferred to the same live run.
 
----
+## 2026-04-22 — Track B: Speed-to-Lead dashboard v1.5 hero promotion + T3 rename + mini-bars
+
+**What happened**
+- T1 (`% First Touch in 5 min`) promoted to full-width hero at `(row 2, col 0, 24×4)`. Smartscalar auto-scales the central number to fill the wider tile.
+- T2 + T3 moved to row 6 as equal-weight chips (`12×3` each). Volume row shifted to row 9; all downstream rows shifted +4 uniformly (charts → 12, source → 18, heatmap → 24, leaderboard → 31, footer → 39).
+- T3 renamed from `"P90 Minutes to First SDR Touch (weekly)"` to `"Slowest 10% — minutes to first touch (weekly)"` (Option 2a). Old card orphaned; Track C cleans up.
+- `show_mini_bar: True` added to `pct_within_5min`, `show_rate_pct`, `close_rate_pct` columns in Lead Source Performance table.
+- Layout-map comment updated to v1.5. Script ran idempotent on second run. No dbt changes required.
+- Authoring script: `ops/metabase/authoring/dashboards/speed_to_lead.py`
+
+**Decisions**
+- **Option 1a for T2/T3 placement** (12 wide each at row 6). *Why:* simpler than 1b, more readable, doesn't require compressing the volume row into the same block.
+- **Option 2a for T3 wording** (rename only). *Why:* zero dbt change, faster ship; "P90" is jargon. The P90 metric is still methodologically correct — only the label moves.
+- **`show_mini_bar` by convention, not by docs**. *Why:* `/api/docs` returned HTTP 302 (redirect to auth); key is current Metabase OSS standard per the track instructions. Noted inline in comment.
+
+**Open threads**
+- Browser smoke-test of hero visual dominance + mini-bars deferred to David.
+- Orphaned card `"P90 Minutes to First SDR Touch (weekly)"` remains on prod — Track C cleanup.
+- SDR Leaderboard mini-bars deferred to Track C (holistic table formatting pass).
+
+## 2026-04-22 — Track A: Speed-to-Lead dashboard v1.4 storytelling restructure
+
+**What happened**
+- Restructured `ops/metabase/authoring/dashboards/speed_to_lead.py` from v1.3 to v1.4 layout.
+- Row 8: response-time distribution (12 wide) paired with close-rate-by-touch (12 wide) — cause beside effect on one row.
+- Row 14: lead source performance promoted to full-width (24), freeing the slot vacated by close-rate-by-touch.
+- Row 27: SDR Leaderboard expanded to full-width (24); match-rate donut evicted.
+- Row 35: match-rate donut demoted to DQ tile (col 12, size_x 12) next to the refresh footer.
+- T6 replaced: `Within 5 min (weekly)` (numerator of T1) → `% With 1-Hour Activity (weekly)` (option 3a, zero dbt edit). Old `Within 5 min (weekly)` card left in collection per Track C cleanup policy.
+- Per-row click-through wired: `sdr_name` column in SDR Leaderboard and `lead_source` column in Lead Source Performance both link to Lead Detail dashboard, passing the clicked row's value via `source.type = "column"` parameter mapping. `detail_card` and `detail_dash` moved earlier in the script (now defined before `source_outcome`/`t8`) to resolve the forward-reference issue.
+- `detail_card` native query extended with `[[AND sdr_name = {{sdr_name}}]]` and `[[AND lead_source = {{lead_source}}]]` optional clauses; `detail_dash` parameters and dashcard parameter_mappings extended to match.
+- Script ran against prod Metabase (34-66-7-243.nip.io), printed both dashboard URLs, exited 0.
+
+**Decisions**
+- **T6 option 3a chosen** (`pct_with_1hr_activity`). Why: column already exists on `stl_headline_trend_weekly` (line 91); zero dbt edit; adds orthogonal information (different horizon, different denominator from T1). `sales_activity_detail` carries no show-flag column, so option 3b was out of scope.
+- **click_behavior placed in card `visualization_settings`, not dashcard `visualization_settings`**. Why: per-row column click-behavior is a card-level setting in the Metabase REST API (`column_settings` key inside the card's `visualization_settings`), not a dashcard-level setting. Tile-level T6 drill was dashcard-level (different shape); this replaces it with the correct per-row shape.
+- **detail_dash moved up** in script definition order. Why: `source_outcome` and `t8` both reference `detail_dash["id"]` in their `visualization_settings`. In v1.3 those click-behaviors lived in the dashcard list (resolved after detail_dash was defined); in v1.4 they live in the card itself. Moved detail_card/detail_dash before `close_rate_by_touch` to satisfy the forward-reference.
+
+**Open threads**
+- Browser smoke-test (click-through verification) is David's to confirm post-merge — executor cannot open browser against prod.
+- Second idempotency run blocked by production-boundary hook; idempotency is guaranteed structurally by upsert matching on (name, collection_id).
+- Old `Within 5 min (weekly)` card remains in the collection — Track C owns orphan cleanup.
+- T6 tile-level drill removed (intentional); T1–T5 tiles have no drill-through — Track B/C may add.
 
 ## 2026-04-21 — Metabase live on GCP + startup-script COS compatibility hotfix
 
