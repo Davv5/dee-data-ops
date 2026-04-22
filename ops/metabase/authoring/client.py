@@ -1,17 +1,20 @@
 """Thin HTTP wrapper over Metabase's REST API.
 
 Used by every authoring script. Centralizes:
-- Session-token auth (from MB_SESSION env or interactive login)
+- API-key auth (fetched from GCP Secret Manager at runtime)
 - Base URL resolution (from MB_URL env)
 - Error → exception conversion
 - Retry on transient 5xx
 
 Expected env:
-    MB_URL       — https://<ip>.nip.io  (from `terraform output metabase_url`)
-    MB_USER      — admin email
-    MB_PASSWORD  — admin password OR an existing session id in MB_SESSION
+    MB_URL — https://<ip>.nip.io  (from `terraform output metabase_url`)
 
-One of (MB_PASSWORD, MB_SESSION) must be set. MB_SESSION takes precedence.
+The API key is resolved at runtime from Secret Manager:
+
+    projects/dee-data-ops-prod/secrets/metabase-api-key/versions/latest
+
+CI contexts that can't reach Secret Manager can set MB_SESSION directly
+(e.g., from a GitHub Actions secret that wraps the same value).
 """
 from __future__ import annotations
 
@@ -20,28 +23,30 @@ import time
 from typing import Any
 
 import httpx
+from google.cloud import secretmanager
+
+GCP_PROJECT = "dee-data-ops-prod"
+API_KEY_SECRET = "metabase-api-key"
 
 
 class MetabaseClient:
     def __init__(self, url: str | None = None, session: str | None = None):
         self.url = (url or os.environ["MB_URL"]).rstrip("/")
-        self.session = session or os.environ.get("MB_SESSION") or self._login()
+        self.session = session or os.environ.get("MB_SESSION") or self._fetch_api_key()
+        auth_header = "x-api-key" if self.session.startswith("mb_") else "X-Metabase-Session"
         self._http = httpx.Client(
             base_url=f"{self.url}/api",
-            headers={"X-Metabase-Session": self.session},
+            headers={auth_header: self.session},
             timeout=60,
         )
 
-    def _login(self) -> str:
-        user = os.environ["MB_USER"]
-        password = os.environ["MB_PASSWORD"]
-        resp = httpx.post(
-            f"{self.url}/api/session",
-            json={"username": user, "password": password},
-            timeout=30,
+    @staticmethod
+    def _fetch_api_key() -> str:
+        client = secretmanager.SecretManagerServiceClient()
+        resp = client.access_secret_version(
+            name=f"projects/{GCP_PROJECT}/secrets/{API_KEY_SECRET}/versions/latest"
         )
-        resp.raise_for_status()
-        return resp.json()["id"]
+        return resp.payload.data.decode().strip()
 
     # ───────────────────────────────────────── core verbs ──
 
@@ -74,7 +79,8 @@ class MetabaseClient:
         return self.get("/collection")
 
     def databases(self) -> list[dict]:
-        return self.get("/database")
+        resp = self.get("/database")
+        return resp["data"] if isinstance(resp, dict) else resp
 
     def cards(self) -> list[dict]:
         return self.get("/card")
