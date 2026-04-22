@@ -5,9 +5,11 @@ Reads pre-aggregated rollup tables under `dee-data-ops-prod.marts.stl_*`
 prescribed in `docs/looker-studio/page-1-speed-to-lead.md`.
 
 Two dashboards are upserted in the `Speed-to-Lead` collection:
-- `Speed-to-Lead` — v1.3 layout: headline scorecards, volume scorecards,
-  response-time distribution, close-rate-by-touch-bucket, source-performance,
-  coverage heatmap, SDR leaderboard, lead-tracking match-rate donut.
+- `Speed-to-Lead` — v1.4 layout: headline scorecards, volume scorecards
+  (T6 = % With 1-Hour Activity), response-time distribution paired with
+  close-rate-by-touch at row 8, full-width source-performance at row 14,
+  coverage heatmap, full-width SDR leaderboard with per-row drill-through,
+  lead-tracking match-rate donut demoted to footer-row DQ tile.
 - `Speed-to-Lead — Lead Detail` — Page 1b lead-grain drill-down table
 
 Run::
@@ -122,10 +124,18 @@ def main() -> None:
         field="sdr_attributed",
         fmt=NUM_FMT,
     )
+    # v1.4: T6 replaced with pct_with_1hr_activity — orthogonal to T1
+    # (T6 was `within_5min`, the raw numerator of T1's percentage — same data twice).
+    # `pct_with_1hr_activity` adds new information: reachability over a longer
+    # horizon, denominated on TOTAL bookings (not SDR-scoped), so it is also a
+    # different denominator from T1. Column already exists on stl_headline_trend_weekly
+    # (line 91). No dbt edit required (executor chose Option 3a).
+    # click_behavior removed: T6 no longer drills to Lead Detail (tile-level drill
+    # was for the raw-count tile's specific DQ context — not meaningful here).
     t6 = trend_smartscalar(
-        name="Within 5 min (weekly)",
-        field="within_5min",
-        fmt=NUM_FMT,
+        name="% With 1-Hour Activity (weekly)",
+        field="pct_with_1hr_activity",
+        fmt=PCT_FMT,
     )
 
     # ── T7 stacked area: daily volume by source ──────────────────────────
@@ -154,11 +164,13 @@ def main() -> None:
         },
     )
 
-    # ── Row 8 — NEW cumulative response-time distribution (24×6) ─────────
+    # ── Row 8 left — cumulative response-time distribution (12×6) ───────
     # Bar (not area) communicates the cumulative-step shape better. One
     # bar per threshold (2m, 5m, 15m, 30m, 1h, 4h, 24h, >24h or similar;
     # shape is owned by the rollup). X-axis title "First touch within"
     # reads naturally next to bucket labels like "5 minutes".
+    # v1.4: shrunk from full-width (24) to half-width (12) to pair with
+    # close_rate_by_touch at col 12 — cause beside effect on one row.
     response_time_dist = upsert_card(
         mb,
         name="Response-Time Distribution (30d)",
@@ -179,9 +191,96 @@ def main() -> None:
         },
     )
 
-    # ── Row 14 left — NEW close-rate by touch-time bucket (12×6) ─────────
-    # Primary metric close_rate_pct as bar height; bookings carried in
-    # the tooltip so viewers can gauge sample size per bucket.
+    # ── Page 1b: lead-grain drill-down ───────────────────────────────────
+    # Built BEFORE Page 1 cards that reference detail_dash["id"] in their
+    # click-behavior wiring (source_outcome, t8 leaderboard). Metabase's
+    # `[[ ... ]]` optional-clause wrapper skips the AND when the variable
+    # is empty, so the card still renders standalone without any filter.
+    detail_card = upsert_card(
+        mb,
+        name="Lead Detail — recent bookings",
+        collection_id=coll["id"],
+        database_id=db_id,
+        display="table",
+        native_query=(
+            "SELECT booked_at, full_name, email, sdr_name, mins_to_touch, "
+            "is_within_5_min_sla, had_any_sdr_activity_within_1_hr, "
+            "lead_source, first_touch_campaign, close_outcome, lost_reason, "
+            "attribution_quality_flag "
+            "FROM `dee-data-ops-prod.marts.stl_lead_detail_recent` "
+            "WHERE 1=1 "
+            "[[AND CAST(is_within_5_min_sla AS STRING) = {{within_5min}}]] "
+            "[[AND sdr_name = {{sdr_name}}]] "
+            "[[AND lead_source = {{lead_source}}]] "
+            "ORDER BY booked_at DESC"
+        ),
+        template_tags={
+            "within_5min": {
+                "id": "within5min",
+                "name": "within_5min",
+                "display-name": "First Touch Within 5 min?",
+                "type": "text",
+                "default": None,
+            },
+            "sdr_name": {
+                "id": "sdr_name_param",
+                "name": "sdr_name",
+                "display-name": "SDR",
+                "type": "text",
+                "default": None,
+            },
+            "lead_source": {
+                "id": "lead_source_param",
+                "name": "lead_source",
+                "display-name": "Lead Source",
+                "type": "text",
+                "default": None,
+            },
+        },
+        visualization_settings=_col_settings({
+            "mins_to_touch": NUM_FMT,
+            "booked_at": {"date_style": "MMM D, YYYY", "time_enabled": "minutes"},
+        }),
+    )
+
+    detail_dash = upsert_dashboard(
+        mb,
+        name="Speed-to-Lead — Lead Detail",
+        collection_id=coll["id"],
+        description="Page 1b. Lead-grain detail table with search + filter controls.",
+        parameters=[
+            {"name": "First Touch Within 5 min?", "slug": "within_5min",  "id": "within5min",       "type": "category", "default": None},
+            {"name": "SDR",                       "slug": "sdr_name",     "id": "sdr_name_param",   "type": "category", "default": None},
+            {"name": "Lead Source",               "slug": "lead_source",  "id": "lead_source_param","type": "category", "default": None},
+        ],
+    )
+
+    set_dashboard_cards(
+        mb,
+        dashboard_id=detail_dash["id"],
+        cards=[
+            {
+                "card_id": detail_card["id"],
+                "row": 0, "col": 0, "size_x": 24, "size_y": 16,
+                "visualization_settings": {},
+                # Wire all three dashboard-level parameters to the card's template-tags.
+                "parameter_mappings": [
+                    {
+                        "parameter_id": "within5min",
+                        "card_id": detail_card["id"],
+                        "target": ["variable", ["template-tag", "within_5min"]],
+                    },
+                    {"parameter_id": "sdr_name_param",   "card_id": detail_card["id"], "target": ["variable", ["template-tag", "sdr_name"]]},
+                    {"parameter_id": "lead_source_param","card_id": detail_card["id"], "target": ["variable", ["template-tag", "lead_source"]]},
+                ],
+            },
+        ],
+    )
+
+    # ── Row 8 right — close-rate by touch-time bucket (12×6) ────────────
+    # Paired with response_time_dist at row 8 left: cause (distribution
+    # curve) beside effect (close-rate). Primary metric close_rate_pct as
+    # bar height; bookings in tooltip so viewers can gauge sample size.
     close_rate_by_touch = upsert_card(
         mb,
         name="Close Rate by Touch Time (30d)",
@@ -206,9 +305,16 @@ def main() -> None:
         },
     )
 
-    # ── Row 14 right — NEW lead-source × outcome table (12×6) ────────────
+    # ── Row 14 — NEW lead-source × outcome table (full-width 24×6, v1.4) ──
     # Column aliasing via `column_title` mirrors the SDR leaderboard
     # convention — BI surface never shows snake_case.
+    #
+    # v1.4: lead_source column wired for per-row click-through to Lead Detail.
+    # KNOWN LIMITATION (same as leaderboard): public share link unauthenticated
+    # viewers cannot navigate cross-dashboard — Metabase swallows the click
+    # silently (Discourse #23492, #20677). Authenticated users only.
+    # source.type = "column" passes the clicked row's lead_source value into
+    # the target dashboard's lead_source_param parameter.
     source_outcome = upsert_card(
         mb,
         name="Lead Source Performance (30d)",
@@ -223,7 +329,21 @@ def main() -> None:
         ),
         visualization_settings={
             **_col_settings({
-                "lead_source":     {"column_title": "Lead Source"},
+                "lead_source": {
+                    "column_title": "Lead Source",
+                    "click_behavior": {
+                        "type": "link",
+                        "linkType": "dashboard",
+                        "targetId": detail_dash["id"],
+                        "parameterMapping": {
+                            "lead_source_param": {
+                                "id": "lead_source_param",
+                                "source": {"type": "column", "id": "lead_source", "name": "lead_source"},
+                                "target": {"type": "parameter", "id": "lead_source_param"},
+                            },
+                        },
+                    },
+                },
                 "bookings":        {**NUM_FMT, "column_title": "Bookings"},
                 "pct_within_5min": {**PCT_FMT, "column_title": "% On-Time"},
                 "show_rate_pct":   {**PCT_FMT, "column_title": "Show Rate"},
@@ -265,10 +385,17 @@ def main() -> None:
         },
     )
 
-    # ── Row 27 left — SDR leaderboard (16×7) ─────────────────────────────
+    # ── Row 27 — SDR leaderboard (full-width 24×7, v1.4) ────────────────
     # Column headers aliased to Title Case via `column_title` so the
     # BI surface never shows snake_case — corpus-mandated separation of
     # the database naming layer from the client-facing layer.
+    #
+    # v1.4: sdr_name column wired for per-row click-through to Lead Detail.
+    # KNOWN LIMITATION (same as the old T6 tile-level click): on the *public*
+    # share link, unauthenticated viewers cannot navigate cross-dashboard —
+    # Metabase silently swallows the click (Discourse #23492, #20677).
+    # source.type = "column" passes the clicked row's sdr_name value into
+    # the target dashboard's sdr_name_param parameter.
     t8 = upsert_card(
         mb,
         name="SDR Leaderboard (30d)",
@@ -283,7 +410,21 @@ def main() -> None:
         ),
         visualization_settings={
             **_col_settings({
-                "sdr_name":        {"column_title": "SDR"},
+                "sdr_name": {
+                    "column_title": "SDR",
+                    "click_behavior": {
+                        "type": "link",
+                        "linkType": "dashboard",
+                        "targetId": detail_dash["id"],
+                        "parameterMapping": {
+                            "sdr_name_param": {
+                                "id": "sdr_name_param",
+                                "source": {"type": "column", "id": "sdr_name", "name": "sdr_name"},
+                                "target": {"type": "parameter", "id": "sdr_name_param"},
+                            },
+                        },
+                    },
+                },
                 "bookings":        {**NUM_FMT, "column_title": "Bookings"},
                 "within_5min":     {**NUM_FMT, "column_title": "Within 5 min"},
                 "pct_within_5min": {**PCT_FMT, "column_title": "% Within 5 min"},
@@ -295,9 +436,11 @@ def main() -> None:
         },
     )
 
-    # ── Row 27 right — Lead-tracking match-rate donut (8×7) ──────────────
-    # Categories remapped in SQL from engineering flag tokens to
-    # business-phrased states (Data Ops corpus audit 2026-04-22):
+    # ── Row 35 right — Lead-tracking match-rate donut (DQ tile, 12×2) ───
+    # Demoted from row 27 prime real estate to footer-row DQ tile in v1.4.
+    # DQ signal is still useful, just not headline-tier. Track C may
+    # revisit the display type. Categories remapped in SQL from engineering
+    # flag tokens to business-phrased states (Data Ops corpus audit 2026-04-22):
     #   clean         → Matched
     #   no_sdr_touch  → No SDR touch yet
     #   role_unknown  → Unassigned rep
@@ -341,82 +484,6 @@ def main() -> None:
         }),
     )
 
-    # ── Page 1b: lead-grain drill-down ───────────────────────────────────
-    # Built BEFORE Page 1 because the T6 dashcard's click-behavior needs
-    # `detail_dash["id"]` to wire the cross-dashboard drill-through.
-    #
-    # The detail card accepts an optional `within_5min` template-tag so the
-    # parent dashboard can pre-filter via click-behavior. Metabase's
-    # `[[ ... ]]` optional-clause wrapper skips the AND when the variable
-    # is empty, so the card still renders standalone.
-    detail_card = upsert_card(
-        mb,
-        name="Lead Detail — recent bookings",
-        collection_id=coll["id"],
-        database_id=db_id,
-        display="table",
-        native_query=(
-            "SELECT booked_at, full_name, email, sdr_name, mins_to_touch, "
-            "is_within_5_min_sla, had_any_sdr_activity_within_1_hr, "
-            "lead_source, first_touch_campaign, close_outcome, lost_reason, "
-            "attribution_quality_flag "
-            "FROM `dee-data-ops-prod.marts.stl_lead_detail_recent` "
-            "WHERE 1=1 "
-            "[[AND CAST(is_within_5_min_sla AS STRING) = {{within_5min}}]] "
-            "ORDER BY booked_at DESC"
-        ),
-        template_tags={
-            "within_5min": {
-                "id": "within5min",
-                "name": "within_5min",
-                "display-name": "First Touch Within 5 min?",
-                "type": "text",
-                "default": None,
-            },
-        },
-        visualization_settings=_col_settings({
-            "mins_to_touch": NUM_FMT,
-            "booked_at": {"date_style": "MMM D, YYYY", "time_enabled": "minutes"},
-        }),
-    )
-
-    detail_dash = upsert_dashboard(
-        mb,
-        name="Speed-to-Lead — Lead Detail",
-        collection_id=coll["id"],
-        description="Page 1b. Lead-grain detail table with search + filter controls.",
-        parameters=[
-            {
-                "name": "First Touch Within 5 min?",
-                "slug": "within_5min",
-                "id": "within5min",
-                "type": "category",
-                "default": None,
-            },
-        ],
-    )
-
-    set_dashboard_cards(
-        mb,
-        dashboard_id=detail_dash["id"],
-        cards=[
-            {
-                "card_id": detail_card["id"],
-                "row": 0, "col": 0, "size_x": 24, "size_y": 16,
-                "visualization_settings": {},
-                # Wire the dashboard-level `within5min` parameter to the
-                # card's `within_5min` template-tag.
-                "parameter_mappings": [
-                    {
-                        "parameter_id": "within5min",
-                        "card_id": detail_card["id"],
-                        "target": ["variable", ["template-tag", "within_5min"]],
-                    },
-                ],
-            },
-        ],
-    )
-
     # ── Dashboard: Speed-to-Lead (Page 1) ────────────────────────────────
     dash = upsert_dashboard(
         mb,
@@ -458,41 +525,24 @@ def main() -> None:
         },
     }
 
-    # T6 click-behavior: drill through to Lead Detail pre-filtered to
-    # within-5-min rows. KNOWN LIMITATION: on the *public* share link,
-    # unauthenticated viewers cannot navigate to another internal dashboard —
-    # Metabase silently swallows the click (Discourse #23492, #20677). This
-    # feature only activates for authenticated users; the user has
-    # acknowledged the tradeoff.
-    t6_click_behavior = {
-        "click_behavior": {
-            "type": "link",
-            "linkType": "dashboard",
-            "targetId": detail_dash["id"],
-            "parameterMapping": {
-                "within5min": {
-                    "id": "within5min",
-                    "source": {"type": "text", "id": "true", "name": "true"},
-                    "target": {"type": "parameter", "id": "within5min"},
-                },
-            },
-        },
-    }
-
-    # Metabase dashboards use a 24-column grid. Rows below the header card
-    # shift down by 2 to make room for the banner. Layout map (row, col,
-    # size_x, size_y):
+    # v1.4 layout map. Metabase dashboards use a 24-column grid. Rows below
+    # the header card shift down by 2 to make room for the banner.
+    # Layout map (row, col, size_x, size_y):
     #
     #   Row  0 — header banner                        (0,  0, 24, 2)
     #   Row  2 — T1 | T2 | T3 (headline smart-scalars) each 8 wide, 3 tall
     #   Row  5 — T4 | T5 | T6 (volume smart-scalars)  each 8 wide, 3 tall
-    #   Row  8 — Response-Time Distribution           (8,  0, 24, 6)
-    #   Row 14 — Close Rate by Touch Time | Lead Source Performance
-    #             (14, 0, 12, 6)          | (14, 12, 12, 6)
+    #             T6 = % With 1-Hour Activity (weekly) — orthogonal to T1
+    #   Row  8 — Response-Time Distribution (12) | Close Rate by Touch (12)
+    #             (8,  0, 12, 6)                 | (8,  12, 12, 6)
+    #             Cause (curve) beside effect (close-rate) — one story per row
+    #   Row 14 — Lead Source Performance (full-width 24×6)
+    #             (14, 0, 24, 6)
     #   Row 20 — SDR Coverage Heatmap                 (20, 0, 24, 6)
-    #   Row 27 — SDR Leaderboard | Lead Tracking Match Rate
-    #             (27, 0, 16, 7)| (27, 16, 8, 7)
-    #   Row 35 — Data refreshed footer                (35, 0, 12, 2)
+    #   Row 27 — SDR Leaderboard (full-width 24×7) — per-row click → Lead Detail
+    #             (27, 0, 24, 7)
+    #   Row 35 — Data refreshed footer | Lead Tracking Match Rate (DQ tile)
+    #             (35, 0, 12, 2)       | (35, 12, 12, 2)
     set_dashboard_cards(
         mb,
         dashboard_id=dash["id"],
@@ -502,22 +552,22 @@ def main() -> None:
             {"card_id": t1["id"], "row": 2,  "col": 0,  "size_x": 8, "size_y": 3, "visualization_settings": {}},
             {"card_id": t2["id"], "row": 2,  "col": 8,  "size_x": 8, "size_y": 3, "visualization_settings": {}},
             {"card_id": t3["id"], "row": 2,  "col": 16, "size_x": 8, "size_y": 3, "visualization_settings": {}},
-            # Row 5 — volume smart-scalars (T6 drills to Lead Detail)
+            # Row 5 — volume smart-scalars (T6 = % With 1-Hour Activity, no tile-level drill)
             {"card_id": t4["id"], "row": 5,  "col": 0,  "size_x": 8, "size_y": 3, "visualization_settings": {}},
             {"card_id": t5["id"], "row": 5,  "col": 8,  "size_x": 8, "size_y": 3, "visualization_settings": {}},
-            {"card_id": t6["id"], "row": 5,  "col": 16, "size_x": 8, "size_y": 3, "visualization_settings": t6_click_behavior},
-            # Row 8 — response-time distribution (full width, 6 tall)
-            {"card_id": response_time_dist["id"], "row": 8, "col": 0, "size_x": 24, "size_y": 6, "visualization_settings": {}},
-            # Row 14 — close rate by touch time | lead source performance
-            {"card_id": close_rate_by_touch["id"], "row": 14, "col": 0,  "size_x": 12, "size_y": 6, "visualization_settings": {}},
-            {"card_id": source_outcome["id"],      "row": 14, "col": 12, "size_x": 12, "size_y": 6, "visualization_settings": {}},
+            {"card_id": t6["id"], "row": 5,  "col": 16, "size_x": 8, "size_y": 3, "visualization_settings": {}},
+            # Row 8 — response-time curve (left) paired with close-rate-by-touch (right)
+            {"card_id": response_time_dist["id"],  "row": 8,  "col": 0,  "size_x": 12, "size_y": 6, "visualization_settings": {}},
+            {"card_id": close_rate_by_touch["id"], "row": 8,  "col": 12, "size_x": 12, "size_y": 6, "visualization_settings": {}},
+            # Row 14 — lead source performance (full-width, per-row click → Lead Detail)
+            {"card_id": source_outcome["id"], "row": 14, "col": 0, "size_x": 24, "size_y": 6, "visualization_settings": {}},
             # Row 20 — coverage heatmap (full width, 6 tall)
             {"card_id": coverage_heatmap["id"], "row": 20, "col": 0, "size_x": 24, "size_y": 6, "visualization_settings": {}},
-            # Row 27 — SDR leaderboard | Match-rate donut
-            {"card_id": t8["id"], "row": 27, "col": 0,  "size_x": 16, "size_y": 7, "visualization_settings": {}},
-            {"card_id": t9["id"], "row": 27, "col": 16, "size_x": 8,  "size_y": 7, "visualization_settings": {}},
-            # Row 35 — refresh footer
-            {"card_id": footer["id"], "row": 35, "col": 0, "size_x": 12, "size_y": 2, "visualization_settings": {}},
+            # Row 27 — SDR leaderboard (full-width, per-row click → Lead Detail)
+            {"card_id": t8["id"], "row": 27, "col": 0, "size_x": 24, "size_y": 7, "visualization_settings": {}},
+            # Row 35 — refresh footer (left) | match-rate donut demoted to DQ tile (right)
+            {"card_id": footer["id"], "row": 35, "col": 0,  "size_x": 12, "size_y": 2, "visualization_settings": {}},
+            {"card_id": t9["id"],     "row": 35, "col": 12, "size_x": 12, "size_y": 2, "visualization_settings": {}},
         ],
     )
     # t7 (old 90d area) deliberately NOT in the dashcards list — card
