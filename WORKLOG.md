@@ -11,6 +11,34 @@ Rolling log of what's been done on this project. Newest entries at the top. Tail
 
 ---
 
+## 2026-04-22 — Speed-to-Lead Metabase dashboard shipped v1.1 → v1.2 → v1.3 (4 PRs merged)
+
+**What happened**
+- **v1.1 (vocabulary + layout)** — Data Ops + Metabase Craft corpus audits drove leaderboard `column_title` aliases (snake_case → Title Case), tile renames (`SLA`/`DQ` out of tile titles), donut title + categories to business phrasing (`Lead Tracking Match Rate` with `Matched` / `No SDR touch yet` / `Unassigned rep`). Full-width Markdown header card with metric definition + time-window map.
+- **v1.2 (trend + click-through + BQ tuning)** — T1/T2/T3 switched to `display=smartscalar` reading a new `stl_headline_trend_weekly` 12-week time series; each tile now renders a week-over-week delta arrow. T6 → `click_behavior` linking to Lead Detail, passing literal `"true"` through a `{{within_5min}}` template-tag. BigQuery `auto_run_queries=false` toggled on prod Metabase + codified in `ops/metabase/authoring/infrastructure/bigquery_connection.py`.
+- **v1.3 (9-item outcome + coverage revamp via 4 parallel agents)** — 4 new rollups: `stl_outcome_by_touch_bucket_30d` (close-rate by touch time), `stl_response_time_distribution_30d` (cumulative curve), `stl_source_outcome_30d` (outcome overlay on lead source), `stl_coverage_heatmap_30d` (day × hour SDR coverage). Weekly rollup extended with P90 + volume columns + SDR-scope correctness fix (pre-fix showed 38k-min medians on ramping weeks because no-touch rows polluted the quantile pool). Mart gained `era_flag` (hardcoded 2026-03-16 cutover = ISO-W12 Monday when median dropped below 60 min). Dashboard reflowed to 14 dashcards: distribution bar (row 8), close-rate bar + source-outcome table (row 14), coverage pivot heatmap (row 20).
+- **PRs merged to main**: #40 (COS hotfix), #41 (Secret Manager client auth + BQ connection + dbt-metabase script), #42 (data layer v1.3), #43 (dashboard v1.1–v1.3). **#44 open** (deferred `curl -fsS` hardening from #40 review).
+
+**Decisions**
+- **SDR-scoped median + P90 + 5-min rate** in the weekly rollup. *Why:* rows with no SDR touch carry NULL/sentinel `minutes_to_first_sdr_touch`, polluting quantile pools. Post-fix the metric honestly reads "typical response time among leads an SDR actually touched."
+- **Era flag as inline CASE, not a seed.** One binary cutover for now; flip to a seed only if the taxonomy grows past `ramping`/`stable`.
+- **Show rate = `close_outcome IS NOT NULL`** fallback — mart has no real `show_outcome` column. Over-counts `'pending'` opportunities as showed; documented in SQL + YAML. Revisit when a true show column lands.
+- **Drop gauge viz in favor of smart-scalar.** Metabase `column_formatting` wires only into `display=table`; scalars silently ignore it. Directional arrow + week-over-week delta beats a static threshold for exec tiles.
+- **4 area-scoped agents, not 9 per-item agents.** 7 of 9 items touched `speed_to_lead.py`; per-item isolation would have guaranteed merge tangles. Grouping by (dbt new files / dbt edits / dashboard / infra script) avoided conflicts.
+- **Merge sequence #40 → #41 → #42 → #43 squash-merged**, repo convention preserved. Old `fix/metabase-startup-cos-compat` branch retired; replaced by the four scope-aligned PRs.
+
+**Open threads**
+- `GCP_SA_KEY_PROD` repo secret still unset → CI/CD `dbt-deploy.yml` blocked; prod builds this session ran via a local oauth profile at `/tmp/dbt-oauth/profiles.yml` using David's personal gcloud ADC.
+- PR #44 (`curl -fsS` hardening) open for review.
+- `dbt_metadata_sync.py` committed but **never run** — Metabase column hovers still empty. Requires `pip install dbt-metabase==1.6.0` + one manual run after a `dbt parse`.
+- `sales_activity_detail` mart lacks a real `show_outcome` column; three v1.3 outcome rollups fall back to `close_outcome IS NOT NULL`.
+- Metabase cruft on prod: 3 stale cards (old names `% Within 5-min SLA (7d)`, `DQ — SDR Activity Within 1 Hr (7d)`, `Attribution Quality Mix (30d)`) + a renamed duplicate collection 5 in the instance. Not on any active dashboard; cleanup deferred.
+- Roster gaps unresolved: Ayaan Menon, Jake Lynch need role decisions; Moayad + Halle leaderboard-evidenced but not in seed. `docs/proposals/roster_update_from_oracle.md` staged, awaiting David's manual commit.
+- GHL PIT rotation still owed (transcript-exposed 2026-04-19).
+- Stripe Fivetran sync gap still open (4,750 checkout sessions, zero rows in customer/charge/invoice/payment_intent).
+
+---
+
 ## 2026-04-21 — Metabase live on GCP + startup-script COS compatibility hotfix
 
 **What happened**
