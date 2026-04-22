@@ -34,6 +34,44 @@ models:
       - name: with_1hr_activity
       - name: pct_within_5min
 
+  - name: stl_headline_trend_weekly
+    description: |
+      12-week headline trend — one row per ISO week (Monday-starting) for the
+      last 12 completed weeks. Current in-progress week is excluded so the
+      smart-scalar trend comparator never flips on partial data.
+
+      Correctness contract: median, P90, and 5-min SLA rate are scoped to
+      SDR-attributed bookings only (otherwise no-touch rows pollute the
+      quantile pool and deflate the SLA ratio). The 1-hour reachability
+      metric stays denominated on total bookings — it's a "was anyone home?"
+      diagnostic, not an SDR scorecard.
+    columns:
+      - name: week_start
+        description: ISO-week Monday (DATE). One row per week.
+        tests:
+          - not_null
+          - unique
+      - name: bookings
+        description: Total Calendly bookings that week (all roles, all sources).
+        tests:
+          - not_null
+      - name: sdr_attributed
+        description: Bookings where first_toucher_role = 'SDR'.
+        tests:
+          - not_null
+      - name: within_5min
+        description: SDR-attributed bookings where first touch was under 5 minutes.
+        tests:
+          - not_null
+      - name: pct_within_5min
+        description: within_5min / sdr_attributed × 100, rounded to 1 decimal. NULL when sdr_attributed = 0.
+      - name: median_mins_sdr_only
+        description: Median minutes to first SDR touch, SDR-attributed rows only. NULL when no SDR-attributed bookings that week.
+      - name: p90_mins_sdr_only
+        description: P90 minutes to first SDR touch, SDR-attributed rows only. approx_quantiles(_, 10)[offset(9)]. NULL when no SDR-attributed bookings that week.
+      - name: pct_with_1hr_activity
+        description: Bookings with any SDR activity within 1 hour / total bookings × 100. Reachability diagnostic, NOT SDR-scoped.
+
   - name: stl_daily_volume_by_source
     description: |
       Daily booking volume stacked by lead_source — powers the main area chart
@@ -89,3 +127,133 @@ models:
       - name: close_outcome
       - name: lost_reason
       - name: attribution_quality_flag
+
+  - name: stl_outcome_by_touch_bucket_30d
+    description: |
+      Close rate and show rate bucketed by first-SDR-touch time — closes the
+      loop from response speed to deal outcome. Grain: one row per touch bucket
+      (7 buckets: 0-5 min, 5-15 min, 15-60 min, 1-4 hr, 4-24 hr, 24+ hr, No SDR touch).
+      Last 30 days.
+
+      Show-rate assumption: the mart has no `show_outcome` column, so show is
+      derived as `close_outcome IS NOT NULL` (a close implies a show). This
+      over-counts 'pending' opportunities as showed — revisit if show-outcome
+      lands upstream.
+    columns:
+      - name: touch_bucket
+        description: |
+          First-SDR-touch bucket. One of: '0-5 min', '5-15 min', '15-60 min',
+          '1-4 hr', '4-24 hr', '24+ hr', 'No SDR touch'.
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['0-5 min', '5-15 min', '15-60 min', '1-4 hr', '4-24 hr', '24+ hr', 'No SDR touch']
+      - name: bucket_sort
+        description: Integer sort key 1..7 matching the bucket order above.
+        tests:
+          - not_null
+          - unique
+      - name: bookings
+        description: Total bookings in this bucket over the last 30 days.
+        tests:
+          - not_null
+      - name: closed_won
+        description: Count of bookings in this bucket where close_outcome = 'won'.
+        tests:
+          - not_null
+      - name: show_rate_pct
+        description: 100 × COUNTIF(close_outcome IS NOT NULL) / COUNT(*). 0-100.
+      - name: close_rate_pct
+        description: 100 × COUNTIF(close_outcome = 'won') / COUNT(*). 0-100.
+
+  - name: stl_response_time_distribution_30d
+    description: |
+      Cumulative response-time distribution across six thresholds — replaces
+      the two-threshold "within 5 min / within 1 hr" pattern with a full curve
+      (≤1 min, ≤5 min, ≤15 min, ≤1 hr, ≤4 hr, ≤24 hr). SDR-attributed bookings
+      only, last 30 days.
+    columns:
+      - name: threshold_label
+        description: One of '≤1 min', '≤5 min', '≤15 min', '≤1 hr', '≤4 hr', '≤24 hr'.
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['≤1 min', '≤5 min', '≤15 min', '≤1 hr', '≤4 hr', '≤24 hr']
+      - name: threshold_sort
+        description: Integer sort key 1..6 matching the threshold order above.
+        tests:
+          - not_null
+          - unique
+      - name: pct_within
+        description: |
+          Cumulative share of SDR-attributed bookings with
+          minutes_to_first_sdr_touch ≤ threshold. 0-100.
+      - name: bookings_within
+        description: Count of SDR-attributed bookings at or under this threshold.
+        tests:
+          - not_null
+      - name: bookings_total
+        description: Total SDR-attributed bookings in the 30-day window (same on every row).
+        tests:
+          - not_null
+
+  - name: stl_source_outcome_30d
+    description: |
+      Outcome overlay on lead_source — complements the volume-only
+      `stl_daily_volume_by_source` rollup with speed (% within 5 min),
+      show rate, and close rate per source. Grain: one row per lead_source.
+      Last 30 days.
+
+      Show-rate assumption: same as `stl_outcome_by_touch_bucket_30d` —
+      `close_outcome IS NOT NULL` treated as showed.
+    columns:
+      - name: lead_source
+        description: Lead source; null coalesced to 'unknown'.
+        tests:
+          - not_null
+      - name: bookings
+        description: Total bookings from this source over the last 30 days.
+        tests:
+          - not_null
+      - name: pct_within_5min
+        description: |
+          100 × COUNTIF(first_toucher_role = 'SDR' AND is_within_5_min_sla)
+          / COUNT(*). 0-100.
+      - name: show_rate_pct
+        description: 100 × COUNTIF(close_outcome IS NOT NULL) / COUNT(*). 0-100.
+      - name: close_rate_pct
+        description: 100 × COUNTIF(close_outcome = 'won') / COUNT(*). 0-100.
+
+  - name: stl_coverage_heatmap_30d
+    description: |
+      Day-of-week × hour-of-day grid showing SDR coverage gaps by booking volume
+      and speed. Grain: one row per (day, hour) pair that has ≥1 booking in the
+      last 30 days — empty cells are skipped (the heatmap in Metabase handles
+      visual gaps).
+
+      BQ's EXTRACT(DAYOFWEEK ...) returns Sun=1..Sat=7; remapped here to
+      Mon=1..Sun=7 so the heatmap reads Monday→Sunday top-to-bottom.
+    columns:
+      - name: day_of_week
+        description: Three-letter day label. One of 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'.
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+      - name: day_sort
+        description: Integer sort key 1 (Mon) through 7 (Sun).
+        tests:
+          - not_null
+      - name: hour_of_day
+        description: Hour of day 0-23, extracted from booked_at.
+        tests:
+          - not_null
+      - name: bookings
+        description: Bookings in this (day, hour) cell over the last 30 days.
+        tests:
+          - not_null
+      - name: pct_within_5min
+        description: |
+          100 × COUNTIF(first_toucher_role = 'SDR' AND is_within_5_min_sla)
+          / COUNT(*) for this cell. NULL when bookings = 0 (currently unreachable
+          because empty cells are skipped).
