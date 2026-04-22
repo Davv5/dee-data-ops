@@ -1,51 +1,34 @@
-"""Idempotent upsert helpers keyed on `entity_id`.
+"""Idempotent upsert helpers for Metabase authoring scripts.
 
-Every authoring script goes through these functions instead of raw POSTs so
-that re-running a script against an existing Metabase instance is a no-op.
+Each helper matches existing entities by `(name, collection_id)` — Metabase
+overrides any client-supplied `entity_id` on create, so name-within-scope is
+the stable identity. Collection names are unique within a parent, card/
+dashboard names are unique within a collection.
 
-Metabase's `entity_id` is a stable 21-char string assigned to every
-collection / card / dashboard when it's created. We assign our own
-deterministic entity_ids (short hashes of a stable logical name) so the
-script can look up + update on subsequent runs.
+Running an authoring script against an instance that already has its
+entities produces PUTs instead of POSTs: same side-effect, no duplicates.
 """
 from __future__ import annotations
 
-import hashlib
 from typing import Any
 
 from .client import MetabaseClient
-
-
-def _eid(key: str) -> str:
-    """Deterministic 21-char entity_id from a logical key."""
-    return hashlib.sha256(key.encode()).hexdigest()[:21]
 
 
 def upsert_collection(
     mb: MetabaseClient,
     *,
     name: str,
-    key: str,
     parent_id: int | None = None,
     color: str = "#509EE3",
 ) -> dict:
-    """Create or update a collection identified by `key`.
-
-    Returns the collection dict with `id` populated.
-    """
-    eid = _eid(f"collection::{key}")
     existing = next(
-        (c for c in mb.collections() if c.get("entity_id") == eid),
+        (c for c in mb.collections() if c.get("name") == name and c.get("parent_id") == parent_id),
         None,
     )
-    payload = {
-        "name": name,
-        "color": color,
-        "parent_id": parent_id,
-    }
+    payload = {"name": name, "color": color, "parent_id": parent_id}
     if existing:
         return mb.put(f"/collection/{existing['id']}", payload)
-    payload["entity_id"] = eid
     return mb.post("/collection", payload)
 
 
@@ -53,27 +36,25 @@ def upsert_card(
     mb: MetabaseClient,
     *,
     name: str,
-    key: str,
     collection_id: int,
     database_id: int,
     native_query: str,
     display: str = "table",
     visualization_settings: dict | None = None,
+    template_tags: dict | None = None,
 ) -> dict:
-    """Create or update a native-SQL question.
-
-    `native_query` is the SQL string (BigQuery dialect for this project).
-    Display options: table, bar, line, scalar, pie, row, funnel, …
-    """
-    eid = _eid(f"card::{key}")
     existing = next(
-        (c for c in mb.cards() if c.get("entity_id") == eid),
+        (c for c in mb.cards() if c.get("name") == name and c.get("collection_id") == collection_id),
         None,
     )
+    native: dict[str, Any] = {"query": native_query}
+    if template_tags:
+        # Metabase's native API expects hyphenated `template-tags` (not `template_tags`).
+        native["template-tags"] = template_tags
     dataset_query = {
         "type": "native",
         "database": database_id,
-        "native": {"query": native_query},
+        "native": native,
     }
     payload: dict[str, Any] = {
         "name": name,
@@ -84,7 +65,6 @@ def upsert_card(
     }
     if existing:
         return mb.put(f"/card/{existing['id']}", payload)
-    payload["entity_id"] = eid
     return mb.post("/card", payload)
 
 
@@ -92,23 +72,25 @@ def upsert_dashboard(
     mb: MetabaseClient,
     *,
     name: str,
-    key: str,
     collection_id: int,
     description: str = "",
+    parameters: list[dict] | None = None,
 ) -> dict:
-    eid = _eid(f"dashboard::{key}")
     existing = next(
-        (d for d in mb.dashboards() if d.get("entity_id") == eid),
+        (d for d in mb.dashboards() if d.get("name") == name and d.get("collection_id") == collection_id),
         None,
     )
-    payload = {
+    payload: dict[str, Any] = {
         "name": name,
         "description": description,
         "collection_id": collection_id,
     }
+    if parameters is not None:
+        # Dashboard-level parameters (Metabase filter widgets). These are
+        # wired to card template-tags via each dashcard's `parameter_mappings`.
+        payload["parameters"] = parameters
     if existing:
         return mb.put(f"/dashboard/{existing['id']}", payload)
-    payload["entity_id"] = eid
     return mb.post("/dashboard", payload)
 
 
@@ -118,16 +100,32 @@ def set_dashboard_cards(
     dashboard_id: int,
     cards: list[dict],
 ) -> None:
-    """Replace the dashboard's card layout with the provided list.
+    """Replace the dashboard's card layout.
 
-    Each entry in `cards` should be:
-        {"card_id": int, "size_x": int, "size_y": int, "row": int, "col": int,
-         "visualization_settings": {...}}
-
-    Grid is 24 columns wide; `size_x` is in grid columns.
+    Each entry in `cards`: `{card_id, size_x, size_y, row, col, visualization_settings}`.
+    Grid is 24 columns. Reuses existing dashcard ids (matched by card_id) so
+    re-runs update positions in-place instead of accumulating duplicates.
     """
-    payload = {"cards": cards}
-    mb.put(f"/dashboard/{dashboard_id}/cards", payload)
+    current = mb.get(f"/dashboard/{dashboard_id}")
+    existing_by_card = {
+        dc["card_id"]: dc["id"]
+        for dc in current.get("dashcards", [])
+        if dc.get("card_id") is not None
+    }
+    dashcards = [
+        {
+            "id": existing_by_card.get(c["card_id"], -(i + 1)),
+            "card_id": c["card_id"],
+            "row": c["row"],
+            "col": c["col"],
+            "size_x": c["size_x"],
+            "size_y": c["size_y"],
+            "visualization_settings": c.get("visualization_settings", {}),
+            "parameter_mappings": c.get("parameter_mappings", []),
+        }
+        for i, c in enumerate(cards)
+    ]
+    mb.put(f"/dashboard/{dashboard_id}", {"dashcards": dashcards})
 
 
 def find_database_id(mb: MetabaseClient, name: str) -> int:
