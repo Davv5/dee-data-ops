@@ -77,8 +77,13 @@ def upsert_card(
         "dataset_query": dataset_query,
         "visualization_settings": visualization_settings or {},
         "collection_id": collection_id,
-        "cache_ttl": cache_ttl,
     }
+    # Metabase OSS v0.60.1 rejects cache_ttl=0 with HTTP 400
+    # ("value must be an integer greater than zero"). Server-side contract
+    # is null-or-positive-int, so serialize 0 as omission (= null = server
+    # default, which == live when MB_ENABLE_QUERY_CACHING is false).
+    if cache_ttl is not None and cache_ttl > 0:
+        payload["cache_ttl"] = cache_ttl
     if existing:
         return mb.put(f"/card/{existing['id']}", payload)
     return mb.post("/card", payload)
@@ -120,8 +125,11 @@ def upsert_dashboard(
         "name": name,
         "description": description,
         "collection_id": collection_id,
-        "cache_ttl": cache_ttl,
     }
+    # See upsert_card for rationale — cache_ttl=0 rejected by Metabase OSS
+    # v0.60.1; serialize as omission (server default = live when caching off).
+    if cache_ttl is not None and cache_ttl > 0:
+        payload["cache_ttl"] = cache_ttl
     if parameters is not None:
         # Dashboard-level parameters (Metabase filter widgets). These are
         # wired to card template-tags via each dashcard's `parameter_mappings`.
