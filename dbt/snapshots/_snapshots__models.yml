@@ -4,7 +4,7 @@ snapshots:
   - name: dim_users_snapshot
     description: >
       SCD Type 2 history of `dim_users` using the `check` strategy on
-      `role` and `email`. Closed rows carry `dbt_valid_to`; open rows
+      `name`, `role`, `email`, and `is_active`. Closed rows carry `dbt_valid_to`; open rows
       have `dbt_valid_to is null`. Powers mart-level as-of joins where
       "who did what, under which role, at event time?" matters —
       essential for the Speed-to-Lead numerator (SDR-at-time-of-touch)

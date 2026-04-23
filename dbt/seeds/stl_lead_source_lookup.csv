@@ -1,0 +1,14 @@
+lead_source,source_description,is_paid
+TikTok,TikTok organic content or profile traffic,false
+Instagram,Instagram organic content or profile traffic,false
+YouTube,YouTube organic content or channel traffic,false
+yt,YouTube organic (short-code variant of YouTube),false
+outbound,Outbound SDR prospecting — not inbound lead capture,false
+email,Email marketing or direct email capture,false
+skool,Skool community platform,false
+sms,SMS opt-in or broadcast list,false
+Free Skool,Free Skool community lead magnet,false
+Skool About Page,Skool community About page traffic,false
+Heard from a Friend,Referral — heard from a friend or word-of-mouth,false
+webinar form,Webinar registration form,false
+__unknown__,No lead-source attribution captured,

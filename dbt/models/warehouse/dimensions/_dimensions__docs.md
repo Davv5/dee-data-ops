@@ -1,3 +1,65 @@
+{% docs dim_sdr__overview %}
+
+SDR-role-filtered conformed dimension — a role-scoped subset of `dim_users`,
+not a duplicate. Carries `sdr_sk` (hashed over `user_id` identically to
+`dim_users.user_sk` so the two are interchangeable for joins) plus `active_from`
+/ `active_to` from the `dim_users_snapshot` SCD-2 open row.
+
+### Why a separate dim_sdr?
+
+"You can still use the same dimensions... it's very common, it's called a
+conformed dimension." (source: "Creating a Data Model w/ dbt: Facts", Data
+Ops notebook.) The rename from `user_sk` → `sdr_sk` in the mart context is
+for business-readability in the wide mart (`speed_to_lead_detail` in F2) and
+for self-documenting FK names in `fct_speed_to_lead_touch`. The underlying
+hash is the same so F2 can join either way.
+
+### Current-state filtering (F1)
+
+F1 filters `is_active = true`. Inactive SDRs (departed reps) are excluded.
+F2 will evaluate whether departed-SDR history should flow through via the
+snapshot-based as-of join.
+
+### Roster gaps
+
+Roster-gap users (Ayaan, Jake, Moayad, Halle) do not appear in `dim_sdr`
+because their roles in `dim_users` are currently `unknown`, not `SDR`.
+Their touches in `fct_speed_to_lead_touch` carry `sdr_sk = NULL` and
+`attribution_quality_flag = 'role_unknown'`. Resolving their roles is pending
+David's decision (per `.claude/state/project-state.md`).
+
+{% enddocs %}
+
+{% docs dim_source__overview %}
+
+Lead-source conformed dimension. One row per distinct `lead_source` value
+surfaced in `dim_contacts`, plus an `__unknown__` sentinel row for NULL values.
+Enriched with human-readable descriptions and paid/organic flags from the
+`stl_lead_source_lookup` seed.
+
+### Actual lead_source values
+
+The `lead_source` field in GHL contacts carries campaign / content-label names
+(e.g. "ig blueprint case study", "AI Brand Prompts", "dbb-ig") rather than a
+controlled channel taxonomy. The seed covers the inferrable channel-level values
+(TikTok, Instagram, YouTube, outbound, email, skool, etc.). The majority of
+campaign-specific labels are in the dim with `is_paid = NULL` and are flagged
+in WORKLOG "Open threads" for David to classify.
+
+This is the correct design: the warehouse dimension takes control of the raw
+source values and provides the business-layer taxonomy, rather than letting the
+mart repeat the free-text logic every time.
+(source: "3 Reasons Data Modeling Gets So Much Attention", Data Ops notebook —
+"you can take control... to reflect better what the business is".)
+
+### __unknown__ sentinel
+
+The `__unknown__` row ensures `source_sk` is never NULL in
+`fct_speed_to_lead_touch`. Contacts with `lead_source IS NULL` in `dim_contacts`
+resolve to this row.
+
+{% enddocs %}
+
 {% docs dim_pipeline_stages__overview %}
 
 `dim_pipeline_stages` flattens the nested `stages` JSON array stored on

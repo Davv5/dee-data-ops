@@ -1,3 +1,51 @@
+{% docs fct_speed_to_lead_touch__overview %}
+
+The lowest-grain Speed-to-Lead fact — one row per `(booking × touch-event)`.
+Bookings with zero outbound human SDR touches emit one row with `touch_sk = NULL`,
+preserving the denominator count for booking-level rollups (% of bookings with
+at least one SDR touch).
+
+### Why this grain
+
+Going to the lowest grain gives downstream marts the most options: you can roll
+up to booking-grain, SDR-grain, or day-grain without information loss.
+(source: "3 Data Modeling Mistakes That Can Derail a Team", Data Ops notebook.)
+The `close_outcome IS NOT NULL` fallback in `sales_activity_detail` was the
+direct symptom of the mart being too coarse — this fact's `show_outcome` column
+resolves that DQ gap.
+
+### show_outcome derivation (v1)
+
+Derived from Calendly `event_status` + GHL `last_stage_change_at`:
+
+- `canceled/cancelled` → `cancelled`
+- `active` + future `scheduled_for` → `pending`
+- `active` + past `scheduled_for` + `last_stage_change_at >= scheduled_for` → `showed`
+  (rep progressed the GHL stage after the scheduled call time = attended)
+- `active` + past `scheduled_for` + no stage signal + close_outcome known → `showed`
+  (v1 fallback approximation — see model header comment; F3 will finalize)
+- Otherwise → `no_show`
+
+### is_sdr_touch and is_first_touch
+
+`is_sdr_touch` uses the current-state `dim_users.role` join (v1). For historical
+role-at-touch-time accuracy, F2 will layer in `dim_users_snapshot` with
+`dbt_valid_from <= touched_at < coalesce(dbt_valid_to, current_timestamp())`.
+
+`is_first_touch` is TRUE on exactly one row per booking — the earliest
+`is_sdr_touch = TRUE` row by `touched_at`. It drives the `is_within_5_min_sla`
+headline metric.
+
+### NULL FK rows and attribution_quality_flag
+
+Roster-gap SDRs (Ayaan, Jake, Moayad, Halle — per `.claude/state/project-state.md`)
+produce touches with `user_sk = NULL` in `fct_outreach`. These rows flow through
+here with `attribution_quality_flag = 'role_unknown'`. They are not an error —
+they are the forcing function for resolving the roster gap. F2 will surface the
+count in the mart DQ panel.
+
+{% enddocs %}
+
 {% docs fct_calls_booked__overview %}
 
 The Speed-to-Lead denominator. One row per Calendly booking event —

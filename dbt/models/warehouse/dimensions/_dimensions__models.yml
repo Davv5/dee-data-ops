@@ -149,6 +149,71 @@ models:
         tests:
           - not_null
 
+  - name: dim_sdr
+    description: >
+      SDR-role-filtered conformed dimension over dim_users. One row per
+      currently-active SDR. Not a duplicate dimension — a role-scoped subset
+      view, per the conformed-dimension pattern. Carries sdr_sk (same hash as
+      dim_users.user_sk for interchangeability) plus active_from / active_to
+      from the dim_users_snapshot SCD-2 history.
+      (source: "Creating a Data Model w/ dbt: Facts", Data Ops notebook.)
+    columns:
+      - name: sdr_sk
+        description: Surrogate key over user_id. Same hash as dim_users.user_sk — interchangeable for joins.
+        tests:
+          - unique
+          - not_null
+      - name: user_sk
+        description: Pass-through from dim_users.user_sk.
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_users')
+              field: user_sk
+      - name: user_id
+        description: Native GHL user_id. Natural key.
+        tests:
+          - not_null
+      - name: sdr_name
+        description: SDR display name (alias of dim_users.name).
+      - name: email
+        description: GHL user email.
+      - name: role
+        description: Always 'SDR' for rows in this dim (filtered at source).
+      - name: is_active
+        description: Always TRUE for rows in this dim (filtered at source).
+      - name: active_from
+        description: UTC timestamp when this SDR's current snapshot row became active. From dim_users_snapshot open row.
+      - name: active_to
+        description: UTC timestamp when the snapshot row was superseded. NULL on the open (current) row.
+
+  - name: dim_source
+    description: >
+      Lead-source conformed dimension. One row per distinct lead_source value
+      from dim_contacts plus an __unknown__ sentinel row for NULL lead_sources.
+      Enriched with human-readable descriptions and is_paid / is_organic flags
+      from the stl_lead_source_lookup seed. Note: actual lead_source values are
+      campaign/content labels (e.g. "ig blueprint case study"), not a controlled
+      channel taxonomy. Seed covers the inferrable channel-level values; campaign-
+      specific labels emit is_paid = NULL and are flagged for David's review.
+    columns:
+      - name: source_sk
+        description: Surrogate key over lead_source. PK. Always populated — __unknown__ row handles NULL inputs.
+        tests:
+          - unique
+          - not_null
+      - name: lead_source
+        description: Raw lead_source value as captured in GHL contacts. __unknown__ for NULL values.
+        tests:
+          - unique
+          - not_null
+      - name: source_description
+        description: Human-readable description from stl_lead_source_lookup seed. NULL for unseeded campaign labels.
+      - name: is_paid
+        description: TRUE = paid traffic; FALSE = organic/referral. NULL when classification requires David's input.
+      - name: is_organic
+        description: Derived as NOT is_paid when is_paid is known; NULL when is_paid is NULL.
+
   - name: dim_offers
     description: >
       D-DEE v1 offer stack. Hand-coded inline (not a seed) because the
