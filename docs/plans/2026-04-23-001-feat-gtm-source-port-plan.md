@@ -327,7 +327,7 @@ docs/
 
 ---
 
-- [ ] U2. **Retarget Merge's dbt profile, env, and CI to `project-41542e21-...`**
+- [x] U2. **Retarget Merge's dbt profile, env, and CI to `project-41542e21-...`** *(landed 2026-04-23 as PR #67, commit `5d85afc`)*
 
 **Goal:** All dbt commands from Merge's repo build into GTM's GCP project.
 

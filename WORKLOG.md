@@ -11,6 +11,28 @@ Rolling log of what's been done on this project. Newest entries at the top. Tail
 
 ---
 
+## 2026-04-23 (late) — U2 dbt profile retarget: all dev/ci/prod targets default to project-41542e21-470f-4589-96d
+
+**What happened**
+- PR #67 merged at 19:36Z (commit `5d85afc`). Single logical change across 9 files: dbt + env + CI all point at the consolidated GCP project.
+- `dbt/profiles.yml` — dev/ci/prod targets default to `project-41542e21-470f-4589-96d` via `env_var(..., '<fallback>')`. Header comment block documents post-U2 state and references the plan file.
+- `.env.example` — `GCP_PROJECT_ID_DEV` + `GCP_PROJECT_ID_PROD` defaults updated; BQ keyfile path rewritten (`/Users/david/.config/gcloud/project-41542e21-470f-4589-96d/dbt-dev.json`).
+- `.github/workflows/dbt-deploy.yml`, `dbt-ci.yml`, `dbt-nightly.yml` — `GCP_PROJECT_ID_PROD` env var retargeted across all three workflows (nightly was not in the original U2 file list; caught and updated).
+- `dbt/dbt_project.yml` + `dbt/macros/generate_schema_name.sql` — schema-routing references updated for the new project.
+- `CLAUDE.md` — solo-operator pre-auth scope clause refined: `project-41542e21-...` now named as the active/consolidated project; `dee-data-ops` + `dee-data-ops-prod` remain in-scope during transition until decommissioned at U14.
+- `.claude/state/project-state.md` regenerated; stamp reads "_Last regenerated: 2026-04-23 (late — U2 retarget landed)_".
+
+**Decisions**
+- **All three targets (dev/ci/prod) default to the consolidated project via env-var fallback**, not hardcoded. Keeps `profiles.yml` portable across contributors and environments; defaults encode the U2 decision without forcing every local `.env` to override.
+- **CLAUDE.md scope phrasing made transition-aware** rather than listing three projects as permanent peers. Signals that `dee-data-ops*` are end-of-life until U14, not parallel homes.
+- **Functional `dbt debug` verification deferred.** Merge has no local `.venv/dbt` yet (flagged in U1 preflight §11). `dbt debug --target dev` + `dbt compile -s stg_ghl__contacts` were not run under U2. Picked up as the first step of U3 when dbt gets installed anyway. This deferral is intentional; it isolates "config retargeting" from "dbt installation + first compile," which would otherwise conflate two sources of failure in the same PR.
+
+**Open threads**
+- **U2 checkbox flip + this WORKLOG entry** — both bookkeeping carryovers deferred from U2 into the chore PR that contains this entry. After that lands, U2's bookkeeping is closed.
+- **Functional dbt check on new project target** — gates U3 start. First move in U3: `pip install dbt-bigquery` + `dbt debug --target dev`.
+- **Merge CI service account** (`merge-dbt-ci@project-41542e21-...`) + keyfile secret — not yet provisioned. Needed before CI can run dbt builds in prod. Scoped in U1 preflight §12; slots between U3 and U4a.
+- **`dbt_metadata_sync.py` first-run, SMTP bootstrap, `MB_ENABLE_QUERY_CACHING` flip, Track X Calendly poller bringup, PR #50 / #44** — unchanged from earlier state; none gate U3.
+
 ## 2026-04-23 (evening) — U1 preflight executed; plan U3/U4 refined from findings
 
 **What happened**
