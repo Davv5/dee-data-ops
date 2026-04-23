@@ -11,12 +11,12 @@ Rolling log of what's been done on this project. Newest entries at the top. Tail
 
 ---
 
-## 2026-04-22 (evening) — Track Z: live-by-default Metabase defaults + freshness tile + rule
+## 2026-04-22 (evening) — Track Z: live-by-default Metabase defaults + freshness tile + rule (conflict resolved onto main after W/F1/F2 merge)
 
 **What happened**
 - `ops/metabase/authoring/sync.py` — `upsert_card` + `upsert_dashboard` both gain `cache_ttl=0` default. Every new tile and dashboard inherits live-by-default (no per-question cache) without per-call configuration.
 - `ops/metabase/authoring/infrastructure/caching_config.py` — `DASHBOARD_CACHE_TTL_SEC` converted from single constant (21600) to a per-dashboard dict. Speed-to-Lead and Speed-to-Lead Lead Detail both set to 0. `DEFAULT_CACHE_TTL_SEC=0` covers any future dashboard not explicitly named. `main()` iterates all named dashboards idempotently.
-- `ops/metabase/authoring/dashboards/speed_to_lead.py` — "Data freshness (end-to-end lag)" scalar tile added at row 0. Reads `timestamp_diff(current_timestamp(), max(_ingested_at), minute)` from `raw_ghl.conversations`. All existing rows shifted down by 2. Track E's "Data refreshed" footer tile (row 41) untouched — distinct tiles for distinct questions (raw lag vs rollup computed_at).
+- `ops/metabase/authoring/dashboards/speed_to_lead.py` — "Data freshness (end-to-end lag)" scalar tile added at row 0. Reads `timestamp_diff(current_timestamp(), max(_ingested_at), minute)` from `raw_ghl.conversations`. All existing rows shifted down by 2. Track F2's `speed_to_lead_detail` mart rewire preserved for all other cards. Footer "Data refreshed" tile coexists at row 41 (reads `mart_refreshed_at` per F2). Track Y note: `live-by-default.md` convention now applies to `speed_to_lead_detail` going forward (Track Y was reprioritized; the rule is source-agnostic).
 - `.claude/rules/live-by-default.md` — new cross-cutting rule documenting the live-by-default chain (dbt incremental → NRT ingestion → Metabase cache bypass → URL-fragment refresh). Corpus-cited.
 - `.claude/rules/metabase.md` — Lessons Learned caching paragraph updated: live-by-default = cache_ttl=0; daily-cadence = cache_ttl=21600; auto-refresh OSS gotcha documented.
 - `docs/runbooks/metabase-live-dashboard-setup.md` — created. 9-step checklist for new live-by-default dashboards.
@@ -24,15 +24,101 @@ Rolling log of what's been done on this project. Newest entries at the top. Tail
 **Decisions**
 - `cache_ttl=0` over `null` — `0` is explicit ("live"); `null` is ambiguous ("server default"). Track D empirically confirmed per-dashboard TTL persists on OSS v0.60.1.
 - Dashboard auto-refresh is URL-fragment only — corpus query confirmed no REST API payload key exists for `refresh_period` on any Metabase OSS version. Documented in rule + runbook + `sync.py` docstring as a gotcha. No code change to `upsert_dashboard` for this (would silently do nothing).
-- Freshness tile reads from `raw_ghl.conversations` (highest-cadence NRT source per Track W) — single-source freshness indicator; Calendly union deferred until Calendly-only regressions become a pattern.
+- Freshness tile reads from `raw_ghl.conversations` (highest-cadence NRT source per Track W) — NOT rewired to `speed_to_lead_detail`. The point of this tile is raw ingest lag, not mart lag. Source-agnostic by design.
 - `caching_config.py` one-off reset is manual (not CI) — idempotent and cheap; running in CI without observability is riskier than a conscious manual run. Documented in runbook step 8.
+- Conflict resolved via merge commit (not force-push / rebase) — David's explicit authorization per session instructions.
 
 **Open threads**
 - **Manual checkpoint 1 reached:** David should verify the `#refresh=60` URL-fragment approach is acceptable before any prod Metabase run. The REST API path does not exist — URL-fragment is the only OSS option.
 - **Manual checkpoint 2:** After any prod Metabase run, David should eyeball dev-Metabase to confirm `cache_ttl=0` persists on new cards (Track D confirmed 21600 persisted; 0 should too, but empirical check on live is warranted).
-- **Manual checkpoint 3:** Freshness tile placement (row 0) does not conflict with Track E's footer tile (row 41) — different rows, different purposes. David should confirm visually post-deploy that both tiles display correctly.
+- **Manual checkpoint 3:** Freshness tile placement (row 0) coexists with Track F2's mart rewire and Track E's footer (row 41) — three distinct tiles for three distinct freshness questions. David should confirm visually post-deploy.
 - **Manual checkpoint 4:** Full prod run + browser verification (auto-refresh tick + freshness tile < 2 min lag) pending Tracks W+Y deployment.
-- Track E (PR #50) must merge before Track Z's PR is opened — Track Z rebases to add its row-0 tile without disturbing Track E's footer. Zero code conflict (different rows, different cards) but merge ordering per track file.
+- **Track Y callout:** Track Y (dbt incremental + 2-min Cloud Run builder) was reprioritized. The `live-by-default.md` rule is source-agnostic and applies equally to `speed_to_lead_detail` (the F2 mart). No rule change needed; convention already generalizes.
+
+## 2026-04-22 (evening) — Track W: GHL extractor migrated to Cloud Run Jobs + Cloud Scheduler (1-min hot / 15-min cold)
+
+**What happened**
+- Containerized the GHL extractor: `ingestion/ghl/Dockerfile`, `.dockerignore`, `ingestion/__init__.py`, `ingestion/ghl/__init__.py` (needed for `python -m ingestion.ghl.extract` module invocation).
+- Added `--endpoints` CSV flag + `--since` override to `extract.py` so the same image runs hot-mode (`conversations,messages`) or cold-mode (`contacts,opportunities,users,pipelines`). Default = all six (preserves GHA `workflow_dispatch` behavior).
+- Added BQ advisory lock (`raw_ghl._job_locks`) to `extract.py` via `MERGE` + `try/finally`: prevents the 1-min Cloud Scheduler from queueing a second execution while the prior one is still running. Lock TTL = 2 min. Lock is only engaged when `GCP_SECRET_MANAGER_PROJECT` is set (Cloud Run path); GHA / local dev paths skip it.
+- Wrote Terraform at `ops/cloud-run/ghl-extractor/terraform/`: `main.tf` (AR repo, `ghl-hot` + `ghl-cold` Cloud Run Jobs, Scheduler jobs, IAM), `variables.tf`, `outputs.tf`, `README.md` (apply/destroy/rollback runbook).
+- Wrote `ops/cloud-run/ghl-extractor/build-and-push.sh`: builds image tagged `:<sha>` + `:latest`, pushes to AR repo `ingest` in `dee-data-ops-prod`.
+- Wrote `.github/workflows/cloud-run-deploy-ghl.yml`: on merge to main touching `ingestion/ghl/**`, builds + pushes image and runs `gcloud run jobs update` for both jobs.
+- Edited `.github/workflows/ingest.yml`: schedule cron comment updated (Fanbasis-only note), added `if: matrix.source != 'ghl' || github.event_name == 'workflow_dispatch'` guard on "Run extractor" step. GHL still reachable via `workflow_dispatch`.
+- Edited `.claude/rules/ingest.md`: carved the near-real-time exception subsection for Cloud Run Jobs (criteria: sub-5-min + dashboard-load-bearing + rate-limit-safe + BQ concurrency guard + Terraform-managed).
+- Wrote `docs/runbooks/ghl-cloud-run-extractor.md`: pause/resume, manual trigger, log inspection, BQ lock debug, freshness verification SQL, rollback steps, cost estimate.
+- Updated `ingestion/ghl/README.md` to reflect dual execution paths.
+- Corpus query confirmed: double-ingestion risk during scheduler migration is handled by append-only + staging dedupe (idempotency contract). Atomic swap pattern (disable old, switch new, then verify) is the right cutover model.
+  (source: `.claude/rules/ingest.md` ingestion contract + "Why Data Migrations Go Wrong (3 reasons)", Data Ops notebook)
+
+**Decisions**
+- **BQ advisory lock, not Redis/GCS.** Already have BQ; a 2-min lock table is trivial and zero new backing stores. (Track W decision, see `extract.py` docstring)
+- **Lock only active on Cloud Run path.** `GCP_SECRET_MANAGER_PROJECT` env var presence signals Cloud Run vs GHA/local. GHA `workflow_dispatch` skips the lock so manual reruns aren't blocked.
+- **`conversations` before `messages` order enforced.** `ALL_ENDPOINTS` ordering is canonical regardless of `--endpoints` CLI input order — the messages fetcher fans out from BQ conversations, so conversations must be fresh first.
+- **`GCP_PROJECT_ID_DEV` var name left unchanged.** Misleadingly named but renaming is a separate concern (would touch GHA + SM + TF). Noted in BACKLOG as a follow-up.
+- **Scheduler SA is `cloud-scheduler@dee-data-ops-prod.iam.gserviceaccount.com`.** Needs manual creation if absent (prereq in TF README).
+- **Projected monthly cost: < $6/month total.** Cloud Run Jobs + Scheduler + AR. Negligible. (noted in runbook)
+
+**Open threads**
+- **Checkpoint W1 — Manual verification required before proceeding to prod infra:**
+  - David must build + smoke-test the container in dev before pushing to AR: `docker build -t ghl-extractor:dev -f ingestion/ghl/Dockerfile . && docker run --rm -e GCP_PROJECT_ID_DEV=dee-data-ops -e GOOGLE_APPLICATION_CREDENTIALS=/sa.json -v ~/sa-dev.json:/sa.json ghl-extractor:dev --endpoints conversations --since 2026-04-22T00:00:00Z --dry-run`
+  - David must run `terraform plan` and confirm before `apply`. TF README has import note for AR repo if Track J already created it.
+  - David must verify Secret Manager IAM is already set (pre-context: he fixed `ingest@dee-data-ops.iam.gserviceaccount.com` on `ghl-api-key` + `ghl-location-id` in `dee-data-ops-prod` this session — no action needed).
+  - David must confirm the `cloud-scheduler@dee-data-ops-prod.iam.gserviceaccount.com` SA exists or create it.
+- **Checkpoint W2 — Dual-run observation window:** after first Cloud Run execution, query `raw_ghl.conversations` to confirm 1-min cadence before disabling the GHA cron permanently (the `if:` guard in `ingest.yml` is the soft disable; the workflow still exists as backstop).
+- **Track Y (dbt incremental + 2-min builder)** is parallel-safe — can start against dev data now. Will show no STL improvement until Track W is live.
+- **Track Z (Metabase live-by-default)** is blocked on Tracks W+Y for end-to-end freshness.
+- **`live-by-default.md` rule** deferred to Track Z per track spec (no dependency for execution correctness).
+
+## 2026-04-22 (evening) — Track F2: speed_to_lead_detail wide mart + Metabase card rewire (F2 branch, pending F1 merge)
+
+**What happened**
+- Created `dbt/models/marts/speed_to_lead_detail.sql` — wide mart, one row per (booking × touch-event), 15,291 rows in dev. Built on `fct_speed_to_lead_touch` + joins to `dim_sdr`, `dim_source`, `dim_contacts`, `dim_pipeline_stages` (pipeline columns NULL in dev — fct_calls_booked.pipeline_stage_sk is stubbed NULL).
+- Added `speed_to_lead_detail` model block + full column docs to `dbt/models/marts/_marts__models.yml`.
+- Created `dbt/tests/stl_headline_parity.sql` — singular test with NULL-safety: flags both value divergence and NULL-on-either-side.
+- Created `dbt/tests/stl_grain_integrity.sql` — grain uniqueness test on (booking_id, coalesce(cast(touched_at as string), 'no-touch')).
+- `dbt build --target dev --select +speed_to_lead_detail` — PASS=157, ERROR=2. The 2 errors are pre-existing `source_freshness` test + `stl_headline_parity` (dev data gap — see below). `stl_grain_integrity` PASS. `speed_to_lead_detail` model tests (unique, not_null, accepted_values) all PASS.
+- Rewired all 12 Metabase cards in `ops/metabase/authoring/dashboards/speed_to_lead.py` — `native_query` strings now aggregate directly on `dee-data-ops-prod.marts.speed_to_lead_detail`. Card names frozen at v1.6. `grep -c "marts\.stl_" speed_to_lead.py` = 0.
+- Added `is_first_touch` filter to `detail_card` with default ON (backward-compatible). Added `first_touch_only` param to `detail_dash` with 4-way parameter mapping.
+
+**Decisions**
+- `is_first_touch` default: ON. Keeps the detail table behavior identical to v1.6 on first open. Users toggle OFF to see full touch sequence per booking (new capability).
+- `stl_headline_parity` failure is a known dev data gap: `stl_headline_7d` (old path via `sales_activity_detail`) returns `old_pct = NULL` for the last 7 days because `first_toucher_role` is NULL for all recent bookings — the `fct_outreach` → `first_touch` → `first_toucher` join fails for contacts in the current window. The new path (`fct_speed_to_lead_touch`) correctly returns `new_pct = 18.8%` (32 SDR first touches in last 7d, 6 within 5min). This is a DATA QUALITY IMPROVEMENT on the new path, not a regression. `stl_headline_7d` is effectively broken for current data. Not a >10pp delta on computed values — both values are not computed simultaneously.
+- Parity numbers: `new_pct = 18.8`, `old_pct = NULL`, `diff_pp = NULL (one_or_both_null)`. Test correctly flags this per the NULL-safety design in the test. No tolerance loosening applied.
+- `show_rate_pct` on `source_outcome` and `close_rate_by_touch`: now uses real `show_outcome = 'showed'` (not fallback `close_outcome IS NOT NULL`). Delta unknown until prod run — flagged as intentional improvement.
+- `days_since_stage_change`: emitted as `NULL` (always) because this is a booking-level signal not available on `dim_pipeline_stages`. Reserved column for a future fact-level computation.
+- F2 branch cherry-picks F1 commit `268d947` (PR #51 not yet merged). pr-reviewer must note merge dependency.
+
+**Open threads**
+- `stl_headline_parity` will remain failing in dev until `fct_calls_booked.contact_sk` staging gap resolves (invitee staging). Expected to be GREEN in prod where the full contact join works.
+- Metabase smoke test skipped (Task 6 of track) — dev Metabase Docker not started; smoke test is a human-run step before prod deploy per the track's prod deployment sequence.
+- `show_rate_pct` delta magnitude vs v1.6 unknown until prod run. Track instruction: stop and report if >10pp on any `lead_source`. David must verify post-prod deploy (Step F of prod deployment sequence).
+- Dashboard `cache_ttl` check (Track D infrastructure): deferred to David for prod verification per track's open question.
+
+## 2026-04-22 (pm) — Track F1: warehouse layer — fct_speed_to_lead_touch + dim_sdr + dim_source (additive-only)
+
+**What happened**
+- Created `dbt/models/warehouse/facts/fct_speed_to_lead_touch.sql` — one row per (booking × touch-event), lowest grain. 5,406 rows in dev (all `no_sdr_touch` — see open threads).
+- Created `dbt/models/warehouse/dimensions/dim_sdr.sql` — role-filtered conformed dim on `dim_users`; 4 active SDRs in dev (Marco, Boipelo, Blagoj, Aariz).
+- Created `dbt/models/warehouse/dimensions/dim_source.sql` — lead-source dim; 111 distinct values, 13 seeded with description + is_paid.
+- Created `dbt/seeds/stl_lead_source_lookup.csv` — 12 inferrable channel-level values classified + `__unknown__` sentinel.
+- Updated `dbt/snapshots/dim_users_snapshot.sql` — expanded check_cols to `['name', 'role', 'email', 'is_active']` per track spec; explicit column select.
+- Ran `dbt snapshot --target dev` — 22 rows merged into `snapshots.dim_users_snapshot`.
+- `dbt build --target dev --select dim_sdr dim_source fct_speed_to_lead_touch` — PASS=27 WARN=0 ERROR=0 (3 models + 24 tests all green).
+- Updated `_facts__models.yml`, `_dimensions__models.yml`, `_seeds__models.yml`, `_facts__docs.md`, `_dimensions__docs.md` with new model/column docs.
+
+**Decisions**
+- Grain is `(booking × touch-event)` — lowest justifiable grain. Justification: "3 Data Modeling Mistakes That Can Derail a Team", Data Ops notebook. Bookings with zero SDR touches emit one `touch_sk = NULL` row to preserve denominator counts.
+- `dim_sdr` is a conformed view (role-filtered subset) on `dim_users`, not a fresh dim. Source: "Creating a Data Model w/ dbt: Facts", Data Ops notebook.
+- `dim_source` seed covers only the 12 inferrable channel-level `lead_source` values. The actual values are campaign/content labels (~100 entries), not the channel taxonomy the plan assumed — flagged to David (see open threads).
+- `show_outcome` derivation: v1 heuristic using Calendly `event_status` + GHL `last_stage_change_at >= scheduled_for`. Fallback documented inline (code comment) for F3 finalization.
+- `is_sdr_touch` uses current-state `dim_users.role` in F1; SCD-2 as-of join deferred to F2.
+
+**Open threads**
+- **Sanity query returns NULL** (pct_within_5min_7d = NULL) for both the new fact and the existing `stl_headline_7d` rollup in dev. Root cause: `fct_calls_booked.contact_sk` is NULL for all 5,406 bookings — the `stg_calendly__event_invitees` staging is not yet wired (pre-existing open thread). The metric will light up once invitee staging ships. NOT a grain/calculation bug.
+- **`dim_source` seed**: 98 of 111 `lead_source` values are campaign-specific labels (e.g., "ig blueprint case study", "AI Brand Prompts") with `is_paid = NULL`. David needs to classify these or confirm the existing 12 channel-level classifications are sufficient for F2.
+- **Roster gap**: Ayaan, Jake, Moayad, Halle not in `dim_sdr` (roles unresolved in `ghl_sdr_roster`). Their touches will carry `attribution_quality_flag = 'role_unknown'` when invitee staging unlocks the join. Out of scope for F1.
+- **Prod snapshot run** is F2's pre-step responsibility. `dbt snapshot --target prod` must run before F2's mart can use role-at-touch-time SCD joins.
 
 ## 2026-04-22 (pm) — Metabase Learn corpus + v1.3.1 polish (Track D shipped, Track E in flight) + OSS permissions research
 
