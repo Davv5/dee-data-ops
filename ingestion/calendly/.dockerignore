@@ -1,0 +1,16 @@
+# Exclude from Docker build context (repo root as context)
+.venv/
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+tests/
+**/*.md
+.git/
+.github/
+.claude/
+ops/
+dbt/
+reference/
+docs/
+*.env
+*.env.*

@@ -11,6 +11,34 @@ Rolling log of what's been done on this project. Newest entries at the top. Tail
 
 ---
 
+## 2026-04-22 (evening) — Track X: Calendly Cloud Run poller (replaces Fivetran connector, 1-min cadence)
+
+**What happened**
+- `ingestion/calendly/extract.py` — custom Calendly v2 API extractor; mirrors GHL extractor (Track W) pattern exactly: BQ advisory lock (`raw_calendly._job_locks`), token-bucket throttle at 60 req/min, `_ingested_at` landing, Secret Manager auth via `GCP_SECRET_MANAGER_PROJECT`, `--endpoints` CSV flag, `--since` backfill flag. Endpoints: `scheduled_events`, `invitees` (fan-out from events), `invitee_no_shows`.
+- `ingestion/calendly/Dockerfile`, `.dockerignore`, `requirements.txt`, `__init__.py` — container setup mirroring GHL layout.
+- `ops/cloud-run/calendly-extractor/terraform/` — `main.tf`, `variables.tf`, `outputs.tf`, `README.md`. Single Cloud Run Job `calendly-poll` at 1-min cadence (no hot/cold split — Calendly volume too low to justify). Uses shared `ingest` AR repo from Track W.
+- `ops/cloud-run/calendly-extractor/build-and-push.sh` — same shape as GHL build script.
+- `.github/workflows/cloud-run-deploy-calendly.yml` — CD on merge to main touching `ingestion/calendly/**`.
+- `dbt/models/staging/calendly/stg_calendly__events.sql` — dual-run overlap update: unions `raw_calendly.event` (Fivetran) + `raw_calendly.scheduled_events` (Cloud Run), dedupes by `uri` on `coalesce(_ingested_at, _fivetran_synced)` desc. `_source_path` column added for 24h reconciliation.
+- `dbt/models/staging/calendly/stg_calendly__event_invitees.sql` — same dual-run pattern: unions `event_invitee` (Fivetran) + `invitees` (Cloud Run).
+- `dbt/models/staging/calendly/_calendly__sources.yml` — `loaded_at_field` changed from `_fivetran_synced` to `_ingested_at`; freshness thresholds from 25h warn / 48h error → 1h warn / 4h error; new tables (`scheduled_events`, `invitees`, `invitee_no_shows`) declared.
+- `.claude/rules/ingest.md` — v1 source inventory table updated: Calendly flipped from "Fivetran managed connector" to "Python extractor + Cloud Run Job (1-min cadence)"; migration note added.
+- `docs/runbooks/calendly-cloud-run-extractor.md` — full ops runbook: pause/resume, manual trigger, BQ lock debug, freshness SQL, cost estimate ($1-3/month vs $120/month Fivetran Standard), Fivetran retirement steps.
+- Corpus query: confirmed append-only + staging dedupe is the safe cutover idempotency pattern. Source: `.claude/rules/ingest.md` + "Why Data Migrations Go Wrong (3 reasons)", Data Ops notebook.
+
+**Decisions**
+- **Single Cloud Run Job (no hot/cold split).** Calendly data volume is ~1-2 orders of magnitude below GHL. Hot/cold split would add Terraform complexity with no freshness benefit. (Track X decision)
+- **Token-bucket at 60 req/min.** Calendly does not publish a hard req/min limit. 60/min is conservative; if 429s appear in prod, raise cadence to 2-min in main.tf and runbook.
+- **Dual-run overlap in staging.** Both Fivetran and Cloud Run write to `raw_calendly.*` during the 24h overlap window. Staging handles dedup via `coalesce(_ingested_at, _fivetran_synced)` — no special ingest-layer reconciliation needed. (Source: `.claude/rules/ingest.md`, Data Ops notebook)
+- **Fivetran connector: PAUSE (not delete).** 30-day emergency rollback window. Delete after 2026-05-22 once reconciliation confirms parity.
+
+**Open threads**
+- **Manual checkpoint #1:** `calendly-api-token` secret does NOT exist in `dee-data-ops-prod` yet. David must create + populate it before `terraform apply`. Commands in `ingestion/calendly/README.md`.
+- **Manual checkpoint #2:** Docker smoke-test (dev BQ run with `--dry-run`) — David confirms container builds and Calendly auth works before applying Terraform.
+- **Manual checkpoint #3:** `terraform plan` review + apply — David confirms before creating Cloud Run Job + Scheduler.
+- **Manual checkpoint #4:** 24h dual-run reconciliation — David runs the reconciliation SQL in the runbook and confirms Cloud Run parity before pausing Fivetran connector.
+- **Post-cutover cleanup (after Fivetran pause):** simplify staging models (remove union/coalesce, keep only `_ingested_at`). Track X runbook step documented.
+
 ## 2026-04-22 (evening) — Track Z: live-by-default Metabase defaults + freshness tile + rule (conflict resolved onto main after W/F1/F2 merge)
 
 **What happened**

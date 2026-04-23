@@ -23,15 +23,17 @@ Every custom-source extractor is:
 
 D-DEE v1 has exactly five sources — two ingested via custom Python, three via Fivetran:
 
-| Source     | Pipeline                          | Raw dataset      | Notes                                                 |
-|------------|-----------------------------------|------------------|-------------------------------------------------------|
-| GHL        | Python extractor + GitHub Actions | `raw_ghl`        | Primary CRM; the identity-spine anchor                |
-| Fanbasis   | Python extractor + GitHub Actions | `raw_fanbasis`   | **Week-0 deferred** — scoped but not wired in v1 cut  |
-| Typeform   | Fivetran managed connector        | `raw_typeform`   | No repo-local extractor; managed in Fivetran UI       |
-| Calendly   | Fivetran managed connector        | `raw_calendly`   | No repo-local extractor; managed in Fivetran UI       |
-| Stripe     | Fivetran managed connector        | `raw_stripe`     | No repo-local extractor; managed in Fivetran UI       |
+| Source     | Pipeline                                          | Raw dataset      | Notes                                                                              |
+|------------|---------------------------------------------------|------------------|------------------------------------------------------------------------------------|
+| GHL        | Python extractor + Cloud Run Jobs                 | `raw_ghl`        | Primary CRM; identity-spine anchor. Hot (1-min) + cold (15-min). Track W.         |
+| Calendly   | Python extractor + Cloud Run Job (1-min cadence)  | `raw_calendly`   | Replaced Fivetran connector (Track X, 2026-04-22). Fivetran paused, not deleted.  |
+| Fanbasis   | Python extractor + GitHub Actions                 | `raw_fanbasis`   | **Week-0 deferred** — scoped but not wired in v1 cut                               |
+| Typeform   | Fivetran managed connector                        | `raw_typeform`   | No repo-local extractor; managed in Fivetran UI                                    |
+| Stripe     | Fivetran managed connector                        | `raw_stripe`     | No repo-local extractor; managed in Fivetran UI                                    |
 
 Fivetran-managed sources follow the **same raw-dataset contract** (`raw_<source>.*`) so staging views remain uniform, but their freshness/schedule/SLAs are governed by Fivetran config, not this rule.
+
+**Calendly migration note (Track X, 2026-04-22):** The Fivetran Calendly connector was replaced with a custom Cloud Run Job poller. Fivetran connector is PAUSED (not deleted) as a 30-day rollback path. During the 24h dual-run overlap window, both sources wrote to `raw_calendly.*`; staging handled dedup via `coalesce(_ingested_at, _fivetran_synced)`. After Fivetran was paused, staging was simplified to `_ingested_at` only. See `docs/runbooks/calendly-cloud-run-extractor.md` for ops and rollback procedures.
 
 ## Directory shape (Python extractors)
 
