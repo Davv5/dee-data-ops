@@ -1,9 +1,12 @@
+-- U3 column-rename (2026-04-23): see stg_ghl__contacts.sql header.
+-- NB: raw_ghl.ghl__users_raw is 0 rows as of U1 preflight — source
+-- passes zero rows through; not a U3 bug.
 with source as (
 
     select
-        id,
+        entity_id                                                       as id,
         _ingested_at,
-        payload
+        to_json_string(payload_json)                               as payload
     from {{ source('ghl', 'users') }}
 
 ),

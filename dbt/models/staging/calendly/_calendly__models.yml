@@ -92,3 +92,25 @@ models:
           - not_null
       - name: invitee_email_norm
         description: Lowercased + trimmed email; join key to dim_contacts.email_norm.
+
+  - name: stg_calendly__event_types
+    description: >
+      1:1 staging view over `Raw.calendly_objects_raw` filtered by
+      `entity_type = 'event_types'`. Resolves opaque `event_type_uri` foreign
+      keys on scheduled events into human-readable names. Added in U3
+      (2026-04-23) to complete the Calendly blob-shim across all three
+      entity_types present in the GTM extractor output. No downstream mart
+      consumes this today; it is scaffolded for future joins onto
+      `stg_calendly__events.event_type_id`.
+    columns:
+      - name: event_type_id
+        description: Event-type URI (primary key).
+        tests:
+          - unique
+          - not_null
+      - name: event_type_name
+        description: Human-readable event-type name (e.g. "30 Minute Meeting").
+      - name: duration_minutes
+        description: Scheduled meeting duration.
+      - name: is_active
+        description: Whether the event type is currently accepting bookings.

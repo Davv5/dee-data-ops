@@ -1,33 +1,33 @@
 -- Hard-fail singular test — any declared raw source >25h stale trips dbt test.
 -- Complements `dbt source freshness` (warn-only in nightly) with a blocking
--- check that can gate CI / prod deploys. Column refs:
---   GHL sources use `_ingested_at` (custom extractor).
---   Fivetran sources use `_fivetran_synced`.
+-- check that can gate CI / prod deploys.
 --
--- 2026-04-22 scope narrowing: raw_stripe.charge removed from this hard-fail
--- list because the Stripe Fivetran connector has a known sync gap (zero rows
--- in charge/customer/invoice/payment_intent despite 4,750 checkout_session
--- events flowing — see .claude/state/project-state.md "Open threads"). That
--- gap predates the speed-to-lead dashboard and is tracked separately. Re-add
--- the raw_stripe.charge line as soon as the Fivetran sync is restored.
+-- Post-U3 (2026-04-23): GHL and Stripe sources are temporarily excluded
+-- from the hard-fail list during the consolidation window.
+--
+--  - GHL: `bq-ingest` Cloud Run service is partially broken (U1 preflight
+--    §13); Phase-2 `raw_ghl.*` last wrote 2026-04-19 14:33 and has not
+--    recovered. Fix belongs to GTM's repo and is a U4b precondition, not
+--    a U3 blocker. Accepted-as-is for U2–U4a per preflight sign-off.
+--  - Stripe: `Raw.stripe_objects_raw` has been ~50 days stale since at
+--    least 2026-03-04 (U1 preflight §10 — `stripe-backfill` Cloud Run
+--    Job failing daily). Tracked in U7/U8; not cutover-blocking.
+--
+-- Calendly and Typeform blob sources ARE included — GTM's extractors
+-- write to them hourly and both were fresh at U1 preflight. Re-add GHL
+-- to this list when `bq-ingest` is repaired and the raw catches up.
 
 with
 sources as (
-    select 'raw_ghl.contacts'      as source_name, max(_ingested_at) as last_ingest from {{ source('ghl', 'contacts') }}
+    select 'raw_calendly'                          as source_name,
+           max(ingested_at)                        as last_ingest
+    from {{ source('raw_calendly', 'calendly_objects_raw') }}
+    where entity_type = 'scheduled_events'
     union all
-    select 'raw_ghl.conversations',                 max(_ingested_at) from {{ source('ghl', 'conversations') }}
-    union all
-    select 'raw_ghl.messages',                      max(_ingested_at) from {{ source('ghl', 'messages') }}
-    union all
-    select 'raw_ghl.opportunities',                 max(_ingested_at) from {{ source('ghl', 'opportunities') }}
-    union all
-    select 'raw_ghl.pipelines',                     max(_ingested_at) from {{ source('ghl', 'pipelines') }}
-    union all
-    select 'raw_ghl.users',                         max(_ingested_at) from {{ source('ghl', 'users') }}
-    union all
-    select 'raw_calendly.event',                    max(_fivetran_synced) from {{ source('raw_calendly', 'event') }}
-    union all
-    select 'raw_typeform.response',                 max(_fivetran_synced) from {{ source('raw_typeform', 'response') }}
+    select 'raw_typeform',
+           max(ingested_at)
+    from {{ source('raw_typeform', 'typeform_objects_raw') }}
+    where entity_type = 'responses'
 )
 
 select *

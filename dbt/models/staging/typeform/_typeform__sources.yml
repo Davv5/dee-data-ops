@@ -3,40 +3,50 @@ version: 2
 sources:
   - name: raw_typeform
     description: >
-      Raw landing zone for Typeform, populated by the Fivetran Typeform
-      connector (daily sync). `response` is the header table (one row per
-      form submission); `response_answer` holds the answers in EAV form keyed
-      by `response_id` + `field_id`. Per the 1:1-with-raw staging rule, each
-      raw table gets its own staging view — psychographic-field pivoting
-      (age / business_stage / investment_range / core_struggle /
-      emotional_goal_value / current_situation) happens downstream in the
-      warehouse layer, not here.
-    database: dee-data-ops
-    schema: raw_typeform
+      Raw landing zone for Typeform. Post-U2 (2026-04-23) staging reads from
+      the consolidated project's legacy single-blob table
+      `Raw.typeform_objects_raw` via a U3 shim — staging filters by
+      `entity_type = 'responses'` (or `'forms'`) and JSON-decodes
+      `payload_json`. Fivetran `raw_typeform.{response,response_answer,form}`
+      is no longer the source of truth on this project.
+
+      TODO: retire this shim when `raw_typeform.typeform__<entity>_raw`
+      per-object tables are populated (U9 Phase-2 Typeform upgrade).
+
+      Gap surfaced in U3: the GTM extractor does not currently persist a
+      `form_id` top-level column or embed it in `payload_json` for
+      `entity_type='responses'`. The response → form linkage is lost in the
+      blob. Staging emits `form_id AS NULL` with a TODO; the real fix is the
+      U9 extractor rewrite (either extract from the API request path or add
+      a `parent_id`/`form_id` column to the landing table).
+    schema: Raw
     config:
-      loaded_at_field: _fivetran_synced
+      loaded_at_field: ingested_at
       freshness:
         warn_after: {count: 25, period: hour}
         error_after: {count: 48, period: hour}
     tables:
-      - name: response
+      - name: typeform_objects_raw
         description: >
-          One row per Typeform submission. Funnel-attribution source —
-          `hidden_utm_*` carry the ad source when present. ~22K rows.
+          GTM-extractor single-blob landing table. One row per Typeform
+          object regardless of kind; `entity_type` column filters to
+          responses / forms. `payload_json` holds the full Typeform object
+          as returned by the Typeform API (Responses API for responses,
+          Forms API for forms).
         columns:
-          - name: id
-            description: Typeform response id. Primary key of the source record.
+          - name: entity_id
+            description: Typeform object id. For responses, equal to the response token.
             tests:
               - not_null
-          - name: _fivetran_synced
-            description: Wall-clock UTC time Fivetran last synced this row.
+          - name: entity_type
+            description: '`responses` or `forms`.'
             tests:
               - not_null
-
-      - name: response_answer
-        description: >
-          EAV — one row per answered field per response. Keyed by
-          `response_id` + `field_id`. Psychographic-field extraction for
-          `dim_contacts` happens downstream (pivot on `field_id` → column).
-          Staging model deferred; the pivot needs a `field_id` →
-          `field_label` mapping that depends on the Typeform form config.
+          - name: ingested_at
+            description: Wall-clock UTC time this row was written into BigQuery.
+            tests:
+              - not_null
+          - name: payload_json
+            description: JSON column — full Typeform API payload.
+            tests:
+              - not_null

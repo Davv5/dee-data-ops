@@ -3,20 +3,49 @@ version: 2
 sources:
   - name: ghl
     description: >
-      Raw landing zone for GoHighLevel v2 API data. Populated by the custom
-      Python extractor in `ingestion/ghl/` (see .github/workflows/ingest.yml,
-      daily cron at 06:00 UTC). All tables share a three-column schema:
-      (id, _ingested_at, payload JSON-string) — see 2026-04-19 decision in
-      CLAUDE.local.md for why.
-    database: dee-data-ops  # TODO(Phase 6): parameterize once prod raw lands
+      Raw landing zone for GoHighLevel v2 API data. Post-U2 (2026-04-23)
+      staging reads from the consolidated project's Phase-2 per-object
+      tables in `raw_ghl.ghl__<obj>_raw`. These tables are populated by
+      GTM's `bq-ingest` Cloud Run service + `ghl-incremental-v2` Cloud Run
+      Job.
+
+      Column-rename shim (U3): the Phase-2 tables use columns
+      `(entity_id, _ingested_at, payload_json, location_id, partition_date,
+      event_ts, updated_at_ts, source, backfill_run_id, is_backfill)`.
+      Merge's staging models expect `(id, _ingested_at, payload)`. The
+      column-rename happens in each staging model's `source` CTE; this
+      YAML routes the physical table name via per-table `identifier:`
+      overrides so source(...) calls in SQL stay unchanged.
+
+      Row-coverage gaps from U1 preflight §7:
+        - contacts:            15,888 rows (healthy)
+        - opportunities:       25,959 rows (healthy)
+        - pipelines:           36 rows    (healthy)
+        - conversations:       101 rows   (GAP — 1,314 in legacy blob)
+        - messages:            0          (GAP — not in blob either)
+        - users:               0          (GAP — not in blob either)
+        - outbound_call_logs:  100 rows   (low, not staged today)
+
+      The conversations / messages / users gaps flow into staging as
+      reduced row counts. They may break U4a plumbing parity against a
+      frozen `dee-data-ops-prod` baseline; if so, swap conversations to a
+      blob-shim against `Raw.ghl_objects_raw` (1,314 rows) and accept
+      messages/users as empty (no upstream source has them right now).
+      Diagnosis belongs to U4a, not U3.
     schema: raw_ghl
     config:
       loaded_at_field: _ingested_at
     tables:
       - name: users
-        description: One row per GHL user (agency + account scope). ~16 rows.
+        identifier: ghl__users_raw
+        description: >
+          One row per GHL user (agency + account scope). ~16 rows expected;
+          0 rows present in `raw_ghl.ghl__users_raw` as of U1 preflight —
+          scheduler path is not populating this entity_type on either the
+          per-object or legacy blob table. Staging passes zero rows through
+          until upstream fix.
         columns:
-          - name: id
+          - name: entity_id
             description: GHL user id (primary key of the source record).
             tests:
               - not_null
@@ -24,12 +53,15 @@ sources:
             description: Wall-clock UTC time this row was written into BigQuery.
             tests:
               - not_null
-          - name: payload
-            description: JSON string — full user object as returned by GHL /users/search.
+          - name: payload_json
+            description: >
+              JSON column — full user object as returned by GHL /users/search.
+              Cast to string in staging for downstream compatibility.
             tests:
               - not_null
 
       - name: opportunities
+        identifier: ghl__opportunities_raw
         description: >
           One row per GHL opportunity. The "booked call" denominator for the
           headline Speed-to-Lead metric comes from this table (stage = booked).
@@ -39,7 +71,7 @@ sources:
             warn_after: {count: 36, period: hour}
             error_after: {count: 48, period: hour}
         columns:
-          - name: id
+          - name: entity_id
             description: GHL opportunity id.
             tests:
               - not_null
@@ -47,24 +79,28 @@ sources:
             description: Wall-clock UTC time this row was written into BigQuery.
             tests:
               - not_null
-          - name: payload
-            description: JSON string — full opportunity object as returned by GHL /opportunities/search.
+          - name: payload_json
+            description: JSON column — full opportunity object.
             tests:
               - not_null
 
       - name: conversations
+        identifier: ghl__conversations_raw
         description: >
           One row per GHL conversation (a contact-level thread spanning CALL /
           SMS / EMAIL). The "first outbound human SDR touch" numerator for the
           headline metric comes from this table, using `lastManualMessageDate`
           (human-originated) vs `lastMessageDate` (includes workflow automation)
-          to exclude workflow touches. ~15K rows.
+          to exclude workflow touches. Expected ~15K rows; **101 rows present**
+          in `raw_ghl.ghl__conversations_raw` as of U1 preflight §7 (vs 1,314
+          in `Raw.ghl_objects_raw`). U4a parity will surface whether this gap
+          is acceptable or the staging should shim from the blob.
         config:
           freshness:
             warn_after: {count: 36, period: hour}
             error_after: {count: 48, period: hour}
         columns:
-          - name: id
+          - name: entity_id
             description: GHL conversation id.
             tests:
               - not_null
@@ -72,15 +108,16 @@ sources:
             description: Wall-clock UTC time this row was written into BigQuery.
             tests:
               - not_null
-          - name: payload
-            description: JSON string — full conversation object as returned by GHL /conversations/search.
+          - name: payload_json
+            description: JSON column — full conversation object.
             tests:
               - not_null
 
       - name: contacts
-        description: One row per GHL contact (the lead-level entity). ~32K rows.
+        identifier: ghl__contacts_raw
+        description: One row per GHL contact (the lead-level entity). ~15.8K rows.
         columns:
-          - name: id
+          - name: entity_id
             description: GHL contact id.
             tests:
               - not_null
@@ -88,23 +125,26 @@ sources:
             description: Wall-clock UTC time this row was written into BigQuery.
             tests:
               - not_null
-          - name: payload
-            description: JSON string — full contact object as returned by GHL /contacts/search.
+          - name: payload_json
+            description: JSON column — full contact object.
             tests:
               - not_null
 
       - name: messages
+        identifier: ghl__messages_raw
         description: >
           One row per GHL message, fanned out from `conversations` via
           `/conversations/{id}/messages`. Per-touch SDR attribution lives here
-          (`userId`) because `conversations.assignedTo` is only populated on
-          ~1% of rows. Load-bearing for the Speed-to-Lead numerator.
+          (`userId`). **0 rows** present in either `raw_ghl.ghl__messages_raw`
+          or `Raw.ghl_objects_raw` as of U1 preflight — the upstream
+          extraction path for messages is not landing anywhere. Staging
+          passes zero rows through until upstream fix (not in U3 scope).
         config:
           freshness:
             warn_after: {count: 36, period: hour}
             error_after: {count: 48, period: hour}
         columns:
-          - name: id
+          - name: entity_id
             description: GHL message id.
             tests:
               - not_null
@@ -112,19 +152,19 @@ sources:
             description: Wall-clock UTC time this row was written into BigQuery.
             tests:
               - not_null
-          - name: payload
-            description: JSON string — full message object as returned by GHL /conversations/{id}/messages.
+          - name: payload_json
+            description: JSON column — full message object.
             tests:
               - not_null
 
       - name: pipelines
+        identifier: ghl__pipelines_raw
         description: >
           One row per GHL pipeline (with nested `stages` array in payload).
           Resolves opaque `pipelineStageId` on opportunities into human-readable
-          stage names; also powers the lead-magnet performance panel (each
-          pipeline = one lead magnet funnel at D-DEE). ~20 rows.
+          stage names; also powers the lead-magnet performance panel. ~36 rows.
         columns:
-          - name: id
+          - name: entity_id
             description: GHL pipeline id.
             tests:
               - not_null
@@ -132,7 +172,7 @@ sources:
             description: Wall-clock UTC time this row was written into BigQuery.
             tests:
               - not_null
-          - name: payload
-            description: JSON string — full pipeline object (including nested stages) as returned by GHL /opportunities/pipelines.
+          - name: payload_json
+            description: JSON column — full pipeline object (including nested stages).
             tests:
               - not_null

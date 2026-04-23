@@ -1,0 +1,57 @@
+version: 2
+
+sources:
+  - name: raw_fathom
+    description: >
+      Raw landing zone for Fathom (sales call recordings + transcripts). Post-U2
+      (2026-04-23) staging reads from the consolidated project's legacy
+      single-table `Raw.fathom_calls_raw`. One entity_type (`calls`), so no
+      object-type filtering needed beyond the default — but the `entity_type`
+      column is preserved for defensive filtering in case the GTM extractor
+      ever multiplexes.
+
+      TODO: retire this shim when `raw_fathom.fathom__calls_raw` per-object
+      tables are populated (U6 Phase-2 Fathom upgrade — ported from GTM with
+      transcript fix).
+
+      Known gap (U1 preflight §9): 0% transcript coverage across 1,157 calls.
+      `$.transcript` is null in every row. Stg passes the null through; root
+      cause + fix are scoped to U6 (port + fix Fathom extractor).
+    schema: Raw
+    config:
+      loaded_at_field: ingested_at
+      freshness:
+        warn_after: {count: 2, period: hour}
+        error_after: {count: 8, period: hour}
+    tables:
+      - name: fathom_calls_raw
+        description: >
+          GTM-extractor landing table. One row per Fathom recording. Carries
+          the full Fathom API payload as `payload_json` plus several extracted
+          top-level columns populated by the extractor + downstream BQML
+          classifier (`workspace_id`, `team_id`, `title`, `ended_at_ts`,
+          `external_participant_count`, `is_internal_only`,
+          `is_revenue_relevant`, `classification_label`,
+          `classification_confidence`, `classification_reason`).
+        columns:
+          - name: entity_id
+            description: Fathom recording id.
+            tests:
+              - not_null
+          - name: entity_type
+            description: Always `calls` as of U1 preflight.
+            tests:
+              - not_null
+          - name: ingested_at
+            description: Wall-clock UTC time this row was written into BigQuery.
+            tests:
+              - not_null
+          - name: payload_json
+            description: >
+              JSON column — full Fathom recording payload. Includes
+              `$.recording_start_time`, `$.scheduled_start_time`,
+              `$.meeting_title`, `$.recorded_by.{email,name}`,
+              `$.calendar_invitees[]`, `$.share_url`, `$.url`,
+              `$.transcript` (currently null; U6 fix).
+            tests:
+              - not_null

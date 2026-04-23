@@ -3,75 +3,61 @@ version: 2
 sources:
   - name: raw_calendly
     description: >
-      Raw landing zone for Calendly. As of Track X (2026-04-22), populated by
-      the custom Cloud Run Job poller (`ingestion/calendly/extract.py`) at
-      1-min cadence — replacing the Fivetran daily connector.
+      Raw landing zone for Calendly. Post-U2 (2026-04-23) staging reads from
+      the consolidated project's legacy single-blob table
+      `Raw.calendly_objects_raw` via a U3 shim — staging filters by
+      `entity_type IN ('scheduled_events', 'event_invitees', 'event_types')`
+      and JSON-decodes `payload_json`.
 
-      During the dual-run overlap window, both Fivetran rows (_fivetran_synced)
-      and poller rows (_ingested_at) coexist in the same tables. Staging views
-      handle both via coalesce(_ingested_at, cast(_fivetran_synced as timestamp))
-      for dedup ordering, plus a `_source_path` column for reconciliation.
+      The pre-U3 staging unioned a Fivetran source (`raw_calendly.event` /
+      `raw_calendly.event_invitee`) with a Cloud Run poller source
+      (`raw_calendly.scheduled_events` / `raw_calendly.invitees`). Both
+      paths lived in the Merge-owned `dee-data-ops` project and are no
+      longer the source of truth on this consolidated project. GTM's
+      Cloud Run poller already landed the same data into
+      `Raw.calendly_objects_raw` (10,882 fresh rows per U1 preflight §7);
+      Merge's staging now routes through that shape.
 
-      Freshness thresholds updated from 25h warn / 48h error (Fivetran cadence)
-      to 1h warn / 4h error (Cloud Run cadence). Track X decision, 2026-04-22.
+      The Phase-2 per-object tables `raw_calendly.calendly__*_raw` exist on
+      this project but are empty (U1 preflight §7) — scaffolded but no
+      writer. U3 treats this as "Phase-2 not landed for Calendly" and uses
+      the blob-shim pattern exactly like Stripe / Typeform / Fathom.
 
-      Three tables covered by the poller:
-        - `scheduled_events` (was `event` in Fivetran schema)
-        - `invitees` (was `event_invitee`)
-        - `invitee_no_shows`
-    database: dee-data-ops
-    schema: raw_calendly
+      TODO: retire this shim when the Calendly Phase-2 per-object tables
+      start landing data (future work — not in the U6/U7/U9 Phase-2 slate).
+      Freshness: 1h warn / 4h error matches the GTM Cloud Run poller cadence.
+    schema: Raw
     config:
-      loaded_at_field: _ingested_at
+      loaded_at_field: ingested_at
       freshness:
         warn_after: {count: 1, period: hour}
         error_after: {count: 4, period: hour}
     tables:
-      - name: event
+      - name: calendly_objects_raw
         description: >
-          Fivetran-written raw Calendly events table (daily sync cadence).
-          During the dual-run overlap window, this table receives rows from
-          both Fivetran (_fivetran_synced) and the Cloud Run poller (_ingested_at).
-          After Fivetran is paused, this table is superseded by `scheduled_events`.
-          Load-bearing for Speed-to-Lead: the booking created_at is the start clock.
-          ~5K rows.
+          GTM-extractor single-blob landing table. One row per Calendly
+          object regardless of kind; `entity_type` filters to
+          scheduled_events / event_invitees / event_types. `payload_json`
+          holds the full Calendly API payload. `parent_id` links invitees
+          to their parent scheduled_event.
         columns:
-          - name: uri
-            description: Full Calendly event URI — primary key of the source record.
+          - name: entity_id
+            description: Calendly object UUID (tail of the URI).
             tests:
               - not_null
-          - name: _fivetran_synced
-            description: Wall-clock UTC time Fivetran last synced this row (null for Cloud Run rows).
-
-      - name: scheduled_events
-        description: >
-          Cloud Run poller landing table for Calendly scheduled events (1-min cadence).
-          Replaces `event` after Fivetran is paused. One row per ingestion of
-          a Calendly scheduled event. `_ingested_at` is the authoritative freshness
-          column post-cutover.
-
-      - name: invitees
-        description: >
-          Cloud Run poller landing table for Calendly invitees (1-min cadence,
-          fanned out from scheduled_events). Replaces `event_invitee` post-cutover.
-          Carries invitee email for bridging Calendly bookings to GHL contacts.
-
-      - name: invitee_no_shows
-        description: >
-          Cloud Run poller landing table for Calendly invitee no-shows (1-min cadence).
-          New table — Fivetran was not writing this endpoint in the legacy setup.
-
-      - name: event_invitee
-        description: >
-          One row per invitee on a scheduled event (usually 1:1 with `event`
-          for 1:1 calls). Carries `email`, cancellation / no-show / rescheduled
-          state, and the Calendly tracking UTMs. Keyed to `event` via
-          `event_uri`. Legacy Fivetran table — kept active during dual-run overlap.
-          Will stop receiving writes when Fivetran is paused.
-
-      - name: question_and_answer
-        description: >
-          One row per custom question answered on an invitee's booking. Carries
-          `self_reported_source` when D-DEE asks it as a Calendly custom
-          question. Keyed via `event_invitee_uri`. Fivetran-only table;
-          staging model deferred.
+          - name: entity_type
+            description: '`scheduled_events`, `event_invitees`, or `event_types`.'
+            tests:
+              - not_null
+          - name: parent_id
+            description: >
+              Parent UUID — for event_invitees, the parent scheduled_event.
+              Null for scheduled_events + event_types.
+          - name: ingested_at
+            description: Wall-clock UTC time this row was written into BigQuery.
+            tests:
+              - not_null
+          - name: payload_json
+            description: JSON column — full Calendly API payload.
+            tests:
+              - not_null

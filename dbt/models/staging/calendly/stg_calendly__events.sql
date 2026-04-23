@@ -1,115 +1,58 @@
--- Track X (2026-04-22): dual-run overlap update.
+-- U3 blob-shim (2026-04-23): replaces the pre-U3 dual-source staging
+-- (Fivetran `raw_calendly.event` + Cloud Run poller
+-- `raw_calendly.scheduled_events`) with a single blob-shim that filters
+-- `Raw.calendly_objects_raw` by `entity_type = 'scheduled_events'` and
+-- JSON-decodes payload_json.
 --
--- During the dual-run overlap window both Fivetran (raw_calendly.event) and the Cloud
--- Run poller (raw_calendly.scheduled_events) write Calendly events. This view
--- unions both sources and deduplicates by uri, keeping the row with the most
--- recent effective timestamp (coalesce(_ingested_at, _fivetran_synced)). A
--- `_source_path` column identifies which pipeline wrote each row -- used for
--- 24h reconciliation queries before pausing Fivetran.
+-- This is load-bearing for Speed-to-Lead: `booked_at` (Calendly's
+-- `created_at`) is the start clock for the metric; `scheduled_for`
+-- (Calendly's `start_time`) is the meeting time.
 --
--- After Fivetran is paused: remove the union + coalesce, keep only the
--- scheduled_events source and _ingested_at. (Track X runbook step.)
---
--- Corpus grounding: append-only + staging dedupe is the idempotency contract;
--- both sources sharing raw_calendly.* means overlap is handled here, not at
--- ingest time. Source: ".claude/rules/ingest.md", Data Ops notebook.
---
--- Track X regression fix (2026-04-23): `raw_calendly.scheduled_events` is
--- created by the Cloud Run poller on its first successful write (WRITE_APPEND
--- + CREATE_IF_NEEDED in ingestion/calendly/extract.py). Before that write,
--- the table does not exist -- which broke the prod `dbt build` immediately
--- after the Track X merge with:
---   Not found: Table dee-data-ops:raw_calendly.scheduled_events was not
---   found in location US
---
--- Fix: gate the poller_source CTE behind `adapter.get_relation()`. When the
--- poller table exists, staging unions both pipelines (dual-run behavior as
--- designed). When it does not exist yet, staging falls back to the Fivetran
--- source alone -- same shape as pre-Track X, but emitting the same output
--- columns (`_source_path`, nullable `_ingested_at`) so downstream models
--- don't care. Once the poller has its first successful run, subsequent dbt
--- invocations pick it up automatically with no staging-model edit needed.
-
-{% set poller_relation = adapter.get_relation(
-    database=source('raw_calendly', 'scheduled_events').database,
-    schema=source('raw_calendly', 'scheduled_events').schema,
-    identifier=source('raw_calendly', 'scheduled_events').identifier
-) %}
+-- TODO: retire when Calendly Phase-2 per-object tables
+-- (`raw_calendly.calendly__scheduled_events_raw`) start landing data.
 
 with
 
-fivetran_source as (
+source as (
 
     select
-        uri,
-        event_type_uri,
-        name,
-        status,
-        location_type,
-        start_time,
-        end_time,
-        created_at,
-        updated_at,
-        cancel_reason,
-        canceled_by,
-        canceler_type,
-        invitees_active,
-        invitees_limit,
-        coalesce(_fivetran_deleted, false)                              as is_deleted,
-        cast(null as timestamp)                                         as _ingested_at,
-        cast(_fivetran_synced as timestamp)                             as _fivetran_synced,
-        'fivetran'                                                      as _source_path
-    from {{ source('raw_calendly', 'event') }}
+        json_value(payload_json, '$.uri')                               as uri,
+        json_value(payload_json, '$.event_type')                        as event_type_uri,
+        json_value(payload_json, '$.name')                              as name,
+        json_value(payload_json, '$.status')                            as status,
+        json_value(payload_json, '$.location.type')                     as location_type,
 
-){%- if poller_relation is not none %},
+        safe_cast(json_value(payload_json, '$.start_time') as timestamp)   as start_time,
+        safe_cast(json_value(payload_json, '$.end_time') as timestamp)     as end_time,
+        safe_cast(json_value(payload_json, '$.created_at') as timestamp)   as created_at,
+        safe_cast(json_value(payload_json, '$.updated_at') as timestamp)   as updated_at,
 
-poller_source as (
+        json_value(payload_json, '$.cancellation.reason')               as cancel_reason,
+        json_value(payload_json, '$.cancellation.cancelled_by')         as canceled_by,
+        json_value(payload_json, '$.cancellation.canceler_type')        as canceler_type,
 
-    -- Cloud Run poller writes payload-as-JSON; extract fields with JSON_VALUE.
-    -- Column list mirrors fivetran_source for UNION compatibility.
-    select
-        json_value(payload, '$.uri')                                    as uri,
-        json_value(payload, '$.event_type.uri')                         as event_type_uri,
-        json_value(payload, '$.name')                                   as name,
-        json_value(payload, '$.status')                                 as status,
-        json_value(payload, '$.location.type')                          as location_type,
-        cast(json_value(payload, '$.start_time') as timestamp)          as start_time,
-        cast(json_value(payload, '$.end_time') as timestamp)            as end_time,
-        cast(json_value(payload, '$.created_at') as timestamp)          as created_at,
-        cast(json_value(payload, '$.updated_at') as timestamp)          as updated_at,
-        json_value(payload, '$.cancellation.reason')                    as cancel_reason,
-        json_value(payload, '$.cancellation.cancelled_by')              as canceled_by,
-        json_value(payload, '$.cancellation.canceler_type')             as canceler_type,
-        safe_cast(json_value(payload, '$.invitees_counter.active') as int64) as invitees_active,
-        safe_cast(json_value(payload, '$.invitees_counter.limit') as int64)  as invitees_limit,
+        safe_cast(json_value(payload_json, '$.invitees_counter.active') as int64) as invitees_active,
+        safe_cast(json_value(payload_json, '$.invitees_counter.limit') as int64)  as invitees_limit,
+
+        -- Blob shim has no soft-delete flag; default false. If downstream
+        -- ever needs real deletion tracking, the Cancellation status
+        -- (`canceled`) already covers the logical case.
         false                                                           as is_deleted,
-        _ingested_at,
-        cast(null as timestamp)                                         as _fivetran_synced,
-        'cloud_run'                                                     as _source_path
-    from {{ source('raw_calendly', 'scheduled_events') }}
 
-){%- endif %},
-
-combined as (
-
-    select * from fivetran_source
-    {%- if poller_relation is not none %}
-    union all
-    select * from poller_source
-    {%- endif %}
+        ingested_at                                                     as _ingested_at,
+        'blob_shim'                                                     as _source_path
+    from {{ source('raw_calendly', 'calendly_objects_raw') }}
+    where entity_type = 'scheduled_events'
 
 ),
 
 deduped as (
 
-    -- Dedup by uri: keep the row with the most recent effective timestamp.
-    -- coalesce prefers _ingested_at (Cloud Run) over _fivetran_synced (Fivetran),
-    -- which is correct -- the poller has higher cadence and more recent data.
     select *
-    from combined
+    from source
     qualify row_number() over (
         partition by uri
-        order by coalesce(_ingested_at, _fivetran_synced) desc
+        order by _ingested_at desc
     ) = 1
 
 ),
@@ -138,7 +81,7 @@ parsed as (
 
         is_deleted,
 
-        coalesce(_ingested_at, _fivetran_synced)                        as _ingested_at,
+        _ingested_at,
         _source_path
     from deduped
 
