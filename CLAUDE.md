@@ -117,7 +117,7 @@ David is the sole operator on this engagement. When David asks Claude (in any se
 
 This is pre-authorization in the spirit of the system prompt's "risky actions" guidance: David has weighed the blast radius for this single-operator engagement and accepts it. The `.claude/settings.json` allowlist encodes the Bash layer; this clause encodes the Claude decision layer. Both are needed — the allowlist without this clause still triggers semantic confirmation prompts on "merge to default branch" and similar.
 
-Scope: this pre-authorization covers GitHub / git / Cloud Run / BigQuery operations against David's own projects (`dee-data-ops`, `dee-data-ops-prod`, `project-41542e21-470f-4589-96d`). It does **not** cover actions against third-party systems (Fivetran billing, Metabase public-dashboard URLs with outside viewers, client communication channels) — those still require explicit per-action sign-off.
+Scope: this pre-authorization covers GitHub / git / Cloud Run / BigQuery operations against David's own projects. The active/consolidated GCP project is `project-41542e21-470f-4589-96d` (post-U2 retarget 2026-04-23); `dee-data-ops` and `dee-data-ops-prod` remain in scope during the transition until they are decommissioned at U14. It does **not** cover actions against third-party systems (Fivetran billing, Metabase public-dashboard URLs with outside viewers, client communication channels) — those still require explicit per-action sign-off.
 
 When in doubt: if David asked for it, do it. If David didn't ask and you're considering it, still confirm.
 

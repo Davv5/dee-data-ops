@@ -17,8 +17,8 @@ clean-targets:
 
 # Layer-level configs. Schema assignments are routed through the
 # generate_schema_name macro: prod → these names as-is (staging/warehouse/marts
-# inside the dee-data-ops-prod project); dev/ci → consolidated into
-# target.schema (dev_<user> or ci).
+# inside project-41542e21-470f-4589-96d, post-U2 retarget 2026-04-23);
+# dev/ci → consolidated into target.schema (dev_<user> or ci).
 models:
   dee_data_ops:
     staging:
