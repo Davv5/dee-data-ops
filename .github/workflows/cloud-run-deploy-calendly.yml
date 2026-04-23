@@ -1,0 +1,97 @@
+# CD workflow: build + push + update Cloud Run Job for Calendly extractor.
+#
+# Fires on every merge to main that touches ingestion/calendly/** or the
+# Terraform directory — this is the continuous-delivery loop that keeps the
+# Cloud Run Job running the current extractor image.
+#
+# Track X (2026-04-22): Calendly ingest moved from Fivetran daily sync to a
+# custom Cloud Run Job + Cloud Scheduler at 1-min cadence, enabling the
+# sub-5-min Speed-to-Lead SLA for Calendly-sourced booking tiles.
+#
+# Pattern mirrors Track W's cloud-run-deploy-ghl.yml exactly — single job
+# (no hot/cold split) because Calendly data volume is ~1-2 orders of magnitude
+# below GHL. One image update step vs two.
+#
+# Corpus grounding: GHA remains the CI/CD backbone for deployment even when
+# the runtime scheduler moves to Cloud Run (ingest.md rule, Data Ops notebook).
+
+name: Deploy Calendly Extractor (Cloud Run Job)
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'ingestion/calendly/**'
+      - 'ops/cloud-run/calendly-extractor/**'
+
+permissions:
+  contents: read
+  id-token: write  # for google-github-actions/auth WIF (future)
+
+concurrency:
+  group: deploy-calendly
+  cancel-in-progress: false  # never cancel an in-flight deploy
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    env:
+      PROJECT: dee-data-ops-prod
+      REGION: us-central1
+      REGISTRY: us-central1-docker.pkg.dev/dee-data-ops-prod/ingest/calendly-extractor
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
+
+      - name: Build image
+        run: |
+          SHA=$(git rev-parse --short HEAD)
+          docker build \
+            --platform linux/amd64 \
+            -t "${{ env.REGISTRY }}:${SHA}" \
+            -t "${{ env.REGISTRY }}:latest" \
+            -f ingestion/calendly/Dockerfile \
+            .
+          echo "SHA=${SHA}" >> $GITHUB_ENV
+
+      - name: Push image
+        run: |
+          docker push "${{ env.REGISTRY }}:${{ env.SHA }}"
+          docker push "${{ env.REGISTRY }}:latest"
+
+      - name: Update calendly-poll Cloud Run Job
+        run: |
+          gcloud run jobs update calendly-poll \
+            --image="${{ env.REGISTRY }}:${{ env.SHA }}" \
+            --region="${{ env.REGION }}" \
+            --project="${{ env.PROJECT }}"
+
+      - name: Slack notify on failure
+        if: failure()
+        uses: slackapi/slack-github-action@v1.27.0
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload: |
+            {
+              "text": "Calendly extractor deploy failed on main",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Calendly Extractor Deploy* failed\n• SHA: `${{ env.SHA }}`\n• Run: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|#${{ github.run_number }}>"
+                  }
+                }
+              ]
+            }

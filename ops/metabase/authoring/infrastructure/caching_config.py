@@ -87,8 +87,23 @@ import sys
 
 from ..client import MetabaseClient
 
-DASHBOARD_NAME = "Speed-to-Lead"
-DASHBOARD_CACHE_TTL_SEC = 6 * 60 * 60  # 6 hours = 21600 seconds
+# Per-dashboard cache_ttl lookup.
+# 0 = live-by-default (no cache — every render queries fresh).
+# None = inherit server-wide default (TTL-ratio × query duration).
+# Positive int (seconds) = explicit TTL for daily-cadence dashboards.
+#
+# Live-by-default dashboards get 0. Once daily-cadence dashboards exist
+# (nightly-refresh marts), add them here with 21600 (6h).
+#
+# See .claude/rules/live-by-default.md for the full policy.
+DASHBOARD_CACHE_TTL_SEC: dict[str, int | None] = {
+    # Dashboard name → cache_ttl seconds. 0 = live. None = use server default.
+    "Speed-to-Lead": 0,
+    "Speed-to-Lead — Lead Detail": 0,
+    # New live-by-default dashboards go here with 0.
+    # Legacy daily-cadence dashboards (once we have any) get 21600 here.
+}
+DEFAULT_CACHE_TTL_SEC: int | None = 0  # live-by-default for any dashboard not named above
 
 # The read-only server setting we CHECK (cannot SET via API on v0.60.1).
 CACHING_TOGGLE_KEY = "enable-query-caching"
@@ -149,52 +164,76 @@ def main() -> None:
         # Continue to set the per-dashboard TTL even if the toggle is off,
         # so that state is ready when the env var is applied.
 
-    # ── 2. Per-dashboard cache_ttl override ────────────────────────────
+    # ── 2. Per-dashboard cache_ttl overrides (all dashboards in the lookup) ──
+    #
+    # Iterates DASHBOARD_CACHE_TTL_SEC dict. For each dashboard, resolves
+    # the desired TTL (falling back to DEFAULT_CACHE_TTL_SEC for any
+    # dashboard not in the dict). Runs are idempotent.
+    #
+    # Live-by-default dashboards get TTL=0 (explicit bypass). Server-wide
+    # caching (MB_ENABLE_QUERY_CACHING=true) remains ON so that any future
+    # daily-cadence dashboards can use non-zero TTLs.
     #
     # NOTE: Per *"Caching query results"* (Metabase Learn, source d6a8e3ae),
     # per-dashboard cache_ttl overrides are a Pro/Enterprise feature. On
     # OSS v0.60.1 the PUT may succeed but the value may not persist.
-    dash = _find_dashboard(mb, DASHBOARD_NAME)
-    before_ttl = dash.get("cache_ttl")
-    print(f"\nDashboard {DASHBOARD_NAME!r} (id={dash['id']}):")
-    print(f"  cache_ttl before: {before_ttl!r}  want: {DASHBOARD_CACHE_TTL_SEC!r}")
-    if before_ttl != DASHBOARD_CACHE_TTL_SEC:
-        # Minimal-diff PUT — only fields we're changing plus identity.
-        # Mirrors bigquery_connection.py's discipline: don't round-trip
-        # fields whose read-form differs from write-form.
-        mb.put(
-            f"/dashboard/{dash['id']}",
-            {
-                "name": dash["name"],
-                "collection_id": dash.get("collection_id"),
-                "cache_ttl": DASHBOARD_CACHE_TTL_SEC,
-            },
-        )
-        print("  PUT fired.")
-    else:
-        print("  ok (no PUT).")
+    # Track D empirical finding (2026-04-22): cache_ttl DID persist to 21600
+    # on OSS v0.60.1, contradicting the corpus "Pro-only" note. Test each
+    # value after PUT and warn if it didn't stick.
+    all_dashboard_names = list(DASHBOARD_CACHE_TTL_SEC.keys())
+    overall_ok = True
 
-    # ── 3. Verify ──────────────────────────────────────────────────────
-    after = mb.get(f"/dashboard/{dash['id']}")
-    after_ttl = after.get("cache_ttl")
-    print(f"  cache_ttl after:  {after_ttl!r}")
-    if after_ttl != DASHBOARD_CACHE_TTL_SEC:
-        print(
-            "  NOTE: cache_ttl did not persist — likely an OSS limitation "
-            "(per-dashboard TTL is Pro/Enterprise per Metabase Learn).\n"
-            "  Server-wide caching (once MB_ENABLE_QUERY_CACHING env var is set) "
-            "will still cache using the TTL-ratio × query duration formula."
-        )
+    for dash_name in all_dashboard_names:
+        desired_ttl = DASHBOARD_CACHE_TTL_SEC.get(dash_name, DEFAULT_CACHE_TTL_SEC)
+        try:
+            dash = _find_dashboard(mb, dash_name)
+        except LookupError as exc:
+            print(f"\nDashboard {dash_name!r}: NOT FOUND — skipping. ({exc})")
+            continue
+
+        before_ttl = dash.get("cache_ttl")
+        print(f"\nDashboard {dash_name!r} (id={dash['id']}):")
+        print(f"  cache_ttl before: {before_ttl!r}  want: {desired_ttl!r}")
+
+        if before_ttl != desired_ttl:
+            # Minimal-diff PUT — only fields we're changing plus identity.
+            # Mirrors bigquery_connection.py's discipline: don't round-trip
+            # fields whose read-form differs from write-form.
+            mb.put(
+                f"/dashboard/{dash['id']}",
+                {
+                    "name": dash["name"],
+                    "collection_id": dash.get("collection_id"),
+                    "cache_ttl": desired_ttl,
+                },
+            )
+            print("  PUT fired.")
+        else:
+            print("  ok (no PUT needed).")
+
+        # ── 3. Verify each dashboard ───────────────────────────────────
+        after = mb.get(f"/dashboard/{dash['id']}")
+        after_ttl = after.get("cache_ttl")
+        print(f"  cache_ttl after:  {after_ttl!r}")
+        if after_ttl != desired_ttl:
+            print(
+                "  NOTE: cache_ttl did not persist — likely an OSS limitation "
+                "(per-dashboard TTL is Pro/Enterprise per Metabase Learn).\n"
+                "  Server-wide caching (once MB_ENABLE_QUERY_CACHING env var is set) "
+                "will still cache using the TTL-ratio × query duration formula."
+            )
+            overall_ok = False
 
     # ── 4. Summary ─────────────────────────────────────────────────────
     print()
     if caching_on == CACHING_TOGGLE_DESIRED:
-        if after_ttl == DASHBOARD_CACHE_TTL_SEC:
+        if overall_ok:
             print("State matches desired.")
         else:
             print(
-                "Partial: enable-query-caching=ON but per-dashboard TTL not persisted "
-                "(OSS limitation). Cache active with server-wide TTL-ratio formula."
+                "Partial: enable-query-caching=ON but one or more dashboard TTLs "
+                "did not persist (OSS limitation). Cache active with server-wide "
+                "TTL-ratio formula."
             )
     else:
         print(

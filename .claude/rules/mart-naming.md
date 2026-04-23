@@ -66,4 +66,14 @@ The prefix switch is exactly what makes the mart layer recognizable as "the part
 
 ## Lessons Learned
 
-- (Add entries here as issues are discovered)
+- **Fact-first-then-wide-mart refactors are safe when the parity test is the gate.**
+  The Speed-to-Lead refactor (Tracks F1/F2/F3, 2026-04-22) collapsed 11 narrow
+  rollup tables into one wide mart (`speed_to_lead_detail`) backed by a lowest-grain
+  fact (`fct_speed_to_lead_touch`). The refactor preserved the locked headline metric
+  via a dbt singular test `stl_headline_parity` that stayed green across the full
+  deprecation window, then retired with the rollups. Pattern: ship the new model
+  alongside the old as F1/F2, let them coexist for at least one prod refresh cycle
+  with the parity test green, then deprecate in F3 (this track).
+  (source: *"3 Data Modeling Mistakes That Can Derail a Team"* + *"Data Modeling in
+  the Modern Data Stack"*, Data Ops notebook; Track F plan files in
+  `docs/handovers/Davv5-Track-F[123]-*.md`.)

@@ -3,46 +3,75 @@ version: 2
 sources:
   - name: raw_calendly
     description: >
-      Raw landing zone for Calendly, populated by the Fivetran Calendly
-      connector (daily sync). One row per Calendly scheduled event lives in
-      `event`; invitee-level data (email, name, cancel URL) lives in
-      `event_invitee` keyed by `event_uri`; invitee question responses live in
-      `question_and_answer` keyed by `event_invitee_uri`. No joins happen in
-      staging — each raw table gets its own 1:1 staging view.
+      Raw landing zone for Calendly. As of Track X (2026-04-22), populated by
+      the custom Cloud Run Job poller (`ingestion/calendly/extract.py`) at
+      1-min cadence — replacing the Fivetran daily connector.
+
+      During the dual-run overlap window, both Fivetran rows (_fivetran_synced)
+      and poller rows (_ingested_at) coexist in the same tables. Staging views
+      handle both via coalesce(_ingested_at, cast(_fivetran_synced as timestamp))
+      for dedup ordering, plus a `_source_path` column for reconciliation.
+
+      Freshness thresholds updated from 25h warn / 48h error (Fivetran cadence)
+      to 1h warn / 4h error (Cloud Run cadence). Track X decision, 2026-04-22.
+
+      Three tables covered by the poller:
+        - `scheduled_events` (was `event` in Fivetran schema)
+        - `invitees` (was `event_invitee`)
+        - `invitee_no_shows`
     database: dee-data-ops
     schema: raw_calendly
     config:
-      loaded_at_field: _fivetran_synced
+      loaded_at_field: _ingested_at
       freshness:
-        warn_after: {count: 25, period: hour}
-        error_after: {count: 48, period: hour}
+        warn_after: {count: 1, period: hour}
+        error_after: {count: 4, period: hour}
     tables:
       - name: event
         description: >
-          One row per Calendly scheduled event. Load-bearing for Speed-to-Lead
-          because a Calendly booking is the start clock (the event time is
-          when the lead confirms the call). ~5K rows.
+          Fivetran-written raw Calendly events table (daily sync cadence).
+          During the dual-run overlap window, this table receives rows from
+          both Fivetran (_fivetran_synced) and the Cloud Run poller (_ingested_at).
+          After Fivetran is paused, this table is superseded by `scheduled_events`.
+          Load-bearing for Speed-to-Lead: the booking created_at is the start clock.
+          ~5K rows.
         columns:
           - name: uri
             description: Full Calendly event URI — primary key of the source record.
             tests:
               - not_null
           - name: _fivetran_synced
-            description: Wall-clock UTC time Fivetran last synced this row.
-            tests:
-              - not_null
+            description: Wall-clock UTC time Fivetran last synced this row (null for Cloud Run rows).
+
+      - name: scheduled_events
+        description: >
+          Cloud Run poller landing table for Calendly scheduled events (1-min cadence).
+          Replaces `event` after Fivetran is paused. One row per ingestion of
+          a Calendly scheduled event. `_ingested_at` is the authoritative freshness
+          column post-cutover.
+
+      - name: invitees
+        description: >
+          Cloud Run poller landing table for Calendly invitees (1-min cadence,
+          fanned out from scheduled_events). Replaces `event_invitee` post-cutover.
+          Carries invitee email for bridging Calendly bookings to GHL contacts.
+
+      - name: invitee_no_shows
+        description: >
+          Cloud Run poller landing table for Calendly invitee no-shows (1-min cadence).
+          New table — Fivetran was not writing this endpoint in the legacy setup.
 
       - name: event_invitee
         description: >
           One row per invitee on a scheduled event (usually 1:1 with `event`
           for 1:1 calls). Carries `email`, cancellation / no-show / rescheduled
           state, and the Calendly tracking UTMs. Keyed to `event` via
-          `event_uri`. Staging model deferred — only `event` is in scope for
-          Track C; invitee staging lands when downstream marts need it.
+          `event_uri`. Legacy Fivetran table — kept active during dual-run overlap.
+          Will stop receiving writes when Fivetran is paused.
 
       - name: question_and_answer
         description: >
           One row per custom question answered on an invitee's booking. Carries
           `self_reported_source` when D-DEE asks it as a Calendly custom
-          question. Keyed via `event_invitee_uri`. Staging model deferred —
-          see note on `event_invitee`.
+          question. Keyed via `event_invitee_uri`. Fivetran-only table;
+          staging model deferred.

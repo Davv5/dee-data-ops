@@ -1,8 +1,19 @@
 """Speed-to-Lead dashboard — Page 1 of the D-DEE dashboard stack.
 
-Reads pre-aggregated rollup tables under `dee-data-ops-prod.marts.stl_*`
-(built by dbt from `sales_activity_detail`). Mirrors the tile shape
-prescribed in `docs/looker-studio/page-1-speed-to-lead.md`.
+v1.7 (Track F2): All card native_query strings rewired from pre-aggregated
+`stl_*` rollups to aggregate directly on `dee-data-ops-prod.marts.speed_to_lead_detail`
+(one row per booking × touch-event). Card names, visual settings, and filter
+wirings are frozen at v1.6; only the native_query strings change. The 11 `stl_*`
+rollups remain in the dbt project for F3 rollback safety.
+
+Intentional data change from v1.6: `show_rate_pct` on source_outcome and
+close_rate_by_touch now uses real `show_outcome = 'showed'` (not the fallback
+`close_outcome IS NOT NULL` heuristic). Expect a visible delta; documented as
+improvement not regression. See WORKLOG 2026-04-22.
+
+Source: "Build one wide, denormalized table per business domain that serves many
+dashboards via slice-and-dice in the BI tool." — mart-naming.md rule 2,
+Data Ops notebook.
 
 Two dashboards are upserted in the `Speed-to-Lead` collection:
 - `Speed-to-Lead` — v1.3.1 layout: header banner (row 0), four markdown
@@ -59,8 +70,8 @@ def _col_settings(mapping: dict[str, dict]) -> dict:
     return {"column_settings": {f'["name","{k}"]': v for k, v in mapping.items()}}
 
 
-def _text_dashcard(*, row: int, text: str, size_y: int = 1) -> dict:
-    """Full-width markdown text dashcard for section dividers + footer.
+def _text_dashcard(*, row: int, text: str, size_y: int = 1, col: int = 0, size_x: int = 24) -> dict:
+    """Markdown text dashcard for section dividers + footer + banner.
 
     Source: "Markdown in dashboards / Dashboards: organizing with text boxes"
     (Metabase Learn notebook) — text cards used as section dividers and
@@ -68,7 +79,7 @@ def _text_dashcard(*, row: int, text: str, size_y: int = 1) -> dict:
     """
     return {
         "card_id": None,
-        "row": row, "col": 0, "size_x": 24, "size_y": size_y,
+        "row": row, "col": col, "size_x": size_x, "size_y": size_y,
         "visualization_settings": {
             "text": text,
             "virtual_card": {
@@ -79,8 +90,8 @@ def _text_dashcard(*, row: int, text: str, size_y: int = 1) -> dict:
     }
 
 
-def main() -> None:
-    mb = MetabaseClient()
+def main(dry_run: bool = False) -> None:
+    mb = MetabaseClient(dry_run=dry_run or None)
     db_id = find_database_id(mb, DATABASE_NAME)
 
     coll = upsert_collection(
@@ -91,19 +102,56 @@ def main() -> None:
 
     def trend_smartscalar(*, name: str, field: str, fmt: dict) -> dict:
         """Weekly smart-scalar tile: shows the latest week plus directional
-        delta vs. the previous week. Reads a 12-row weekly time series from
-        `stl_headline_trend_weekly` (week_start DATE + the metric field).
+        delta vs. the previous week. Aggregates directly from
+        `speed_to_lead_detail` (v1.7 rewire — previously read from the
+        pre-aggregated `stl_headline_trend_weekly` rollup).
 
-        v1.3.1: Added date_range Field Filter so the dashboard Date filter
-        can narrow the weekly series. Uses [[...]] optional-clause wrapper
-        so the card renders standalone when no filter is bound.
-        Source: "Field Filters" (Metabase Learn notebook) — field filters
-        omit the column name and = operator (Metabase injects the subquery);
-        [[...]] makes the whole clause optional.
+        Returns 12 completed ISO-weeks (Monday-starting) so scalar.comparisons
+        previousPeriod has ≥2 rows to compare. The in-progress current week is
+        excluded (booked_at < date_trunc(current_date(), isoweek)) so the trend
+        comparator never flips on partial data.
 
-        The rollup's internal denominator is now SDR-scoped (per agent B's
-        fix, 2026-04-22), so `pct_within_5min` on this table matches the
-        headline-metric definition in CLAUDE.local.md."""
+        Metric-specific SQL is injected via the `field` parameter. Each
+        trend_smartscalar call below passes its own aggregation expression.
+
+        v1.3.1 (Track E): date_range Field Filter injected into the WHERE
+        via [[AND {{date_range}}]] so the dashboard Date filter narrows the
+        weekly series within the 12-week window floor. Filter binds to
+        booked_date (real column on speed_to_lead_detail). Source:
+        "Field Filters" (Metabase Learn notebook)."""
+        # Map field name to its per-week aggregation expression.
+        # All metrics are SDR-scoped (is_sdr_touch AND is_first_touch denominator)
+        # except pct_with_1hr_activity which is denominated on total bookings.
+        metric_sql = {
+            "pct_within_5min": (
+                "ROUND(SAFE_DIVIDE("
+                "  COUNTIF(is_within_5_min_sla AND is_first_touch),"
+                "  NULLIF(COUNTIF(is_sdr_touch AND is_first_touch), 0)"
+                ") * 100, 1)"
+            ),
+            "median_mins_sdr_only": (
+                "ROUND(APPROX_QUANTILES("
+                "  CASE WHEN is_sdr_touch AND is_first_touch THEN minutes_to_touch END,"
+                "  2)[OFFSET(1)], 1)"
+            ),
+            "p90_mins_sdr_only": (
+                "APPROX_QUANTILES("
+                "  CASE WHEN is_sdr_touch AND is_first_touch THEN minutes_to_touch END,"
+                "  10)[OFFSET(9)]"
+            ),
+            "bookings": "COUNT(DISTINCT booking_id)",
+            "sdr_attributed": (
+                "COUNT(DISTINCT CASE WHEN is_sdr_touch AND is_first_touch "
+                "THEN booking_id END)"
+            ),
+            "pct_with_1hr_activity": (
+                "ROUND(SAFE_DIVIDE("
+                "  COUNT(DISTINCT CASE WHEN had_any_sdr_activity_within_1_hr "
+                "    THEN booking_id END),"
+                "  NULLIF(COUNT(DISTINCT booking_id), 0)"
+                ") * 100, 1)"
+            ),
+        }[field]
         return upsert_card(
             mb,
             name=name,
@@ -111,12 +159,17 @@ def main() -> None:
             database_id=db_id,
             display="smartscalar",
             native_query=(
-                f"SELECT week_start, {field} "
-                "FROM `dee-data-ops-prod.marts.stl_headline_trend_weekly` "
-                # Field-filter WHERE (no column + operator; Metabase injects
-                # the subquery). [[...]] makes the whole clause optional so
-                # the card renders standalone when no filter is bound.
-                "[[WHERE {{date_range}}]] "
+                "SELECT DATE_TRUNC(booked_date, WEEK(MONDAY)) AS week_start, "
+                f"{metric_sql} AS {field} "
+                "FROM `dee-data-ops-prod.marts.speed_to_lead_detail` "
+                "WHERE booked_at >= TIMESTAMP("
+                "  DATE_SUB(DATE_TRUNC(CURRENT_DATE(), ISOWEEK), INTERVAL 12 WEEK)) "
+                "  AND booked_at < TIMESTAMP(DATE_TRUNC(CURRENT_DATE(), ISOWEEK)) "
+                # v1.3.1 (Track E): optional Field Filter; binds to booked_date
+                # so the dashboard Date filter narrows the weekly series within
+                # the 12-week floor.
+                "[[AND {{date_range}}]] "
+                "GROUP BY week_start "
                 "ORDER BY week_start"
             ),
             template_tags={
@@ -125,7 +178,10 @@ def main() -> None:
                     "name": "date_range",
                     "display-name": "Date range",
                     "type": "dimension",
-                    "dimension": ["field", "week_start", {"base-type": "type/Date"}],
+                    # v1.3.1 (Track E): retargeted from week_start (post-GROUP BY
+                    # alias) to booked_date (real column on speed_to_lead_detail)
+                    # so the field filter injects a pre-aggregation WHERE clause.
+                    "dimension": ["field", "booked_date", {"base-type": "type/Date"}],
                     "widget-type": "date/all-options",
                     "default": None,
                 },
@@ -221,6 +277,9 @@ def main() -> None:
     # isn't lost.
     # v1.6 vocabulary pass (Track C): renamed for consistency with the trailing-90-days
     # qualifier convention even though t7 is parked (not on any dashboard page).
+    # v1.7 (Track F2): rewired from stl_daily_volume_by_source to aggregate directly
+    # on speed_to_lead_detail. Top-10 source bucketing replicated inline via
+    # a QUALIFY row_number() over source totals so the legend doesn't explode.
     t7 = upsert_card(
         mb,
         name="Daily booked calls, trailing 90 days, stacked by lead source",
@@ -228,8 +287,27 @@ def main() -> None:
         database_id=db_id,
         display="area",
         native_query=(
-            "SELECT booking_date, lead_source, bookings "
-            "FROM `dee-data-ops-prod.marts.stl_daily_volume_by_source` "
+            "WITH bookings_90d AS ("
+            "  SELECT booked_date, COALESCE(lead_source, 'unknown') AS lead_source"
+            "  FROM `dee-data-ops-prod.marts.speed_to_lead_detail`"
+            "  WHERE booked_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 90 DAY)"
+            "), "
+            "daily AS ("
+            "  SELECT booked_date, lead_source, COUNT(DISTINCT booking_id) AS bookings"
+            "  FROM bookings_90d GROUP BY booked_date, lead_source"
+            "), "
+            "top_sources AS ("
+            "  SELECT lead_source FROM ("
+            "    SELECT lead_source, ROW_NUMBER() OVER (ORDER BY SUM(bookings) DESC) AS rn"
+            "    FROM daily GROUP BY lead_source"
+            ") WHERE rn <= 10"
+            ") "
+            "SELECT d.booked_date AS booking_date, "
+            "  CASE WHEN t.lead_source IS NOT NULL THEN d.lead_source ELSE 'other' END AS lead_source, "
+            "  SUM(d.bookings) AS bookings "
+            "FROM daily d LEFT JOIN top_sources t USING (lead_source) "
+            "GROUP BY booking_date, "
+            "  CASE WHEN t.lead_source IS NOT NULL THEN d.lead_source ELSE 'other' END "
             "ORDER BY booking_date, lead_source"
         ),
         visualization_settings={
@@ -250,6 +328,10 @@ def main() -> None:
     # close_rate_by_touch at col 12 — cause beside effect on one row.
     # v1.5: row shifted 8→12 to make room for hero T1 + T2/T3 chips.
     # v1.6 vocabulary pass (Track C): "(30d)" → ", trailing 30 days".
+    # v1.7 (Track F2): rewired from stl_response_time_distribution_30d to
+    # aggregate directly on speed_to_lead_detail. Threshold labels + sort
+    # ordinals match exactly the stl_* rollup to preserve stable x-axis labels
+    # (graph.dimensions = ["threshold_label"] — label change re-renders from zero).
     # v1.3.1 (Track E): row shifted 12→14 for Distribution & Outcome divider.
     response_time_dist = upsert_card(
         mb,
@@ -258,9 +340,29 @@ def main() -> None:
         database_id=db_id,
         display="bar",
         native_query=(
-            "SELECT threshold_label, pct_within "
-            "FROM `dee-data-ops-prod.marts.stl_response_time_distribution_30d` "
-            "ORDER BY threshold_sort"
+            "WITH thresholds AS ("
+            "  SELECT '≤1 min'  AS threshold_label, 1 AS threshold_sort, 1    AS threshold_minutes UNION ALL"
+            "  SELECT '≤5 min',  2, 5   UNION ALL"
+            "  SELECT '≤15 min', 3, 15  UNION ALL"
+            "  SELECT '≤1 hr',   4, 60  UNION ALL"
+            "  SELECT '≤4 hr',   5, 240 UNION ALL"
+            "  SELECT '≤24 hr',  6, 1440"
+            "), "
+            "base AS ("
+            "  SELECT minutes_to_touch"
+            "  FROM `dee-data-ops-prod.marts.speed_to_lead_detail`"
+            "  WHERE booked_at >= TIMESTAMP(DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY))"
+            "    AND is_sdr_touch AND is_first_touch"
+            "), "
+            "totals AS (SELECT COUNT(*) AS bookings_total FROM base) "
+            "SELECT t.threshold_label, t.threshold_sort, "
+            "  ROUND(SAFE_DIVIDE("
+            "    COUNTIF(base.minutes_to_touch <= t.threshold_minutes),"
+            "    NULLIF(totals.bookings_total, 0)"
+            "  ) * 100, 1) AS pct_within "
+            "FROM thresholds t CROSS JOIN base CROSS JOIN totals "
+            "GROUP BY t.threshold_label, t.threshold_sort, totals.bookings_total "
+            "ORDER BY t.threshold_sort"
         ),
         visualization_settings={
             "graph.dimensions": ["threshold_label"],
@@ -277,6 +379,22 @@ def main() -> None:
     # `[[ ... ]]` optional-clause wrapper skips the AND when the variable
     # is empty, so the card still renders standalone without any filter.
     #
+    # v1.7 (Track F2): rewired from stl_lead_detail_recent to SELECT directly
+    # from speed_to_lead_detail. Grain shifts from booking-grain (one row per
+    # booking) to touch-grain (one row per booking × touch-event). This is an
+    # intentional DQ improvement — viewers can now see every SDR touch per
+    # booking, not just the first one.
+    #
+    # is_first_touch filter: default ON (backward-compatible). At the default
+    # setting the table reads identically to the v1.6 booking-grain view
+    # (showing only the first-touch row per booking). Users can toggle OFF to
+    # see the full touch sequence. Executor decision: default ON was chosen over
+    # OFF because it preserves the existing user expectation on first open.
+    # See WORKLOG 2026-04-22 for rationale.
+    #
+    # minutes_to_touch column alias: renamed from mins_to_touch to match the
+    # mart's column name. _col_settings key updated accordingly.
+    #
     # v1.3.1 (Track E): added date_range Field Filter + sdr_filter Field
     # Filter alongside the existing within_5min/sdr_name/lead_source text
     # variables. date_range narrows booked_at via [[AND {{date_range}}]];
@@ -290,12 +408,14 @@ def main() -> None:
         database_id=db_id,
         display="table",
         native_query=(
-            "SELECT booked_at, full_name, email, sdr_name, mins_to_touch, "
+            "SELECT booked_at, full_name, email, sdr_name, "
+            "minutes_to_touch, is_first_touch, "
             "is_within_5_min_sla, had_any_sdr_activity_within_1_hr, "
             "lead_source, first_touch_campaign, close_outcome, lost_reason, "
             "attribution_quality_flag "
-            "FROM `dee-data-ops-prod.marts.stl_lead_detail_recent` "
-            "WHERE 1=1 "
+            "FROM `dee-data-ops-prod.marts.speed_to_lead_detail` "
+            "WHERE booked_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY) "
+            "[[AND CAST(is_first_touch AS STRING) = {{first_touch_only}}]] "
             "[[AND CAST(is_within_5_min_sla AS STRING) = {{within_5min}}]] "
             "[[AND sdr_name = {{sdr_name}}]] "
             "[[AND lead_source = {{lead_source}}]] "
@@ -304,6 +424,13 @@ def main() -> None:
             "ORDER BY booked_at DESC"
         ),
         template_tags={
+            "first_touch_only": {
+                "id": "first_touch_only_param",
+                "name": "first_touch_only",
+                "display-name": "First Touch Only?",
+                "type": "text",
+                "default": "true",
+            },
             "within_5min": {
                 "id": "within5min",
                 "name": "within_5min",
@@ -352,7 +479,7 @@ def main() -> None:
             },
         },
         visualization_settings=_col_settings({
-            "mins_to_touch": NUM_FMT,
+            "minutes_to_touch": NUM_FMT,
             "booked_at": {"date_style": "MMM D, YYYY", "time_enabled": "minutes"},
         }),
     )
@@ -363,6 +490,9 @@ def main() -> None:
         collection_id=coll["id"],
         description="Page 1b. Lead-grain detail table with search + filter controls.",
         parameters=[
+            # v1.7 (Track F2): added first_touch_only parameter (default 'true')
+            # so users can toggle from first-touch-only view to full touch sequence.
+            {"name": "First Touch Only?",         "slug": "first_touch_only","id": "first_touch_only_param","type": "category", "default": "true"},
             {"name": "First Touch Within 5 min?", "slug": "within_5min",  "id": "within5min",       "type": "category", "default": None},
             {"name": "SDR",                       "slug": "sdr_name",     "id": "sdr_name_param",   "type": "category", "default": None},
             {"name": "Lead Source",               "slug": "lead_source",  "id": "lead_source_param","type": "category", "default": None},
@@ -397,6 +527,11 @@ def main() -> None:
                 # Wire all dashboard-level parameters to the card's template-tags.
                 "parameter_mappings": [
                     {
+                        "parameter_id": "first_touch_only_param",
+                        "card_id": detail_card["id"],
+                        "target": ["variable", ["template-tag", "first_touch_only"]],
+                    },
+                    {
                         "parameter_id": "within5min",
                         "card_id": detail_card["id"],
                         "target": ["variable", ["template-tag", "within_5min"]],
@@ -425,6 +560,13 @@ def main() -> None:
     # curve) beside effect (close-rate). Primary metric close_rate_pct as
     # bar height; bookings in tooltip so viewers can gauge sample size.
     # v1.6 vocabulary pass (Track C): "(30d)" → ", trailing 30 days".
+    # v1.7 (Track F2): rewired from stl_outcome_by_touch_bucket_30d to
+    # aggregate directly on speed_to_lead_detail. Bucket labels + sort ordinals
+    # match the stl_* rollup exactly. show_rate_pct now uses real
+    # show_outcome = 'showed' instead of the fallback close_outcome IS NOT NULL
+    # heuristic — intentional improvement, not a regression. Denominator for
+    # close_rate_pct is count(distinct booking_id) to avoid double-counting when
+    # multiple touches exist for the same booking.
     close_rate_by_touch = upsert_card(
         mb,
         name="Close rate by touch time, trailing 30 days",
@@ -432,8 +574,35 @@ def main() -> None:
         database_id=db_id,
         display="bar",
         native_query=(
-            "SELECT touch_bucket, close_rate_pct, bookings "
-            "FROM `dee-data-ops-prod.marts.stl_outcome_by_touch_bucket_30d` "
+            "WITH base AS ("
+            "  SELECT booking_id, minutes_to_touch, close_outcome, show_outcome,"
+            "    CASE"
+            "      WHEN minutes_to_touch IS NULL                  THEN 'No SDR touch'"
+            "      WHEN minutes_to_touch < 5                      THEN '0-5 min'"
+            "      WHEN minutes_to_touch < 15                     THEN '5-15 min'"
+            "      WHEN minutes_to_touch < 60                     THEN '15-60 min'"
+            "      WHEN minutes_to_touch < 240                    THEN '1-4 hr'"
+            "      WHEN minutes_to_touch < 1440                   THEN '4-24 hr'"
+            "      ELSE '24+ hr'"
+            "    END AS touch_bucket,"
+            "    CASE"
+            "      WHEN minutes_to_touch IS NULL                  THEN 7"
+            "      WHEN minutes_to_touch < 5                      THEN 1"
+            "      WHEN minutes_to_touch < 15                     THEN 2"
+            "      WHEN minutes_to_touch < 60                     THEN 3"
+            "      WHEN minutes_to_touch < 240                    THEN 4"
+            "      WHEN minutes_to_touch < 1440                   THEN 5"
+            "      ELSE 6"
+            "    END AS bucket_sort"
+            "  FROM `dee-data-ops-prod.marts.speed_to_lead_detail`"
+            "  WHERE booked_at >= TIMESTAMP(DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY))"
+            "    AND is_first_touch AND is_sdr_touch"
+            ") "
+            "SELECT touch_bucket, bucket_sort, "
+            "  COUNT(DISTINCT booking_id) AS bookings, "
+            "  ROUND(SAFE_DIVIDE(COUNTIF(close_outcome = 'won'), NULLIF(COUNT(DISTINCT booking_id), 0)) * 100, 1) AS close_rate_pct "
+            "FROM base "
+            "GROUP BY touch_bucket, bucket_sort "
             "ORDER BY bucket_sort"
         ),
         visualization_settings={
@@ -460,6 +629,11 @@ def main() -> None:
     # source.type = "column" passes the clicked row's lead_source value into
     # the target dashboard's lead_source_param parameter.
     # v1.6 vocabulary pass (Track C): "(30d)" → ", trailing 30 days".
+    # v1.7 (Track F2): rewired from stl_source_outcome_30d to aggregate directly
+    # on speed_to_lead_detail. show_rate_pct now uses real show_outcome = 'showed'
+    # (not fallback close_outcome IS NOT NULL). Expect a visible delta vs v1.6 —
+    # documented as intentional improvement. pct_within_5min denominator changed
+    # to count(distinct booking_id) to match booking-grain expectations.
     source_outcome = upsert_card(
         mb,
         name="Lead source performance, trailing 30 days",
@@ -467,9 +641,23 @@ def main() -> None:
         database_id=db_id,
         display="table",
         native_query=(
-            "SELECT lead_source, bookings, pct_within_5min, "
-            "show_rate_pct, close_rate_pct "
-            "FROM `dee-data-ops-prod.marts.stl_source_outcome_30d` "
+            "SELECT COALESCE(lead_source, 'unknown') AS lead_source, "
+            "  COUNT(DISTINCT booking_id) AS bookings, "
+            "  ROUND(SAFE_DIVIDE("
+            "    COUNT(DISTINCT CASE WHEN is_sdr_touch AND is_first_touch AND is_within_5_min_sla THEN booking_id END),"
+            "    NULLIF(COUNT(DISTINCT booking_id), 0)"
+            "  ) * 100, 1) AS pct_within_5min, "
+            "  ROUND(SAFE_DIVIDE("
+            "    COUNT(DISTINCT CASE WHEN show_outcome = 'showed' AND is_first_touch THEN booking_id END),"
+            "    NULLIF(COUNT(DISTINCT booking_id), 0)"
+            "  ) * 100, 1) AS show_rate_pct, "
+            "  ROUND(SAFE_DIVIDE("
+            "    COUNT(DISTINCT CASE WHEN close_outcome = 'won' AND is_first_touch THEN booking_id END),"
+            "    NULLIF(COUNT(DISTINCT booking_id), 0)"
+            "  ) * 100, 1) AS close_rate_pct "
+            "FROM `dee-data-ops-prod.marts.speed_to_lead_detail` "
+            "WHERE booked_at >= TIMESTAMP(DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)) "
+            "GROUP BY lead_source "
             "ORDER BY bookings DESC"
         ),
         visualization_settings={
@@ -530,6 +718,10 @@ def main() -> None:
     # v1.6 vocabulary pass (Track C): card name "SDR Coverage Heatmap —
     # Day x Hour (30d)" → "SDR coverage, day of week by hour of day,
     # trailing 30 days" (parenthetical abbreviations out, comma-qualifier in).
+    # v1.7 (Track F2): rewired from stl_coverage_heatmap_30d to aggregate
+    # directly on speed_to_lead_detail. Day-of-week remapping (Sun=1→7 etc.)
+    # and day name labels match the stl_* rollup exactly to preserve the
+    # stable sort the table-pivot relies on.
     coverage_heatmap = upsert_card(
         mb,
         name="SDR coverage, day of week by hour of day, trailing 30 days",
@@ -537,8 +729,26 @@ def main() -> None:
         database_id=db_id,
         display="table",
         native_query=(
-            "SELECT day_of_week, day_sort, hour_of_day, pct_within_5min "
-            "FROM `dee-data-ops-prod.marts.stl_coverage_heatmap_30d` "
+            "SELECT "
+            "  CASE EXTRACT(DAYOFWEEK FROM booked_at)"
+            "    WHEN 1 THEN 'Sun' WHEN 2 THEN 'Mon' WHEN 3 THEN 'Tue'"
+            "    WHEN 4 THEN 'Wed' WHEN 5 THEN 'Thu' WHEN 6 THEN 'Fri'"
+            "    WHEN 7 THEN 'Sat'"
+            "  END AS day_of_week, "
+            "  CASE EXTRACT(DAYOFWEEK FROM booked_at)"
+            "    WHEN 1 THEN 7 WHEN 2 THEN 1 WHEN 3 THEN 2"
+            "    WHEN 4 THEN 3 WHEN 5 THEN 4 WHEN 6 THEN 5"
+            "    WHEN 7 THEN 6"
+            "  END AS day_sort, "
+            "  EXTRACT(HOUR FROM booked_at) AS hour_of_day, "
+            "  COUNT(DISTINCT booking_id) AS bookings, "
+            "  ROUND(SAFE_DIVIDE("
+            "    COUNT(DISTINCT CASE WHEN is_sdr_touch AND is_within_5_min_sla THEN booking_id END),"
+            "    NULLIF(COUNT(DISTINCT booking_id), 0)"
+            "  ) * 100, 1) AS pct_within_5min "
+            "FROM `dee-data-ops-prod.marts.speed_to_lead_detail` "
+            "WHERE booked_at >= TIMESTAMP(DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)) "
+            "GROUP BY day_of_week, day_sort, hour_of_day "
             "ORDER BY day_sort, hour_of_day"
         ),
         visualization_settings={
@@ -581,6 +791,10 @@ def main() -> None:
     # source.type = "column" passes the clicked row's sdr_name value into
     # the target dashboard's sdr_name_param parameter.
     # v1.6 vocabulary pass (Track C): "(30d)" → ", trailing 30 days".
+    # v1.7 (Track F2): rewired from stl_sdr_leaderboard_30d to aggregate directly
+    # on speed_to_lead_detail. Metrics scoped to is_sdr_touch AND is_first_touch
+    # to match the SDR-attributed denominator used throughout the dashboard.
+    # within_5min = raw count; pct_within_5min = pct of SDR-attributed bookings.
     # v1.3.1 (Track E): added sdr_filter Field Filter so the dashboard SDR
     # parameter can narrow the leaderboard to a single rep. Source:
     # "Field Filters" (Metabase Learn notebook).
@@ -591,10 +805,28 @@ def main() -> None:
         database_id=db_id,
         display="table",
         native_query=(
-            "SELECT sdr_name, bookings, within_5min, pct_within_5min, "
-            "median_mins, closed_won, pct_closed_won "
-            "FROM `dee-data-ops-prod.marts.stl_sdr_leaderboard_30d` "
-            "[[WHERE {{sdr_filter}}]] "
+            "SELECT "
+            "  COALESCE(sdr_name, '(unassigned)') AS sdr_name, "
+            "  COUNT(DISTINCT booking_id) AS bookings, "
+            "  COUNT(DISTINCT CASE WHEN is_within_5_min_sla AND is_first_touch THEN booking_id END) AS within_5min, "
+            "  ROUND(SAFE_DIVIDE("
+            "    COUNT(DISTINCT CASE WHEN is_within_5_min_sla AND is_first_touch THEN booking_id END),"
+            "    NULLIF(COUNT(DISTINCT booking_id), 0)"
+            "  ) * 100, 1) AS pct_within_5min, "
+            "  ROUND(APPROX_QUANTILES("
+            "    CASE WHEN is_sdr_touch AND is_first_touch THEN minutes_to_touch END, 2)[OFFSET(1)], 1) AS median_mins, "
+            "  COUNT(DISTINCT CASE WHEN close_outcome = 'won' AND is_first_touch THEN booking_id END) AS closed_won, "
+            "  ROUND(SAFE_DIVIDE("
+            "    COUNT(DISTINCT CASE WHEN close_outcome = 'won' AND is_first_touch THEN booking_id END),"
+            "    NULLIF(COUNT(DISTINCT booking_id), 0)"
+            "  ) * 100, 1) AS pct_closed_won "
+            "FROM `dee-data-ops-prod.marts.speed_to_lead_detail` "
+            "WHERE is_sdr_touch AND is_first_touch "
+            "  AND booked_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY) "
+            # v1.3.1 (Track E): optional SDR Field Filter; binds to sdr_name
+            # (real column on speed_to_lead_detail).
+            "  [[AND {{sdr_filter}}]] "
+            "GROUP BY sdr_name "
             "ORDER BY bookings DESC"
         ),
         template_tags={
@@ -646,6 +878,9 @@ def main() -> None:
     #   no_sdr_touch  → No SDR touch yet
     #   role_unknown  → Unassigned rep
     # v1.6 vocabulary pass (Track C): "(30d)" → ", trailing 30 days".
+    # v1.7 (Track F2): rewired from stl_attribution_quality_30d to aggregate
+    # directly on speed_to_lead_detail. Uses COUNT(DISTINCT booking_id) to
+    # stay at booking grain (not touch grain) for consistent DQ reporting.
     t9 = upsert_card(
         mb,
         name="Lead tracking match rate, trailing 30 days",
@@ -654,14 +889,16 @@ def main() -> None:
         display="pie",
         native_query=(
             "SELECT "
-            "  CASE flag "
+            "  CASE attribution_quality_flag "
             "    WHEN 'clean'        THEN 'Matched' "
             "    WHEN 'no_sdr_touch' THEN 'No SDR touch yet' "
             "    WHEN 'role_unknown' THEN 'Unassigned rep' "
-            "    ELSE flag "
+            "    ELSE attribution_quality_flag "
             "  END AS category, "
-            "  bookings "
-            "FROM `dee-data-ops-prod.marts.stl_attribution_quality_30d` "
+            "  COUNT(DISTINCT booking_id) AS bookings "
+            "FROM `dee-data-ops-prod.marts.speed_to_lead_detail` "
+            "WHERE booked_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY) "
+            "GROUP BY attribution_quality_flag "
             "ORDER BY bookings DESC"
         ),
         visualization_settings={
@@ -673,23 +910,65 @@ def main() -> None:
         },
     )
 
+    # ── Row 0 — Data freshness tile (end-to-end raw ingest lag) ─────────
+    # Track Z (2026-04-22): live-by-default ops indicator. Shows how many
+    # minutes since the last raw GHL event landed in `raw_ghl.conversations`.
+    # Answers: "How stale is the data we're rolling up?" If this reads > 5 min,
+    # the ingest pipeline has paused — visible immediately.
+    #
+    # DISTINCT from Track E's "Data refreshed" footer tile (row 41 below):
+    #   - Track Z tile (this one): "How stale is the raw data?" — sourced from
+    #     raw_ghl.conversations._ingested_at. Live ops indicator. TOP of dashboard.
+    #   - Track E tile (footer): "When did the rollup last recompute?" — sourced
+    #     from stl_headline_7d.computed_at. BOTTOM of dashboard.
+    # Both are needed; they measure different things in the freshness chain.
+    #
+    # Corpus: "Caching query results" (Metabase Learn, source d6a8e3ae) —
+    # cache_ttl=0 ensures every render queries fresh (live-by-default).
+    freshness_tile = upsert_card(
+        mb,
+        name="Data freshness (end-to-end lag)",
+        collection_id=coll["id"],
+        database_id=db_id,
+        display="scalar",
+        cache_ttl=0,
+        native_query=(
+            "SELECT timestamp_diff(current_timestamp(), max(_ingested_at), minute) "
+            "AS minutes_since_raw_ingest "
+            "FROM `dee-data-ops-prod.raw_ghl.conversations`"
+        ),
+        visualization_settings={
+            "scalar.field": "minutes_since_raw_ingest",
+            **_col_settings({
+                "minutes_since_raw_ingest": {"suffix": " min", "decimals": 0},
+            }),
+        },
+    )
+
     # ── Footer — refresh timestamp ───────────────────────────────────────
+    # Track E (PR #50): "When did the rollup last recompute?" — a different
+    # freshness question from the Track Z tile above. Stays at the footer.
+    # v1.7 (Track F2): rewired from stl_headline_7d.computed_at to
+    # speed_to_lead_detail.mart_refreshed_at. Same semantic: the timestamp
+    # when the dbt build last ran. Column renamed from computed_at to
+    # mart_refreshed_at; _col_settings key updated accordingly.
     # Q4 decision (Track E): keep this scalar alongside the new "Data as of"
-    # tile. They signal different things:
-    #   - "Data refreshed" = when dbt ran (computed_at from stl_headline_7d)
-    #   - "Data as of" = latest event in the mart (max(booked_at) from stl_data_freshness)
-    # Keeping both gives viewers the dbt-run-time signal + the data-currency
-    # signal. Source: "BI Dashboard Visualization Best Practices" (Metabase
-    # Learn notebook) — pairing a freshness tile with context is best practice.
+    # tile (row 45 col 12). "Data refreshed" = dbt run time;
+    # "Data as of" = latest event in the mart (max(booked_at) from
+    # stl_data_freshness). Source: "BI Dashboard Visualization Best
+    # Practices" (Metabase Learn notebook).
     footer = upsert_card(
         mb,
         name="Data refreshed",
         collection_id=coll["id"],
         database_id=db_id,
         display="scalar",
-        native_query="SELECT computed_at FROM `dee-data-ops-prod.marts.stl_headline_7d`",
+        native_query=(
+            "SELECT MAX(mart_refreshed_at) AS mart_refreshed_at "
+            "FROM `dee-data-ops-prod.marts.speed_to_lead_detail` LIMIT 1"
+        ),
         visualization_settings=_col_settings({
-            "computed_at": {"date_style": "MMMM D, YYYY", "time_enabled": "minutes"}
+            "mart_refreshed_at": {"date_style": "MMMM D, YYYY", "time_enabled": "minutes"}
         }),
     )
 
@@ -799,12 +1078,16 @@ def main() -> None:
     )
     header_dashcard = _text_dashcard(row=0, text=header_text, size_y=2)
 
-    # v1.3.1 layout map (Track E — dashboard filters + section dividers +
-    # footer text card + freshness tile).
+    # v1.3.1 + Track Z merged layout map.
     # Metabase dashboards use a 24-column grid.
+    # Track Z's freshness tile (6×2, col 0) shares row 0 with the Track E
+    # header banner (18×2, col 6). All other Track E rows retain their
+    # original positions — the 6-wide freshness tile doesn't collide with
+    # any divider or card below row 2.
     # Layout map (row, col, size_x, size_y):
     #
-    #   Row  0 — header banner                                  (0,  0, 24, 2)
+    #   Row  0 — Data freshness (end-to-end lag)                (0,  0, 6,  2)
+    #          | header banner                                  (0,  6, 18, 2)
     #   Row  2 — "## Speed Metrics" section divider             (2,  0, 24, 1)
     #   Row  3 — T1 hero (% First Touch in 5 min, weekly)       (3,  0, 24, 4)
     #   Row  7 — T2 | T3 (supporting smart-scalars)             each 12 wide, 3 tall
@@ -825,10 +1108,14 @@ def main() -> None:
     #   Row 45 — Data refreshed scalar (12×2) | Data as of freshness tile (6×2)
     #             (45, 0, 12, 2)                 | (45, 12, 6, 2)
     #   Row 47 — Footer markdown text card (full-width 24×2)    (47, 0, 24, 2)
+    header_dashcard["col"] = 6     # make room for Track Z freshness tile at col 0
+    header_dashcard["size_x"] = 18
     set_dashboard_cards(
         mb,
         dashboard_id=dash["id"],
         cards=[
+            # Row 0 — freshness tile: 6×2 top-left, live-by-default ops indicator
+            {"card_id": freshness_tile["id"], "row": 0, "col": 0, "size_x": 6, "size_y": 2, "visualization_settings": {}},
             header_dashcard,
             # Row 2 — Speed Metrics section divider
             _text_dashcard(row=2, text="## Speed Metrics"),
@@ -978,7 +1265,8 @@ def main() -> None:
         coverage_heatmap["id"],
         footer["id"],
         detail_card["id"],
-        data_as_of["id"],
+        data_as_of["id"],      # Track E: "Data as of" footer freshness tile
+        freshness_tile["id"],  # Track Z: top-of-dashboard raw ingest lag tile
     }
     all_collection_cards = [
         c for c in mb.cards()
@@ -998,4 +1286,21 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    import argparse
+    import sys
+
+    parser = argparse.ArgumentParser(
+        description="Push the Speed-to-Lead dashboard spec to Metabase (or dry-run it).",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help=(
+            "Log every POST/PUT/DELETE to stderr instead of calling Metabase. "
+            "Also activated by MB_DRY_RUN=1 in the environment. No credentials required."
+        ),
+    )
+    args = parser.parse_args()
+    main(dry_run=args.dry_run)
+    if args.dry_run:
+        print("[dry-run] completed — no live mutations performed.", file=sys.stderr)
