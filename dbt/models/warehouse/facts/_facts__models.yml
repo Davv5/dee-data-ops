@@ -179,7 +179,7 @@ models:
       - name: minutes_to_touch
         description: Elapsed minutes from booked_at to touched_at. NULL when no touch.
       - name: is_first_touch
-        description: TRUE on exactly one row per booking — the earliest is_sdr_touch row for that booking. FALSE otherwise.
+        description: TRUE on exactly one row per booking — the OVERALL earliest outbound touch row, regardless of toucher role. FALSE for subsequent touches and no-touch rows. Paired with `is_sdr_touch`, `is_first_touch AND is_sdr_touch` reproduces the legacy `sales_activity_detail.first_toucher_role = 'SDR'` filter for the locked 2026-04-19 headline metric.
       - name: is_sdr_touch
         description: TRUE when the touching user's current role is 'SDR'. Uses current-state dim_users join (v1); SCD-2 as-of join deferred to F2.
       - name: channel

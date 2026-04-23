@@ -47,9 +47,9 @@ models:
       - name: minutes_to_touch
         description: Minutes between booked_at and touched_at. NULL for no-touch rows.
       - name: is_first_touch
-        description: TRUE on the earliest SDR touch row per booking. FALSE for subsequent touches and no-touch rows.
+        description: TRUE on the OVERALL earliest outbound touch row per booking, regardless of toucher role. FALSE for subsequent touches and no-touch rows. Pair with `is_sdr_touch` to scope to "first SDR toucher" (reproduces the legacy 2026-04-19 locked metric semantics).
       - name: is_within_5_min_sla
-        description: TRUE when is_first_touch=TRUE and minutes_to_touch < 5. FALSE otherwise.
+        description: TRUE when is_first_touch=TRUE AND is_sdr_touch=TRUE AND minutes_to_touch < 5. The headline Speed-to-Lead numerator.
       - name: had_any_sdr_activity_within_1_hr
         description: TRUE if any SDR activity occurred within 60 minutes of booked_at, regardless of touch order.
       - name: is_sdr_touch

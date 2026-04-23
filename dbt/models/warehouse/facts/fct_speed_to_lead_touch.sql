@@ -209,11 +209,18 @@ enriched as (
         -- is_sdr_touch: current-state role join (v1; SCD-2 as-of join in F2)
         lower(u.role) = 'sdr'                                   as is_sdr_touch,
 
-        -- is_first_touch: TRUE on the earliest is_sdr_touch row per booking
+        -- is_first_touch: TRUE on the OVERALL earliest touch per booking,
+        -- regardless of toucher role. Aligned to the 2026-04-19 locked metric
+        -- definition — "SDR-attributed denominator" = the SDR was the first
+        -- toucher (if a non-SDR touched first, the booking attributes to that
+        -- role, not the SDR). Paired with `is_sdr_touch`, `is_first_touch AND
+        -- is_sdr_touch` reproduces the old `first_toucher_role = 'SDR'` filter
+        -- on sales_activity_detail. See stl_headline_parity test for the
+        -- regression gate.
         case
-            when lower(u.role) = 'sdr' and bt.touched_at is not null
+            when bt.touched_at is not null
                 then row_number() over (
-                    partition by bt.booking_sk, (lower(u.role) = 'sdr')
+                    partition by bt.booking_sk
                     order by bt.touched_at asc
                 ) = 1
             else false
