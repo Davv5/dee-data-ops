@@ -61,8 +61,8 @@ def _col_settings(mapping: dict[str, dict]) -> dict:
     return {"column_settings": {f'["name","{k}"]': v for k, v in mapping.items()}}
 
 
-def main() -> None:
-    mb = MetabaseClient()
+def main(dry_run: bool = False) -> None:
+    mb = MetabaseClient(dry_run=dry_run or None)
     db_id = find_database_id(mb, DATABASE_NAME)
 
     coll = upsert_collection(
@@ -976,4 +976,21 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    import argparse
+    import sys
+
+    parser = argparse.ArgumentParser(
+        description="Push the Speed-to-Lead dashboard spec to Metabase (or dry-run it).",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help=(
+            "Log every POST/PUT/DELETE to stderr instead of calling Metabase. "
+            "Also activated by MB_DRY_RUN=1 in the environment. No credentials required."
+        ),
+    )
+    args = parser.parse_args()
+    main(dry_run=args.dry_run)
+    if args.dry_run:
+        print("[dry-run] completed — no live mutations performed.", file=sys.stderr)
