@@ -97,6 +97,30 @@ Rolling log of what's been done on this project. Newest entries at the top. Tail
 - **Track Y (dbt incremental + 2-min builder)** is parallel-safe — can start against dev data now. Will show no STL improvement until Track W is live.
 - **Track Z (Metabase live-by-default)** is blocked on Tracks W+Y for end-to-end freshness.
 - **`live-by-default.md` rule** deferred to Track Z per track spec (no dependency for execution correctness).
+## 2026-04-22 (evening) — Track F3: stl_* rollup deprecation + mart-naming lessons-learned (DRAFT — awaiting F2 merge + prod gate)
+
+**What happened**
+- Deleted 11 `stl_*` rollup SQL files from `dbt/models/marts/rollups/speed_to_lead/`: `stl_headline_7d`, `stl_headline_trend_daily`, `stl_headline_trend_weekly`, `stl_daily_volume_by_source`, `stl_sdr_leaderboard_30d`, `stl_attribution_quality_30d`, `stl_lead_detail_recent`, `stl_outcome_by_touch_bucket_30d`, `stl_response_time_distribution_30d`, `stl_source_outcome_30d`, `stl_coverage_heatmap_30d`.
+- Retired `dbt/tests/stl_headline_parity.sql` — refs `stl_headline_7d` which no longer exists; its job (parity gate) is done.
+- Replaced `_stl__models.yml` content with single `stl_data_freshness` block (kept verbatim from Track E). Old 11 model blocks removed.
+- Created `dbt/models/marts/rollups/speed_to_lead/stl_data_freshness.sql` — sourced from Track E branch (f56415d). `stl_data_freshness` is NOT a rollup; it feeds the `Data as of` freshness tile. NOT deleted.
+- `dbt build --target dev` post-deletion: PASS=222 WARN=2 ERROR=1 SKIP=11. ERROR = `source_freshness` (pre-existing data-staleness check, unrelated to F3). WARNs = `release_gate_revenue_detail` + `release_gate_sales_activity_detail` (pre-existing). Zero compile errors on deleted models — confirmed no downstream ref() to the 11 deleted rollups.
+- `stl_grain_integrity` PASS. `speed_to_lead_detail` PASS (15.3k rows). `stl_data_freshness` PASS (1 row).
+- Grep for live stl_* rollup references in `.sql/.py/.yml` — zero live code hits; only comment-level "rewired from…" notes in `speed_to_lead.py` (historical context, not data dependencies).
+- Appended "Fact-first-then-wide-mart" Lessons Learned bullet to `.claude/rules/mart-naming.md`.
+- Updated `.claude/state/project-state.md` — removed "dbt_metadata_sync.py never run" and "Mart lacks real show_outcome" as separate threads; replaced with accurate current-state notes.
+
+**Decisions**
+- `dbt_metadata_sync.py` run is a **human-only step** post F3 merge, not executed by this track (hook-blocked prod; also a "Big Event" first-ever sync). Documented in PR body. (`grep -n "metadata_sync" WORKLOG.md`)
+- `bq rm` for the 11 stale BQ tables is **David-only** (destructive, prod-only). Track lists the commands in the PR body for David to run after F3 merge + `dbt build --target prod`.
+- `show_outcome` fallback question (defer to Track G or fix now?) is a **stop-and-ask** open item. Not resolved in F3.
+- F3 PR to be opened as **DRAFT** by pr-reviewer; David un-drafts only after: F2 deployed to prod + stl_headline_parity green for one prod refresh cycle.
+
+**Open threads**
+- F3 PR merge gate: F2 merged to main AND deployed to prod AND one `dbt-prod-daily` refresh cycle with parity test green.
+- `dbt_metadata_sync.py` first-run against prod Metabase (human step, post-merge).
+- `show_outcome` fallback: David to decide — Track G fix or accept current `speed_to_lead_detail` behavior (F2 uses real `show_outcome = 'showed'`; old rollup fallback `close_outcome IS NOT NULL` is now retired with the rollups).
+- `bq rm` for 11 stale prod tables: David runs after F3 merge + prod build.
 
 ## 2026-04-22 (evening) — Track F2: speed_to_lead_detail wide mart + Metabase card rewire (F2 branch, pending F1 merge)
 
