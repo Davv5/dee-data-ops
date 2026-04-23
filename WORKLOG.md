@@ -11,6 +11,66 @@ Rolling log of what's been done on this project. Newest entries at the top. Tail
 
 ---
 
+## 2026-04-23 (evening) — U1 preflight executed; plan U3/U4 refined from findings
+
+**What happened**
+- Ran U1 per `docs/plans/2026-04-23-001-feat-gtm-source-port-plan.md` against `project-41542e21-470f-4589-96d`. Produced `docs/preflight/gtm-gcp-inventory.md` (13 sections, one-time snapshot) and `docs/runbooks/gcp-consolidation-cutover.md` (step-by-step for U1–U5).
+- Inventory captured: 26 Cloud Run Jobs + 2 Services (`bq-ingest`, `gtm-warehouse-mcp-phase0`) + 19 Scheduler jobs (all `us-central1`) + 10 Secret Manager entries + 9 BQ datasets.
+- Freshness reality check: GHL Phase-2 `raw_ghl.*` is 4 days stale (last write 2026-04-19 14:33); legacy `Raw.ghl_objects_raw` is 3 days stale (last write 2026-04-20 17:20); Stripe ~50 days stale across every object_type; Calendly legacy + Typeform responses + Fathom + Fanbasis fresh.
+- Three findings expanded downstream scope (plan updated in same PR):
+  - **Calendly Phase-2 empty.** `raw_calendly.*` tables exist but hold 0 rows. Data lands in `Raw.calendly_objects_raw` (entity_types `scheduled_events`, `event_invitees`, `event_types`). Merge staging needs a blob-shim identical to Stripe/Typeform/Fathom.
+  - **GHL column-rename.** `raw_ghl.ghl__<obj>_raw` has columns `(entity_id, _ingested_at, payload_json, ...)`; Merge staging reads `(id, _ingested_at, payload)`. Fix is a one-line source-CTE rewrite per `stg_ghl__*.sql` + `identifier:` overrides in `_ghl__sources.yml`.
+  - **GHL Phase-2 partial.** 6 of 10 entity types populated in `raw_ghl`. `messages`, `notes`, `tasks`, `users` at 0 rows — shim from `Raw.ghl_objects_raw` filtered by entity_type.
+- GHL 3-day staleness diagnosed as a `bq-ingest` Cloud Run Service regression. Scheduler fires hourly with HTTP 0, but no rows land. Same service also throws code 13 on `fathom-hourly-ingest` and `warehouse-healthcheck-hourly`. Repair lives in GTM repo, not Merge.
+- Fathom baseline captured: 1,157 calls in `Raw.fathom_calls_raw`, **0% transcript coverage** in `payload_json.$.transcript`. Confirms the previous stuck point. U6 starts from that baseline.
+- Failing Cloud Run Jobs identified: `typeform-backfill` (exit 2, 3 days running), `fathom-backfill` (exit 1, 3 days), `stripe-backfill` (intermittent), `fathom-llm-analysis` (dead since 2026-04-03; `Raw.fathom_call_intelligence` is empty).
+
+**Decisions**
+- **U3 scope expanded** to include Calendly blob-shim and GHL column-rename alongside Stripe/Typeform/Fathom. Single unit still covers it; incremental work is one CTE-sized change per staging model.
+- **U4 split into U4a + U4b.** U4a = plumbing parity against a `bq cp` raw snapshot + a frozen `dee-data-ops-prod` baseline (BQ time-travel); HARD GATE for U5. U4b = live-raw business parity once `bq-ingest` is repaired; observational, parallel with U6–U8, gates U14 decommission. Rationale: raw freshness is a `bq-ingest` bug that belongs upstream; gating the plumbing cutover on it would mis-couple two failures.
+- **U4a raw-side `bq cp` is not a "copy instead of replay" exception.** Warehouse + marts still replay via `dbt build`; only raw gets frozen via `bq cp` to make the parity comparison meaningful. Clarified in plan's Key Technical Decisions.
+- **dbt compile sub-step of U1 deferred to U2.** Merge has no `.venv`/dbt installed locally, and defining a `dev_gtm` target in `profiles.yml` is U2 scope. Static review of source YAMLs against `bq show` column schemas covered the plan's "compatible/incompatible per model" criterion more richly than a pass/fail.
+- **Recommended path for GHL staleness:** accept-as-is for U2–U4a (the locked-metric parity gate cares that dbt reproduces identical output from identical raw, not that raw is live); fix `bq-ingest` in parallel; U4b picks up once live again.
+
+**Open threads**
+- **David sign-off on U1 findings** — 4 items at the bottom of `docs/preflight/gtm-gcp-inventory.md`. Gates U2.
+- **`bq-ingest` service repair** (GTM repo) — prerequisite for U4b but not for U2–U4a.
+- **U2 dbt profile retarget** not started. SA `merge-dbt-ci@project-41542e21-...` needs provisioning per preflight §12 before U2 can go green.
+- Plan now has 15 units instead of 14 (U4 → U4a + U4b). Phased Delivery, Risks table, System-Wide Impact, U14 dependencies all refreshed to match.
+- `project-state.md` regenerated for the new phase.
+
+## 2026-04-23 (pm) — GCP project consolidation planned: project-41542e21 becomes sole home; dee-data-ops-* decommissioned
+
+**What happened**
+- Recovered GTM Lead Warehouse project (`/Users/david/Documents/operating system/Projects/GTM lead warehouse`) inventoried. Contains 6 extractors, 17 Cloud Run Jobs, trained BQML classifier (`Core.bqml_fathom_sales_call_classifier`, logistic regression, retrained 2026-04-23 05:19), 1,306-line identity pipeline (`sources/identity/identity_pipeline.py`), live raw data across 5 sources. Fresh today: Calendly 10.9k rows, Stripe 7.6k, Typeform 5.1k, Fathom 1,155 transcripts (56 MB). GHL 68k rows but 3 days stale.
+- Cross-project BigQuery verification (2026-04-23): `dee-data-ops-prod.marts.speed_to_lead_detail` has 15,283 rows materialized today; `dee-data-ops-prod.warehouse.fct_speed_to_lead_touch` 15,283; staging models are views (0 materialized rows) resolving against `dee-data-ops:raw_*` dev. Merge's Fivetran landing 40-table Stripe relational + 17-table Typeform into dev. Fivetran has known sync gap (Stripe child tables empty) already recorded in prior state.
+- Plan v1 drafted (port GTM extractors into `dee-data-ops-prod`, `bq cp` Fathom data over, re-ingest the rest). Discarded same session after David pointed out GTM's GCP already has everything live.
+- Plan v2 written to `docs/plans/2026-04-23-001-feat-gtm-source-port-plan.md` — inverse direction: consolidate into `project-41542e21-470f-4589-96d` instead. 14 units, 4 phases, ~4 weeks active + 30-day soak.
+- Three HARD GATES defined: U4 cutover parity (15,283 Speed-to-Lead rows reproduce in consolidated project), U8 Stripe revenue parity (7-day dual-source window), U12 identity-spine 14-day parity.
+- Plan gained a "Fresh session startup" block at the top so handoff is clean.
+- Memory files added (auto-loaded per `MEMORY.md`): `project_gcp_consolidation_decision.md` (the decision), `feedback_preserve_working_infra.md` (general preference: preserve working infrastructure over naming hygiene when David is sole stakeholder).
+
+**Decisions**
+- **Consolidate all data ops into `project-41542e21-470f-4589-96d`** (formerly GTM's sandbox, display name "My First Project"). `dee-data-ops-prod` (client-named) + `dee-data-ops` (dev) decommissioned 30 days after cutover stability. Billing already on same account (`0114FD-8EC797-A11084`). Chosen over "port extractors into dee-data-ops-prod" because GTM project had 2 years of live Cloud Run + Scheduler + Secret Manager + BQML worth preserving; ~5 weeks of rebuild work avoided.
+- **dbt project (`dee_data_ops`) stays canonical.** GTM's `gtm_lead_warehouse` dbt abandoned; Merge's dbt retargets at `project-41542e21-...`. Warehouse + marts replay via `dbt build`, not `bq cp` — exercises full chain, surfaces staging-shim bugs immediately.
+- **Extractors migrate to Merge on first touch.** When Fathom/Stripe/Typeform extractors are modified in U6/U7/U9, they move into `ingestion/<source>/` and redeploy from Merge via new `cloud-run-deploy.yml` workflow. GHL + Calendly extractors stay in GTM's folder for now (not touched). End state: one repo owns all live code; GTM's folder becomes historical archive.
+- **Phase-2 per-object migration happens in-place** inside `project-41542e21-...` for Stripe/Typeform/Fathom — replaces single-blob `Raw.<source>_objects_raw` with `raw_<source>.<source>__<obj>_raw` (matches existing `raw_ghl`/`raw_calendly` convention).
+- **Fathom BQML classifier stays in `Core`; accessed cross-dataset via `ML.PREDICT`.** No retrain in this plan; defers work that isn't blocking.
+- **Staging shim pattern** for single-blob sources during the window between cutover (U3) and Phase-2 (U7/U9) — JSON-decode CTE retired as soon as per-object tables exist.
+- **Phase boundaries are serial.** Hard gates + calendar-bound parity windows make "one phase per session" non-negotiable. Mirrors the cadence GTM's own `CLEANUP_PLAN.md` specified.
+
+**Open threads**
+- **Phase 1 U1 preflight** — next session. Read-only; produces `docs/preflight/gtm-gcp-inventory.md`. Enumerate Cloud Run Jobs, Secret Manager entries, verify Merge staging compiles against GTM's `raw_ghl`/`raw_calendly` per-object schema.
+- **GTM GHL 3-day staleness** — root-cause during U1 (scheduler disabled, quota throttle, or silent API failure TBD).
+- **Fathom transcript landing issue** — David's previous stuck point; addressed in U6 as port + fix in one PR (sandbox-dataset verify 24h before flipping schedules).
+- **Secret Manager grants for Merge CI on `project-41542e21-...`** — enumerated in U1; provisioned before U2 dbt retarget.
+- **Merge prod has no `raw_*` datasets** — worth confirming where prod dbt pulls raw from today before U5 cutover (may be moot once retargeted to GTM's project which has raw).
+- **Track X operational bringup (Calendly poller)** — unresolved from prior session; may overlap with consolidation since poller deploys against old project architecture.
+- **Fanbasis** — broken on both sides (GTM has 3 rows, Merge has only `_sync_state`); separate diagnostic session.
+- **`dee-data-ops-prod` stays live during cutover** — 15,283 materialized rows are the rollback baseline until U14.
+
+---
+
 ## 2026-04-23 — Speed-to-Lead star-schema refactor CLOSED — dashboard live on wide mart, legacy rollups dropped
 
 **What happened**
