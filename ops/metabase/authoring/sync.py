@@ -166,6 +166,11 @@ def set_dashboard_cards(
 
 
 def find_database_id(mb: MetabaseClient, name: str) -> int:
+    if getattr(mb, "dry_run", False):
+        # In dry-run there's no real Metabase to query. Return a stub id so the
+        # downstream card queries can reference it in their dataset_query; the
+        # actual integer doesn't matter because every POST/PUT is intercepted.
+        return -9999
     for db in mb.databases():
         if db["name"] == name:
             return db["id"]
