@@ -1,7 +1,12 @@
 {
   "permissions": {
     "allow": [
-      "mcp__notebooklm-mcp"
+      "mcp__notebooklm-mcp",
+      "Bash(gh pr:*)",
+      "Bash(git push:*)",
+      "Bash(gcloud secrets versions access:*)",
+      "Bash(python3 -m ops.metabase.authoring:*)",
+      "Bash(python -m ops.metabase.authoring:*)"
     ]
   },
   "hooks": {
