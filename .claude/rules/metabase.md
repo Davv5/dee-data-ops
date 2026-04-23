@@ -136,12 +136,17 @@ Add a new-client adaptation to `NEW_CLIENT_METABASE_SOP.md` post-v1.
 
 ## Lessons learned
 
-- Enable query-result caching on any public-share dashboard reading
-  BigQuery. Set a per-dashboard `cache_ttl` aligned with the upstream
-  rollup refresh cadence (6h for dbt-prod-daily rollups). Keep
-  `details["include-user-id-and-hash"] = False` on the BQ connection
-  so cache misses can still fall through to BigQuery's free 24-hour
-  native result cache.
+- Enable query-result caching at the server level (`MB_ENABLE_QUERY_CACHING=true`
+  in docker-compose.yml) so per-dashboard overrides work. Per-dashboard
+  `cache_ttl` is aligned with the upstream rollup refresh cadence:
+  - **Live-by-default rollups** (2-min Cloud Run builder): `cache_ttl=0`
+    (explicit bypass — every render queries fresh).
+  - **Daily-cadence rollups** (nightly-only): `cache_ttl=21600` (6h).
+  Use `0` rather than `null` for live dashboards — `0` is self-documenting
+  ("live"), `null` is ambiguous ("server default"). Keep
+  `details["include-user-id-and-hash"] = False` on the BQ connection so
+  cache misses can still fall through to BigQuery's free 24-hour native
+  result cache. See `.claude/rules/live-by-default.md` for the end-to-end chain.
   (source: *"Google BigQuery | Metabase Documentation"*, Metabase Craft
   notebook; *"Caching query results"*, Metabase Learn notebook, source
   d6a8e3ae.)
@@ -150,7 +155,16 @@ Add a new-client adaptation to `NEW_CLIENT_METABASE_SOP.md` post-v1.
   returns HTTP 500 "read-only setting." Enable via the
   `MB_ENABLE_QUERY_CACHING=true` environment variable on the server
   (docker-compose.yml), then restart Metabase. The per-dashboard
-  `cache_ttl` can be set via the dashboard PUT endpoint even on OSS.
+  `cache_ttl` can be set via the dashboard PUT endpoint even on OSS
+  (Track D empirical 2026-04-22: cache_ttl=21600 persisted on v0.60.1,
+  contradicting the Metabase Learn "Pro-only" note in source d6a8e3ae).
+  **OSS v0.60.1 gotcha — dashboard auto-refresh:** There is no `refresh_period`
+  or equivalent key on the `/api/dashboard` PUT endpoint. Auto-refresh is
+  a frontend-only feature. Activate by appending `#refresh=60` to the
+  dashboard's public share URL or iframe src. Embedded dashboards inherit
+  this via the embedding URL. No server-side API call needed or available.
+  (source: *"Dashboards"* overview, Metabase Learn notebook, source 04cf5679;
+  Metabase Craft notebook corpus query 2026-04-22)
 
 - Dashboard subscriptions (pulses) are admin-config, not dashboard-code.
   Per Metabase Learn's "Pushing data" guidance, match the subscription
