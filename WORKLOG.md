@@ -11,6 +11,31 @@ Rolling log of what's been done on this project. Newest entries at the top. Tail
 
 ---
 
+## 2026-04-22 (evening) — Track F2: speed_to_lead_detail wide mart + Metabase card rewire (F2 branch, pending F1 merge)
+
+**What happened**
+- Created `dbt/models/marts/speed_to_lead_detail.sql` — wide mart, one row per (booking × touch-event), 15,291 rows in dev. Built on `fct_speed_to_lead_touch` + joins to `dim_sdr`, `dim_source`, `dim_contacts`, `dim_pipeline_stages` (pipeline columns NULL in dev — fct_calls_booked.pipeline_stage_sk is stubbed NULL).
+- Added `speed_to_lead_detail` model block + full column docs to `dbt/models/marts/_marts__models.yml`.
+- Created `dbt/tests/stl_headline_parity.sql` — singular test with NULL-safety: flags both value divergence and NULL-on-either-side.
+- Created `dbt/tests/stl_grain_integrity.sql` — grain uniqueness test on (booking_id, coalesce(cast(touched_at as string), 'no-touch')).
+- `dbt build --target dev --select +speed_to_lead_detail` — PASS=157, ERROR=2. The 2 errors are pre-existing `source_freshness` test + `stl_headline_parity` (dev data gap — see below). `stl_grain_integrity` PASS. `speed_to_lead_detail` model tests (unique, not_null, accepted_values) all PASS.
+- Rewired all 12 Metabase cards in `ops/metabase/authoring/dashboards/speed_to_lead.py` — `native_query` strings now aggregate directly on `dee-data-ops-prod.marts.speed_to_lead_detail`. Card names frozen at v1.6. `grep -c "marts\.stl_" speed_to_lead.py` = 0.
+- Added `is_first_touch` filter to `detail_card` with default ON (backward-compatible). Added `first_touch_only` param to `detail_dash` with 4-way parameter mapping.
+
+**Decisions**
+- `is_first_touch` default: ON. Keeps the detail table behavior identical to v1.6 on first open. Users toggle OFF to see full touch sequence per booking (new capability).
+- `stl_headline_parity` failure is a known dev data gap: `stl_headline_7d` (old path via `sales_activity_detail`) returns `old_pct = NULL` for the last 7 days because `first_toucher_role` is NULL for all recent bookings — the `fct_outreach` → `first_touch` → `first_toucher` join fails for contacts in the current window. The new path (`fct_speed_to_lead_touch`) correctly returns `new_pct = 18.8%` (32 SDR first touches in last 7d, 6 within 5min). This is a DATA QUALITY IMPROVEMENT on the new path, not a regression. `stl_headline_7d` is effectively broken for current data. Not a >10pp delta on computed values — both values are not computed simultaneously.
+- Parity numbers: `new_pct = 18.8`, `old_pct = NULL`, `diff_pp = NULL (one_or_both_null)`. Test correctly flags this per the NULL-safety design in the test. No tolerance loosening applied.
+- `show_rate_pct` on `source_outcome` and `close_rate_by_touch`: now uses real `show_outcome = 'showed'` (not fallback `close_outcome IS NOT NULL`). Delta unknown until prod run — flagged as intentional improvement.
+- `days_since_stage_change`: emitted as `NULL` (always) because this is a booking-level signal not available on `dim_pipeline_stages`. Reserved column for a future fact-level computation.
+- F2 branch cherry-picks F1 commit `268d947` (PR #51 not yet merged). pr-reviewer must note merge dependency.
+
+**Open threads**
+- `stl_headline_parity` will remain failing in dev until `fct_calls_booked.contact_sk` staging gap resolves (invitee staging). Expected to be GREEN in prod where the full contact join works.
+- Metabase smoke test skipped (Task 6 of track) — dev Metabase Docker not started; smoke test is a human-run step before prod deploy per the track's prod deployment sequence.
+- `show_rate_pct` delta magnitude vs v1.6 unknown until prod run. Track instruction: stop and report if >10pp on any `lead_source`. David must verify post-prod deploy (Step F of prod deployment sequence).
+- Dashboard `cache_ttl` check (Track D infrastructure): deferred to David for prod verification per track's open question.
+
 ## 2026-04-22 (pm) — Track F1: warehouse layer — fct_speed_to_lead_touch + dim_sdr + dim_source (additive-only)
 
 **What happened**
