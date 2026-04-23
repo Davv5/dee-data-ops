@@ -11,6 +11,41 @@ Rolling log of what's been done on this project. Newest entries at the top. Tail
 
 ---
 
+## 2026-04-22 (evening) — Track W: GHL extractor migrated to Cloud Run Jobs + Cloud Scheduler (1-min hot / 15-min cold)
+
+**What happened**
+- Containerized the GHL extractor: `ingestion/ghl/Dockerfile`, `.dockerignore`, `ingestion/__init__.py`, `ingestion/ghl/__init__.py` (needed for `python -m ingestion.ghl.extract` module invocation).
+- Added `--endpoints` CSV flag + `--since` override to `extract.py` so the same image runs hot-mode (`conversations,messages`) or cold-mode (`contacts,opportunities,users,pipelines`). Default = all six (preserves GHA `workflow_dispatch` behavior).
+- Added BQ advisory lock (`raw_ghl._job_locks`) to `extract.py` via `MERGE` + `try/finally`: prevents the 1-min Cloud Scheduler from queueing a second execution while the prior one is still running. Lock TTL = 2 min. Lock is only engaged when `GCP_SECRET_MANAGER_PROJECT` is set (Cloud Run path); GHA / local dev paths skip it.
+- Wrote Terraform at `ops/cloud-run/ghl-extractor/terraform/`: `main.tf` (AR repo, `ghl-hot` + `ghl-cold` Cloud Run Jobs, Scheduler jobs, IAM), `variables.tf`, `outputs.tf`, `README.md` (apply/destroy/rollback runbook).
+- Wrote `ops/cloud-run/ghl-extractor/build-and-push.sh`: builds image tagged `:<sha>` + `:latest`, pushes to AR repo `ingest` in `dee-data-ops-prod`.
+- Wrote `.github/workflows/cloud-run-deploy-ghl.yml`: on merge to main touching `ingestion/ghl/**`, builds + pushes image and runs `gcloud run jobs update` for both jobs.
+- Edited `.github/workflows/ingest.yml`: schedule cron comment updated (Fanbasis-only note), added `if: matrix.source != 'ghl' || github.event_name == 'workflow_dispatch'` guard on "Run extractor" step. GHL still reachable via `workflow_dispatch`.
+- Edited `.claude/rules/ingest.md`: carved the near-real-time exception subsection for Cloud Run Jobs (criteria: sub-5-min + dashboard-load-bearing + rate-limit-safe + BQ concurrency guard + Terraform-managed).
+- Wrote `docs/runbooks/ghl-cloud-run-extractor.md`: pause/resume, manual trigger, log inspection, BQ lock debug, freshness verification SQL, rollback steps, cost estimate.
+- Updated `ingestion/ghl/README.md` to reflect dual execution paths.
+- Corpus query confirmed: double-ingestion risk during scheduler migration is handled by append-only + staging dedupe (idempotency contract). Atomic swap pattern (disable old, switch new, then verify) is the right cutover model.
+  (source: `.claude/rules/ingest.md` ingestion contract + "Why Data Migrations Go Wrong (3 reasons)", Data Ops notebook)
+
+**Decisions**
+- **BQ advisory lock, not Redis/GCS.** Already have BQ; a 2-min lock table is trivial and zero new backing stores. (Track W decision, see `extract.py` docstring)
+- **Lock only active on Cloud Run path.** `GCP_SECRET_MANAGER_PROJECT` env var presence signals Cloud Run vs GHA/local. GHA `workflow_dispatch` skips the lock so manual reruns aren't blocked.
+- **`conversations` before `messages` order enforced.** `ALL_ENDPOINTS` ordering is canonical regardless of `--endpoints` CLI input order — the messages fetcher fans out from BQ conversations, so conversations must be fresh first.
+- **`GCP_PROJECT_ID_DEV` var name left unchanged.** Misleadingly named but renaming is a separate concern (would touch GHA + SM + TF). Noted in BACKLOG as a follow-up.
+- **Scheduler SA is `cloud-scheduler@dee-data-ops-prod.iam.gserviceaccount.com`.** Needs manual creation if absent (prereq in TF README).
+- **Projected monthly cost: < $6/month total.** Cloud Run Jobs + Scheduler + AR. Negligible. (noted in runbook)
+
+**Open threads**
+- **Checkpoint W1 — Manual verification required before proceeding to prod infra:**
+  - David must build + smoke-test the container in dev before pushing to AR: `docker build -t ghl-extractor:dev -f ingestion/ghl/Dockerfile . && docker run --rm -e GCP_PROJECT_ID_DEV=dee-data-ops -e GOOGLE_APPLICATION_CREDENTIALS=/sa.json -v ~/sa-dev.json:/sa.json ghl-extractor:dev --endpoints conversations --since 2026-04-22T00:00:00Z --dry-run`
+  - David must run `terraform plan` and confirm before `apply`. TF README has import note for AR repo if Track J already created it.
+  - David must verify Secret Manager IAM is already set (pre-context: he fixed `ingest@dee-data-ops.iam.gserviceaccount.com` on `ghl-api-key` + `ghl-location-id` in `dee-data-ops-prod` this session — no action needed).
+  - David must confirm the `cloud-scheduler@dee-data-ops-prod.iam.gserviceaccount.com` SA exists or create it.
+- **Checkpoint W2 — Dual-run observation window:** after first Cloud Run execution, query `raw_ghl.conversations` to confirm 1-min cadence before disabling the GHA cron permanently (the `if:` guard in `ingest.yml` is the soft disable; the workflow still exists as backstop).
+- **Track Y (dbt incremental + 2-min builder)** is parallel-safe — can start against dev data now. Will show no STL improvement until Track W is live.
+- **Track Z (Metabase live-by-default)** is blocked on Tracks W+Y for end-to-end freshness.
+- **`live-by-default.md` rule** deferred to Track Z per track spec (no dependency for execution correctness).
+
 ## 2026-04-22 (pm) — Metabase Learn corpus + v1.3.1 polish (Track D shipped, Track E in flight) + OSS permissions research
 
 **What happened**

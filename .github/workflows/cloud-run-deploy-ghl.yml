@@ -1,0 +1,101 @@
+# CD workflow: build + push + update Cloud Run Jobs for GHL extractor.
+#
+# Fires on every merge to main that touches ingestion/ghl/** — this is the
+# continuous-delivery loop that keeps the Cloud Run Jobs running the current
+# extractor image.
+#
+# Track W (2026-04-22): GHL ingest moved from GHA cron to Cloud Run Jobs +
+# Cloud Scheduler for sub-5-min freshness. This workflow handles image build
+# and job update on deploy; Cloud Scheduler handles the recurring trigger.
+#
+# Grounded in: corpus guidance that GHA remains the CI/CD backbone for
+# deployment (`.claude/rules/ingest.md`) even when the runtime scheduler
+# moves to Cloud Run (Track W exception documented in that rule).
+
+name: Deploy GHL Extractor (Cloud Run Jobs)
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'ingestion/ghl/**'
+      - 'ops/cloud-run/ghl-extractor/**'
+
+permissions:
+  contents: read
+  id-token: write  # for google-github-actions/auth WIF (future)
+
+concurrency:
+  group: deploy-ghl
+  cancel-in-progress: false  # never cancel an in-flight deploy
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    env:
+      PROJECT: dee-data-ops-prod
+      REGION: us-central1
+      REGISTRY: us-central1-docker.pkg.dev/dee-data-ops-prod/ingest/ghl-extractor
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
+
+      - name: Build image
+        run: |
+          SHA=$(git rev-parse --short HEAD)
+          docker build \
+            --platform linux/amd64 \
+            -t "${{ env.REGISTRY }}:${SHA}" \
+            -t "${{ env.REGISTRY }}:latest" \
+            -f ingestion/ghl/Dockerfile \
+            .
+          echo "SHA=${SHA}" >> $GITHUB_ENV
+
+      - name: Push image
+        run: |
+          docker push "${{ env.REGISTRY }}:${{ env.SHA }}"
+          docker push "${{ env.REGISTRY }}:latest"
+
+      - name: Update ghl-hot Cloud Run Job
+        run: |
+          gcloud run jobs update ghl-hot \
+            --image="${{ env.REGISTRY }}:${{ env.SHA }}" \
+            --region="${{ env.REGION }}" \
+            --project="${{ env.PROJECT }}"
+
+      - name: Update ghl-cold Cloud Run Job
+        run: |
+          gcloud run jobs update ghl-cold \
+            --image="${{ env.REGISTRY }}:${{ env.SHA }}" \
+            --region="${{ env.REGION }}" \
+            --project="${{ env.PROJECT }}"
+
+      - name: Slack notify on failure
+        if: failure()
+        uses: slackapi/slack-github-action@v1.27.0
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload: |
+            {
+              "text": "GHL extractor deploy failed on main",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*GHL Extractor Deploy* failed\n• SHA: `${{ env.SHA }}`\n• Run: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|#${{ github.run_number }}>"
+                  }
+                }
+              ]
+            }

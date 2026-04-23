@@ -1,7 +1,9 @@
-# Daily ingestion for sources not covered by Fivetran (GHL, Fanbasis).
+# Ingestion workflow for sources not covered by Fivetran.
 #
-# Runs at 06:00 UTC (≈02:00 ET) so dashboards are fresh by morning US-East.
-# Also available via workflow_dispatch for on-demand reruns.
+# Track W (2026-04-22): GHL ingest has moved to Cloud Run Jobs + Cloud Scheduler
+# for sub-5-min freshness. The scheduled cron for GHL is DISABLED here.
+# GHL still runs via workflow_dispatch for manual backfills.
+# Fanbasis cron (week-0-deferred) is unchanged.
 #
 # Secrets model (post Track J Secret Manager migration, 2026-04-20):
 #
@@ -16,10 +18,17 @@
 #   Remaining GitHub repo secrets (Settings → Secrets → Actions):
 #     GCP_SA_KEY        — JSON keyfile for the ingest/deploy service account (NOT base64; paste the raw JSON)
 #     FANBASIS_API_KEY  — Fanbasis API token (week-0-deferred source; migration to SM scoped separately)
+#
+# Rollback path: to revert GHL to GHA cron, restore the `schedule:` block
+# below and revert the `if:` guard on the Run extractor step. Also pause the
+# Cloud Scheduler jobs: `gcloud scheduler jobs pause ghl-hot --location=us-central1`
+# See ops/cloud-run/ghl-extractor/terraform/README.md for full rollback steps.
 
 name: Ingest
 
 on:
+  # Fanbasis only: daily at 06:00 UTC (≈02:00 ET).
+  # GHL removed from schedule: Track W moved GHL to Cloud Run Jobs + Cloud Scheduler.
   schedule:
     - cron: '0 6 * * *'
   workflow_dispatch:
@@ -67,6 +76,11 @@ jobs:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
 
       - name: Run extractor
+        # Track W: GHL cron is handled by Cloud Run Jobs + Cloud Scheduler.
+        # On the daily 06:00 UTC schedule this step skips GHL (schedule runs
+        # Fanbasis only). GHL still runs when triggered by workflow_dispatch
+        # (manual backfill / emergency path).
+        if: matrix.source != 'ghl' || github.event_name == 'workflow_dispatch'
         run: python ingestion/${{ matrix.source }}/extract.py
 
       - name: Slack notify on failure
