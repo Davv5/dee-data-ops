@@ -111,6 +111,16 @@ git checkout main && git pull origin main
 git checkout -b feature/<description>
 ```
 
+## Solo-operator pre-authorization
+
+David is the sole operator on this engagement. When David asks Claude (in any session) to merge a PR, push a branch, delete a remote branch, close an issue, or otherwise execute an action on the default branch or shared GitHub state, **do it directly without a per-action confirmation round-trip.** This applies to `gh pr merge`, `gh pr create`, `gh pr close`, `git push`, `git push --delete`, and equivalent operations that the Bash allowlist already covers.
+
+This is pre-authorization in the spirit of the system prompt's "risky actions" guidance: David has weighed the blast radius for this single-operator engagement and accepts it. The `.claude/settings.json` allowlist encodes the Bash layer; this clause encodes the Claude decision layer. Both are needed — the allowlist without this clause still triggers semantic confirmation prompts on "merge to default branch" and similar.
+
+Scope: this pre-authorization covers GitHub / git / Cloud Run / BigQuery operations against David's own projects (`dee-data-ops`, `dee-data-ops-prod`, `project-41542e21-470f-4589-96d`). It does **not** cover actions against third-party systems (Fivetran billing, Metabase public-dashboard URLs with outside viewers, client communication channels) — those still require explicit per-action sign-off.
+
+When in doubt: if David asked for it, do it. If David didn't ask and you're considering it, still confirm.
+
 ## dbt Commands
 
 Run from the `dbt/` directory with the virtual environment activated and `.env` sourced:
