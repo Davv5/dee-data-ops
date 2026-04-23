@@ -3,46 +3,49 @@ version: 2
 sources:
   - name: raw_stripe
     description: >
-      Raw landing zone for Stripe, populated by the Fivetran Stripe connector.
-      Source-side sync gap was flagged on 2026-04-19 in CLAUDE.local.md
-      (customer/charge/invoice tables reported zero rows despite ~4.7K
-      checkout sessions). As of 2026-04-20 the gap has partially resolved:
-      `charge` has 3,375 rows and `customer` has 516 rows — but a full reconcile
-      against Stripe Dashboard is still owed before marts depend on these
-      figures for revenue. Staging ships regardless for structural correctness.
-    database: dee-data-ops
-    schema: raw_stripe
-    config:
-      loaded_at_field: _fivetran_synced
-      freshness:
-        warn_after: {count: 48, period: hour}
-    tables:
-      - name: charge
-        description: >
-          One row per Stripe charge (the revenue event). Amounts are in
-          **minor units** (cents for USD). Zero-row gap was flagged on
-          2026-04-19; as of 2026-04-20 ~3.4K rows are present but a full
-          Fivetran ↔ Stripe Dashboard reconcile is still pending.
-        columns:
-          - name: id
-            description: Stripe charge id. Primary key of the source record.
-            tests:
-              - not_null
-          - name: _fivetran_synced
-            description: Wall-clock UTC time Fivetran last synced this row.
-            tests:
-              - not_null
+      Raw landing zone for Stripe. Post-U2 (2026-04-23) staging reads from
+      the consolidated project's legacy single-blob table
+      `Raw.stripe_objects_raw` via a U3 shim — each downstream staging model
+      filters by `object_type` and JSON-decodes `payload_json`. Fivetran
+      `raw_stripe.{charge,customer,...}` is no longer the source of truth on
+      this project.
 
-      - name: customer
+      TODO: retire this shim when `raw_stripe.stripe__<object>_raw` per-object
+      tables are populated (U7 Phase-2 Stripe upgrade). The U3 shim and the
+      U7 per-object tables share the same downstream column contract, so the
+      swap is a source-yaml + source-CTE change only.
+
+      Freshness note: Stripe raw is known ~50 days stale as of U1 preflight
+      (stripe-backfill Cloud Run Job failing daily; preflight §10). Tracked
+      separately; not a U3 shim concern.
+    schema: Raw
+    config:
+      loaded_at_field: ingested_at
+      freshness:
+        warn_after: {count: 72, period: hour}
+    tables:
+      - name: stripe_objects_raw
         description: >
-          One row per Stripe customer. Same zero-row gap caveat as `charge` —
-          partial sync as of 2026-04-20 (~516 rows).
+          GTM-extractor single-blob landing table. One row per Stripe object
+          regardless of type; `object_type` column filters to charges /
+          customers / invoices / etc. `payload_json` holds the full Stripe
+          object as returned by the Stripe API. Seen object_types in U1
+          preflight §10: charges, balance_transactions, invoices, customers,
+          subscriptions, products, prices, refunds, disputes.
         columns:
-          - name: id
-            description: Stripe customer id. Primary key of the source record.
+          - name: object_id
+            description: Stripe object id. Equal to `payload_json.id`.
             tests:
               - not_null
-          - name: _fivetran_synced
-            description: Wall-clock UTC time Fivetran last synced this row.
+          - name: object_type
+            description: Stripe object type (e.g. `charges`, `customers`).
+            tests:
+              - not_null
+          - name: ingested_at
+            description: Wall-clock UTC time this row was written into BigQuery.
+            tests:
+              - not_null
+          - name: payload_json
+            description: JSON column — full Stripe object payload.
             tests:
               - not_null

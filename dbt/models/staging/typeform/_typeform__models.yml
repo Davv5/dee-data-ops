@@ -26,9 +26,13 @@ models:
           - not_null
 
       - name: form_id
-        description: Typeform form id the submission belongs to.
-        tests:
-          - not_null
+        description: >
+          Typeform form id the submission belongs to. **Null for 100% of
+          rows post-U3 (2026-04-23)** — the GTM extractor does not carry
+          form_id in the blob payload_json nor as a top-level column. Real
+          fix is the U9 Phase-2 Typeform extractor rewrite. The `not_null`
+          test was removed at U3 because the gap is known and documented;
+          restore it once U9 lands.
 
       - name: response_token
         description: Typeform-issued response token (used in webhook payloads).

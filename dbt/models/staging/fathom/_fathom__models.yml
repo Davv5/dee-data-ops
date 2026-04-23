@@ -1,0 +1,39 @@
+version: 2
+
+models:
+  - name: stg_fathom__calls
+    description: >
+      1:1 staging view over `Raw.fathom_calls_raw`. Deduped on `call_id`
+      keeping the most recent `_ingested_at`. Preserves the BQML
+      classifier's top-level columns
+      (`is_revenue_relevant`, `classification_label`,
+      `classification_confidence`, `classification_reason`) alongside the
+      JSON-decoded recorder / meeting / URL fields.
+
+      Transcript coverage is 0% as of 2026-04-23 (U1 preflight §9) —
+      `transcript` is null on every row. U6 ports the Fathom extractor
+      with a transcript fix.
+    columns:
+      - name: call_id
+        description: Fathom recording id.
+        tests:
+          - unique
+          - not_null
+      - name: recorded_by_email
+        description: >
+          Email of the Fathom user who started the recording — maps to the
+          SDR/closer identity for call attribution downstream.
+      - name: recording_start_at
+        description: When the recording actually started (UTC).
+      - name: scheduled_start_at
+        description: When the call was scheduled to start (from Calendly / calendar).
+      - name: is_revenue_relevant
+        description: >
+          BQML classifier output — true if this call is a sales-relevant
+          conversation (as opposed to internal / team / misc).
+      - name: classification_label
+        description: BQML classifier label (free-form, model-dependent).
+      - name: transcript
+        description: Full call transcript. Null for 100% of rows as of U1 preflight.
+      - name: _ingested_at
+        description: Wall-clock UTC time this row landed in BigQuery.

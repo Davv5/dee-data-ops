@@ -1,9 +1,10 @@
+-- U3 column-rename (2026-04-23): see stg_ghl__contacts.sql header.
 with source as (
 
     select
-        id,
+        entity_id                                                       as id,
         _ingested_at,
-        payload
+        to_json_string(payload_json)                               as payload
     from {{ source('ghl', 'opportunities') }}
 
 ),

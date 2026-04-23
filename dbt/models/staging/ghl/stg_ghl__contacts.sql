@@ -1,9 +1,13 @@
+-- U3 column-rename (2026-04-23): the Phase-2 raw table
+-- `raw_ghl.ghl__contacts_raw` exposes columns
+-- `(entity_id, _ingested_at, payload_json)` while downstream expects
+-- `(id, _ingested_at, payload)`. Rename happens here; body unchanged.
 with source as (
 
     select
-        id,
+        entity_id                                                       as id,
         _ingested_at,
-        payload
+        to_json_string(payload_json)                               as payload
     from {{ source('ghl', 'contacts') }}
 
 ),
