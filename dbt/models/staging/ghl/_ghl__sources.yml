@@ -32,7 +32,10 @@ sources:
       blob-shim against `Raw.ghl_objects_raw` (1,314 rows) and accept
       messages/users as empty (no upstream source has them right now).
       Diagnosis belongs to U4a, not U3.
-    schema: raw_ghl
+    # schema resolves to `raw_ghl` by default; overridden to a frozen snapshot
+    # dataset when the U4a `plumbing_parity` target is invoked with
+    # `--vars '{raw_schema_override: raw_snapshot_u4a_<date>}'`.
+    schema: "{{ var('raw_schema_override', none) or 'raw_ghl' }}"
     config:
       loaded_at_field: _ingested_at
     tables:

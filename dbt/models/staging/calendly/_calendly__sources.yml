@@ -26,7 +26,10 @@ sources:
       TODO: retire this shim when the Calendly Phase-2 per-object tables
       start landing data (future work — not in the U6/U7/U9 Phase-2 slate).
       Freshness: 1h warn / 4h error matches the GTM Cloud Run poller cadence.
-    schema: Raw
+    # schema resolves to `Raw` by default; overridden to a frozen snapshot
+    # dataset when the U4a `plumbing_parity` target is invoked with
+    # `--vars '{raw_schema_override: raw_snapshot_u4a_<date>}'`.
+    schema: "{{ var('raw_schema_override', none) or 'Raw' }}"
     config:
       loaded_at_field: ingested_at
       freshness:

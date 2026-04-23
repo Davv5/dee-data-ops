@@ -19,7 +19,10 @@ sources:
       blob. Staging emits `form_id AS NULL` with a TODO; the real fix is the
       U9 extractor rewrite (either extract from the API request path or add
       a `parent_id`/`form_id` column to the landing table).
-    schema: Raw
+    # schema resolves to `Raw` by default; overridden to a frozen snapshot
+    # dataset when the U4a `plumbing_parity` target is invoked with
+    # `--vars '{raw_schema_override: raw_snapshot_u4a_<date>}'`.
+    schema: "{{ var('raw_schema_override', none) or 'Raw' }}"
     config:
       loaded_at_field: ingested_at
       freshness:

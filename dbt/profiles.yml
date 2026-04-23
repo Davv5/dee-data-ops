@@ -2,12 +2,21 @@
 # (set in .env). Secrets live in .env, loaded into the shell before `dbt` runs.
 #
 # Targets (post-U2 retarget, 2026-04-23):
-#   dev  → project-41542e21-470f-4589-96d, dev_<user> schema; layers consolidated
-#   ci   → project-41542e21-470f-4589-96d, ci / ci_pr_<num> schema; consolidated
-#   prod → project-41542e21-470f-4589-96d, per-layer schemas (staging/warehouse/marts)
-#          via generate_schema_name macro
+#   dev              → project-41542e21-470f-4589-96d, dev_<user> schema; layers
+#                      consolidated
+#   ci               → project-41542e21-470f-4589-96d, ci / ci_pr_<num> schema;
+#                      consolidated
+#   prod             → project-41542e21-470f-4589-96d, per-layer schemas
+#                      (staging/warehouse/marts) via generate_schema_name macro
+#   plumbing_parity  → project-41542e21-470f-4589-96d, isolated `u4a_parity`
+#                      schema; all layers consolidated (behaves like dev).
+#                      Pair with `--vars '{raw_schema_override: raw_snapshot_u4a_<date>}'`
+#                      to route staging reads at the frozen U4a snapshot
+#                      dataset (see ops/bq/snapshot_gtm_raw.sh). HARD-GATE
+#                      verification target for U5; retire once parity is signed
+#                      off and the snapshot dataset is dropped.
 #
-# All three targets point at the consolidated GCP project per the 2026-04-23
+# All targets point at the consolidated GCP project per the 2026-04-23
 # consolidation decision (docs/plans/2026-04-23-001-feat-gtm-source-port-plan.md).
 # `dee-data-ops-prod` + `dee-data-ops` are decommissioned at U14.
 #
@@ -51,5 +60,22 @@ dee_data_ops:
       keyfile: "{{ env_var('BQ_KEYFILE_PATH_PROD') }}"
       threads: 4
       timeout_seconds: 300
+      location: US
+      priority: interactive
+
+    # U4a verification target. Writes into the `u4a_parity` dataset (isolated
+    # from dev / ci / prod schemas). Staging reads are routed at the frozen
+    # snapshot dataset by passing `--vars '{raw_schema_override: raw_snapshot_u4a_<date>}'`.
+    # See dbt/models/staging/**/_*__sources.yml — each `schema:` falls back to
+    # its real raw schema when the override var is null, so this target is
+    # safe to invoke without the var (just builds against live raw).
+    plumbing_parity:
+      type: bigquery
+      method: service-account
+      project: "{{ env_var('GCP_PROJECT_ID_DEV', 'project-41542e21-470f-4589-96d') }}"
+      dataset: "{{ env_var('DBT_PARITY_SCHEMA', 'u4a_parity') }}"
+      keyfile: "{{ env_var('BQ_KEYFILE_PATH') }}"
+      threads: 4
+      timeout_seconds: 600
       location: US
       priority: interactive
