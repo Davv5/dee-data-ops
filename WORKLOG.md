@@ -11,6 +11,38 @@ Rolling log of what's been done on this project. Newest entries at the top. Tail
 
 ---
 
+## 2026-04-23 (later) — U3 staging shims: Stripe/Typeform/Fathom/Calendly blob-decode + GHL column rename
+
+**What happened**
+- PR #69 merged (commit `9ef4a0b`). 24 files changed, 833 additions / 385 deletions. Staging layer now resolves end-to-end against `project-41542e21-470f-4589-96d` without touching warehouse/marts.
+- U2 functional verification resolved in-line: `dbt debug --target dev` green via an oauth sidecar profile (ADC — committed `profiles.yml` still declares `method: service-account` awaiting the `merge-dbt-ci@` keyfile).
+- Four blob-shims over `Raw.<source>_objects_raw`: Stripe (`object_type IN ('charges','customers')`), Typeform (`entity_type = 'responses'`), Calendly (`entity_type IN ('scheduled_events','event_invitees','event_types')`), Fathom (single entity_type `calls`, uses extractor-populated top-level columns alongside JSON-decoded `payload_json` fields).
+- New `dbt/models/staging/fathom/` directory + `stg_fathom__calls` + sources/models yml (first Fathom staging in the Merge repo).
+- Calendly dual-source replaced. Pre-U3 `stg_calendly__events.sql` and `stg_calendly__event_invitees.sql` unioned Fivetran (`raw_calendly.event`) with the Merge-owned Cloud Run poller (`raw_calendly.scheduled_events`); both of those tables live on `dee-data-ops` which is being decommissioned. U3 collapses to a single blob-shim against `Raw.calendly_objects_raw` in the consolidated project. Filenames kept (`stg_calendly__events`, `stg_calendly__event_invitees`) to preserve downstream refs in `fct_calls_booked`.
+- New `stg_calendly__event_types.sql` created — no downstream consumer today, but completes the shim across all three entity_types present in `Raw.calendly_objects_raw`.
+- GHL column-rename at the source CTE only — `entity_id AS id`, `to_json_string(payload_json) AS payload`, `_ingested_at` unchanged. Per-table `identifier: ghl__<obj>_raw` overrides in `_ghl__sources.yml` keep `{{ source('ghl','<obj>') }}` calls in staging SQL untouched. Body of each `stg_ghl__*.sql` is unchanged below the CTE.
+- Tests: `staging_shim_row_count_sanity.sql` (per-model floor against U1 preflight ground truth — 3K charges / 500 customers / 4K responses / 1K fathom calls / 3K calendly events etc.), `staging_ghl_column_rename_parity.sql` (staging PK count == distinct `entity_id` count in raw). Both green.
+- `source_freshness.sql` narrowed: GHL sources temporarily removed (`bq-ingest` broken, U4b precondition); Stripe stays excluded for the same reason. Calendly+Typeform blob sources remain hard-gated (both fresh hourly).
+- Full staging build verified on live BQ: **PASS=90 ERROR=0**, 13 view models materialize, 77 data tests pass. Downstream compile green (`+fct_speed_to_lead_touch`, `+speed_to_lead_detail`).
+
+**Decisions**
+- **Kept pre-U3 Calendly filenames** (`stg_calendly__events.sql`, not the plan's prescribed `stg_calendly__scheduled_events.sql`). The plan's filenames would have broken `fct_calls_booked` and `_facts__models.yml` which reference `ref('stg_calendly__events')`. Preserved working infra over plan adherence — matches `feedback_preserve_working_infra.md`.
+- **Abandoned the Calendly dual-source logic** (Fivetran union with CloudRun-poller, Track X 2026-04-22). Both underlying tables live on the `dee-data-ops` project which U14 decommissions. Converging on the single GTM-consolidated blob source now is cleaner than preserving the union through cutover and ripping it out later.
+- **Typeform `form_id` gap not plugged in U3.** The GTM extractor writes no `form_id` column and does not embed it in `payload_json` for responses. `not_null` test lifted with a restore-at-U9 note; real fix is the U9 Phase-2 Typeform extractor rewrite. Downstream `dim_contacts` will see null form_ids but is structurally unaffected.
+- **GHL `conversations` pointed at the 101-row Phase-2 table, not the 1,314-row blob.** The plan's default for "missing entity_types" was to shim from the blob, but conversations has some Phase-2 data. Using Phase-2 keeps the staging pattern uniform; if U4a parity flags the 92% gap, that unit switches to a blob-shim.
+- **GHL `messages` / `users` point at the empty Phase-2 table, not the blob.** The blob doesn't have these entity_types either — no shim can help. Documented in `_ghl__sources.yml` descriptions; upstream fix is out of U3 scope.
+- **Used `to_json_string(payload_json)` not `safe.to_json_string(...)`** in GHL source CTEs. BigQuery rejects `SAFE.TO_JSON_STRING`; caught during the first `dbt build`, fixed across six stg files, retest green.
+- **Plan vs. reality mismatch on GHL partial coverage logged, not fixed here.** Plan §U3 "Approach" said blob-shim the four missing objects (messages/notes/tasks/users), implying all four had data in the blob. Actual: blob has neither messages nor users nor tasks. Noted in `_ghl__sources.yml` but the plan itself was not edited — the plan is a historical artifact, not a live spec.
+
+**Open threads**
+- **U4a plumbing parity (HARD GATE for U5)** is the next unit. Do **not** start without David's explicit sign-off on the staging shape shipped in PR #69.
+- **`merge-dbt-ci@` service account + keyfile still owed** — committed `profiles.yml` declares `method: service-account` but no SA / keyfile exists on `project-41542e21-...` (U1 preflight §12). Until provisioned, CI `dbt-deploy.yml` will fail. Local dev works via oauth sidecar.
+- **Typeform `form_id` gap** — real fix is U9 Phase-2 extractor rewrite; `not_null` test restored then.
+- **GHL `conversations` undercount** (101 vs 1,314 blob) — U4a decides whether to stay on Phase-2 or switch to blob-shim.
+- **GHL `messages` / `users` / `tasks`** — zero rows upstream; not a U3 bug, not in U4a scope; upstream extractor fix.
+- **`bq-ingest` service repair** — unchanged from U1 preflight; blocks U4b live-raw parity (not U4a).
+- **Stripe ~50-day staleness** — pre-existing GTM bug; still tracked for U7/U8, not cutover-blocking.
+
 ## 2026-04-23 (late) — U2 dbt profile retarget: all dev/ci/prod targets default to project-41542e21-470f-4589-96d
 
 **What happened**

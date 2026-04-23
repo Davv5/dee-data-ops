@@ -366,7 +366,7 @@ docs/
 
 ---
 
-- [ ] U3. **Staging shims (Stripe / Typeform / Fathom / Calendly) + GHL column-rename**
+- [x] U3. **Staging shims (Stripe / Typeform / Fathom / Calendly) + GHL column-rename** *(landed 2026-04-23 as PR #69, commit `9ef4a0b`)*
 
 **Goal:** Make Merge's dbt staging models resolve against GTM's current raw shape so that U4a plumbing parity can run end-to-end. Covers four blob-shim layers over `Raw.<source>_objects_raw` tables plus a column-rename pass over GHL staging — the per-object `raw_ghl` data that exists today uses column names Merge's staging does not.
 
