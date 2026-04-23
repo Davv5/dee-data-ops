@@ -42,7 +42,22 @@ def upsert_card(
     display: str = "table",
     visualization_settings: dict | None = None,
     template_tags: dict | None = None,
+    cache_ttl: int | None = 0,
 ) -> dict:
+    """Upsert a native-query card.
+
+    ``cache_ttl`` defaults to ``0`` (live-by-default: no per-question cache).
+    Set it to a positive integer (seconds) to cache heavily-aggregated tiles
+    that legitimately refresh on daily cadence. Set to ``None`` to inherit the
+    server-wide default.
+
+    See ``.claude/rules/live-by-default.md`` for the full live-by-default
+    policy and the "When to deviate" section for valid override cases.
+
+    Corpus: *"Caching query results"* (Metabase Learn notebook, source
+    d6a8e3ae) — ``cache_ttl=0`` = explicit bypass; ``cache_ttl=null`` =
+    inherit server default.
+    """
     existing = next(
         (c for c in mb.cards() if c.get("name") == name and c.get("collection_id") == collection_id),
         None,
@@ -62,6 +77,7 @@ def upsert_card(
         "dataset_query": dataset_query,
         "visualization_settings": visualization_settings or {},
         "collection_id": collection_id,
+        "cache_ttl": cache_ttl,
     }
     if existing:
         return mb.put(f"/card/{existing['id']}", payload)
@@ -75,7 +91,27 @@ def upsert_dashboard(
     collection_id: int,
     description: str = "",
     parameters: list[dict] | None = None,
+    cache_ttl: int | None = 0,
 ) -> dict:
+    """Upsert a dashboard.
+
+    ``cache_ttl`` defaults to ``0`` (live-by-default: no dashboard-level cache).
+    Set to a positive integer (seconds) for daily-cadence dashboards that
+    legitimately benefit from caching. Set to ``None`` to inherit the
+    server-wide default.
+
+    Note: dashboard-level auto-refresh (60s tick) is NOT configurable via the
+    REST API on Metabase OSS v0.60.1. Auto-refresh is a frontend-only feature
+    activated by the URL fragment ``#refresh=60``. Add this fragment to the
+    public-share link or iframe src when setting up the dashboard.
+    See ``docs/runbooks/metabase-live-dashboard-setup.md`` step 4.
+
+    Corpus: *"Caching query results"* (Metabase Learn notebook, source
+    d6a8e3ae) — cache_ttl=0 = explicit bypass; cache_ttl=null = server default.
+    Corpus: *"Dashboards"* overview (Metabase Learn notebook, source
+    04cf5679) — auto-refresh is a frontend/URL-fragment feature, not an
+    API-stored property.
+    """
     existing = next(
         (d for d in mb.dashboards() if d.get("name") == name and d.get("collection_id") == collection_id),
         None,
@@ -84,6 +120,7 @@ def upsert_dashboard(
         "name": name,
         "description": description,
         "collection_id": collection_id,
+        "cache_ttl": cache_ttl,
     }
     if parameters is not None:
         # Dashboard-level parameters (Metabase filter widgets). These are

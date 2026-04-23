@@ -11,6 +11,29 @@ Rolling log of what's been done on this project. Newest entries at the top. Tail
 
 ---
 
+## 2026-04-22 (evening) — Track Z: live-by-default Metabase defaults + freshness tile + rule
+
+**What happened**
+- `ops/metabase/authoring/sync.py` — `upsert_card` + `upsert_dashboard` both gain `cache_ttl=0` default. Every new tile and dashboard inherits live-by-default (no per-question cache) without per-call configuration.
+- `ops/metabase/authoring/infrastructure/caching_config.py` — `DASHBOARD_CACHE_TTL_SEC` converted from single constant (21600) to a per-dashboard dict. Speed-to-Lead and Speed-to-Lead Lead Detail both set to 0. `DEFAULT_CACHE_TTL_SEC=0` covers any future dashboard not explicitly named. `main()` iterates all named dashboards idempotently.
+- `ops/metabase/authoring/dashboards/speed_to_lead.py` — "Data freshness (end-to-end lag)" scalar tile added at row 0. Reads `timestamp_diff(current_timestamp(), max(_ingested_at), minute)` from `raw_ghl.conversations`. All existing rows shifted down by 2. Track E's "Data refreshed" footer tile (row 41) untouched — distinct tiles for distinct questions (raw lag vs rollup computed_at).
+- `.claude/rules/live-by-default.md` — new cross-cutting rule documenting the live-by-default chain (dbt incremental → NRT ingestion → Metabase cache bypass → URL-fragment refresh). Corpus-cited.
+- `.claude/rules/metabase.md` — Lessons Learned caching paragraph updated: live-by-default = cache_ttl=0; daily-cadence = cache_ttl=21600; auto-refresh OSS gotcha documented.
+- `docs/runbooks/metabase-live-dashboard-setup.md` — created. 9-step checklist for new live-by-default dashboards.
+
+**Decisions**
+- `cache_ttl=0` over `null` — `0` is explicit ("live"); `null` is ambiguous ("server default"). Track D empirically confirmed per-dashboard TTL persists on OSS v0.60.1.
+- Dashboard auto-refresh is URL-fragment only — corpus query confirmed no REST API payload key exists for `refresh_period` on any Metabase OSS version. Documented in rule + runbook + `sync.py` docstring as a gotcha. No code change to `upsert_dashboard` for this (would silently do nothing).
+- Freshness tile reads from `raw_ghl.conversations` (highest-cadence NRT source per Track W) — single-source freshness indicator; Calendly union deferred until Calendly-only regressions become a pattern.
+- `caching_config.py` one-off reset is manual (not CI) — idempotent and cheap; running in CI without observability is riskier than a conscious manual run. Documented in runbook step 8.
+
+**Open threads**
+- **Manual checkpoint 1 reached:** David should verify the `#refresh=60` URL-fragment approach is acceptable before any prod Metabase run. The REST API path does not exist — URL-fragment is the only OSS option.
+- **Manual checkpoint 2:** After any prod Metabase run, David should eyeball dev-Metabase to confirm `cache_ttl=0` persists on new cards (Track D confirmed 21600 persisted; 0 should too, but empirical check on live is warranted).
+- **Manual checkpoint 3:** Freshness tile placement (row 0) does not conflict with Track E's footer tile (row 41) — different rows, different purposes. David should confirm visually post-deploy that both tiles display correctly.
+- **Manual checkpoint 4:** Full prod run + browser verification (auto-refresh tick + freshness tile < 2 min lag) pending Tracks W+Y deployment.
+- Track E (PR #50) must merge before Track Z's PR is opened — Track Z rebases to add its row-0 tile without disturbing Track E's footer. Zero code conflict (different rows, different cards) but merge ordering per track file.
+
 ## 2026-04-22 (pm) — Metabase Learn corpus + v1.3.1 polish (Track D shipped, Track E in flight) + OSS permissions research
 
 **What happened**

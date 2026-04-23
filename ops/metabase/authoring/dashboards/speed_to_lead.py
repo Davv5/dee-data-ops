@@ -537,7 +537,45 @@ def main() -> None:
         },
     )
 
+    # ── Row 0 — Data freshness tile (end-to-end raw ingest lag) ─────────
+    # Track Z (2026-04-22): live-by-default ops indicator. Shows how many
+    # minutes since the last raw GHL event landed in `raw_ghl.conversations`.
+    # Answers: "How stale is the data we're rolling up?" If this reads > 5 min,
+    # the ingest pipeline has paused — visible immediately.
+    #
+    # DISTINCT from Track E's "Data refreshed" footer tile (row 41 below):
+    #   - Track Z tile (this one): "How stale is the raw data?" — sourced from
+    #     raw_ghl.conversations._ingested_at. Live ops indicator. TOP of dashboard.
+    #   - Track E tile (footer): "When did the rollup last recompute?" — sourced
+    #     from stl_headline_7d.computed_at. BOTTOM of dashboard.
+    # Both are needed; they measure different things in the freshness chain.
+    #
+    # Corpus: "Caching query results" (Metabase Learn, source d6a8e3ae) —
+    # cache_ttl=0 ensures every render queries fresh (live-by-default).
+    freshness_tile = upsert_card(
+        mb,
+        name="Data freshness (end-to-end lag)",
+        collection_id=coll["id"],
+        database_id=db_id,
+        display="scalar",
+        cache_ttl=0,
+        native_query=(
+            "SELECT timestamp_diff(current_timestamp(), max(_ingested_at), minute) "
+            "AS minutes_since_raw_ingest "
+            "FROM `dee-data-ops-prod.raw_ghl.conversations`"
+        ),
+        visualization_settings={
+            "scalar.field": "minutes_since_raw_ingest",
+            **_col_settings({
+                "minutes_since_raw_ingest": {"suffix": " min", "decimals": 0},
+            }),
+        },
+    )
+
     # ── Footer — refresh timestamp ───────────────────────────────────────
+    # Track E (PR #50): "When did the rollup last recompute?" — a different
+    # freshness question from the Track Z tile above. Stays at the footer.
+    # Track E owns this tile; do not modify from this script (Track Z).
     footer = upsert_card(
         mb,
         name="Data refreshed",
@@ -591,55 +629,65 @@ def main() -> None:
         },
     }
 
-    # v1.6 layout map (Track C — vocabulary pass + heatmap fallback + orphan cleanup).
-    # Layout unchanged from v1.5; only card names + heatmap display type changed.
+    # v1.7 layout map (Track Z — live-by-default freshness tile at row 0).
+    # All rows shifted down by 2 to make room for the new freshness tile.
+    # Freshness tile: Track Z's end-to-end ingest lag indicator (top-left, 6×2).
     # Metabase dashboards use a 24-column grid.
     # Layout map (row, col, size_x, size_y):
     #
-    #   Row  0 — header banner                                  (0,  0, 24, 2)
-    #   Row  2 — T1 hero (% First Touch in 5 min, this week vs last week)
-    #             (2,  0, 24, 4)  ← full-width hero; smartscalar auto-scales.
-    #   Row  6 — T2 | T3 (supporting smart-scalars)             each 12 wide, 3 tall
-    #             (6,  0, 12, 3) Median minutes … | (6, 12, 12, 3) Slowest 10% …
-    #   Row  9 — T4 | T5 | T6 (volume smart-scalars)            each 8 wide, 3 tall
+    #   Row  0 — freshness tile "Data freshness (end-to-end lag)"
+    #             (0,  0, 6, 2) — top-left scalar; live-by-default ops indicator.
+    #             Track Z (2026-04-22). Reads raw_ghl.conversations._ingested_at.
+    #             Distinct from Track E's "Data refreshed" footer (row 41).
+    #   Row  2 — header banner                                  (2,  0, 24, 2)
+    #   Row  4 — T1 hero (% First Touch in 5 min, this week vs last week)
+    #             (4,  0, 24, 4)  ← full-width hero; smartscalar auto-scales.
+    #   Row  8 — T2 | T3 (supporting smart-scalars)             each 12 wide, 3 tall
+    #             (8,  0, 12, 3) Median minutes … | (8, 12, 12, 3) Slowest 10% …
+    #   Row 11 — T4 | T5 | T6 (volume smart-scalars)            each 8 wide, 3 tall
     #             T6 = % with 1-hour activity, this week vs last week
-    #   Row 12 — Response-time distribution (12) | Close rate by touch time (12)
-    #             (12, 0, 12, 6)                  | (12, 12, 12, 6)
+    #   Row 14 — Response-time distribution (12) | Close rate by touch time (12)
+    #             (14, 0, 12, 6)                  | (14, 12, 12, 6)
     #             Cause (curve) beside effect (close-rate) — one story per row
-    #   Row 18 — Lead source performance, trailing 30 days (full-width 24×6)
-    #             (18, 0, 24, 6) — percentage columns have show_mini_bar:True
-    #   Row 24 — SDR coverage, day of week by hour of day (full-width 24×6)
-    #             (24, 0, 24, 6) — table-pivot + conditional cell coloring (v1.6)
-    #   Row 31 — SDR leaderboard, trailing 30 days (full-width 24×7)
-    #             (31, 0, 24, 7) — per-row click → Lead Detail
-    #   Row 39 — Data refreshed footer | Lead tracking match rate (DQ tile)
-    #             (39, 0, 12, 2)       | (39, 12, 12, 2)
+    #   Row 20 — Lead source performance, trailing 30 days (full-width 24×6)
+    #             (20, 0, 24, 6) — percentage columns have show_mini_bar:True
+    #   Row 26 — SDR coverage, day of week by hour of day (full-width 24×6)
+    #             (26, 0, 24, 6) — table-pivot + conditional cell coloring (v1.6)
+    #   Row 33 — SDR leaderboard, trailing 30 days (full-width 24×7)
+    #             (33, 0, 24, 7) — per-row click → Lead Detail
+    #   Row 41 — Data refreshed footer | Lead tracking match rate (DQ tile)
+    #             (41, 0, 12, 2)       | (41, 12, 12, 2)
+    #             Track E owns "Data refreshed" footer; Track Z freshness tile is at row 0.
+    header_dashcard["row"] = 2  # shifted down 2 from v1.6's row 0
     set_dashboard_cards(
         mb,
         dashboard_id=dash["id"],
         cards=[
+            # Row 0 — freshness tile: 6×2 top-left, live-by-default ops indicator
+            {"card_id": freshness_tile["id"], "row": 0, "col": 0, "size_x": 6, "size_y": 2, "visualization_settings": {}},
             header_dashcard,
-            # Row 2 — T1 hero: full-width 24×4, smartscalar auto-scales central number
-            {"card_id": t1["id"], "row": 2,  "col": 0,  "size_x": 24, "size_y": 4, "visualization_settings": {}},
-            # Row 6 — T2 + T3 supporting chips (12 wide each) — median + slowest-10% read
-            {"card_id": t2["id"], "row": 6,  "col": 0,  "size_x": 12, "size_y": 3, "visualization_settings": {}},
-            {"card_id": t3["id"], "row": 6,  "col": 12, "size_x": 12, "size_y": 3, "visualization_settings": {}},
-            # Row 9 — volume smart-scalars (T6 = % With 1-Hour Activity, no tile-level drill)
-            {"card_id": t4["id"], "row": 9,  "col": 0,  "size_x": 8, "size_y": 3, "visualization_settings": {}},
-            {"card_id": t5["id"], "row": 9,  "col": 8,  "size_x": 8, "size_y": 3, "visualization_settings": {}},
-            {"card_id": t6["id"], "row": 9,  "col": 16, "size_x": 8, "size_y": 3, "visualization_settings": {}},
-            # Row 12 — response-time curve (left) paired with close-rate-by-touch (right)
-            {"card_id": response_time_dist["id"],  "row": 12, "col": 0,  "size_x": 12, "size_y": 6, "visualization_settings": {}},
-            {"card_id": close_rate_by_touch["id"], "row": 12, "col": 12, "size_x": 12, "size_y": 6, "visualization_settings": {}},
-            # Row 18 — lead source performance (full-width, per-row click → Lead Detail, mini-bars on pct columns)
-            {"card_id": source_outcome["id"], "row": 18, "col": 0, "size_x": 24, "size_y": 6, "visualization_settings": {}},
-            # Row 24 — coverage heatmap (full width, 6 tall)
-            {"card_id": coverage_heatmap["id"], "row": 24, "col": 0, "size_x": 24, "size_y": 6, "visualization_settings": {}},
-            # Row 31 — SDR leaderboard (full-width, per-row click → Lead Detail)
-            {"card_id": t8["id"], "row": 31, "col": 0, "size_x": 24, "size_y": 7, "visualization_settings": {}},
-            # Row 39 — refresh footer (left) | match-rate donut demoted to DQ tile (right)
-            {"card_id": footer["id"], "row": 39, "col": 0,  "size_x": 12, "size_y": 2, "visualization_settings": {}},
-            {"card_id": t9["id"],     "row": 39, "col": 12, "size_x": 12, "size_y": 2, "visualization_settings": {}},
+            # Row 4 — T1 hero: full-width 24×4, smartscalar auto-scales central number
+            {"card_id": t1["id"], "row": 4,  "col": 0,  "size_x": 24, "size_y": 4, "visualization_settings": {}},
+            # Row 8 — T2 + T3 supporting chips (12 wide each) — median + slowest-10% read
+            {"card_id": t2["id"], "row": 8,  "col": 0,  "size_x": 12, "size_y": 3, "visualization_settings": {}},
+            {"card_id": t3["id"], "row": 8,  "col": 12, "size_x": 12, "size_y": 3, "visualization_settings": {}},
+            # Row 11 — volume smart-scalars (T6 = % With 1-Hour Activity, no tile-level drill)
+            {"card_id": t4["id"], "row": 11,  "col": 0,  "size_x": 8, "size_y": 3, "visualization_settings": {}},
+            {"card_id": t5["id"], "row": 11,  "col": 8,  "size_x": 8, "size_y": 3, "visualization_settings": {}},
+            {"card_id": t6["id"], "row": 11,  "col": 16, "size_x": 8, "size_y": 3, "visualization_settings": {}},
+            # Row 14 — response-time curve (left) paired with close-rate-by-touch (right)
+            {"card_id": response_time_dist["id"],  "row": 14, "col": 0,  "size_x": 12, "size_y": 6, "visualization_settings": {}},
+            {"card_id": close_rate_by_touch["id"], "row": 14, "col": 12, "size_x": 12, "size_y": 6, "visualization_settings": {}},
+            # Row 20 — lead source performance (full-width, per-row click → Lead Detail, mini-bars on pct columns)
+            {"card_id": source_outcome["id"], "row": 20, "col": 0, "size_x": 24, "size_y": 6, "visualization_settings": {}},
+            # Row 26 — coverage heatmap (full width, 6 tall)
+            {"card_id": coverage_heatmap["id"], "row": 26, "col": 0, "size_x": 24, "size_y": 6, "visualization_settings": {}},
+            # Row 33 — SDR leaderboard (full-width, per-row click → Lead Detail)
+            {"card_id": t8["id"], "row": 33, "col": 0, "size_x": 24, "size_y": 7, "visualization_settings": {}},
+            # Row 41 — refresh footer (left) | match-rate donut demoted to DQ tile (right)
+            # Track E owns "Data refreshed" footer tile; Track Z freshness tile is at row 0.
+            {"card_id": footer["id"], "row": 41, "col": 0,  "size_x": 12, "size_y": 2, "visualization_settings": {}},
+            {"card_id": t9["id"],     "row": 41, "col": 12, "size_x": 12, "size_y": 2, "visualization_settings": {}},
         ],
     )
     # t7 (old 90d area) deliberately NOT in the dashcards list — card
@@ -669,6 +717,7 @@ def main() -> None:
         coverage_heatmap["id"],
         footer["id"],
         detail_card["id"],
+        freshness_tile["id"],  # Track Z: top-of-dashboard raw ingest lag tile
     }
     all_collection_cards = [
         c for c in mb.cards()
