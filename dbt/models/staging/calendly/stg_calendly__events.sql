@@ -1,10 +1,10 @@
 -- Track X (2026-04-22): dual-run overlap update.
 --
--- During the overlap window both Fivetran (raw_calendly.event) and the Cloud
+-- During the dual-run overlap window both Fivetran (raw_calendly.event) and the Cloud
 -- Run poller (raw_calendly.scheduled_events) write Calendly events. This view
 -- unions both sources and deduplicates by uri, keeping the row with the most
 -- recent effective timestamp (coalesce(_ingested_at, _fivetran_synced)). A
--- `_source_path` column identifies which pipeline wrote each row — used for
+-- `_source_path` column identifies which pipeline wrote each row -- used for
 -- 24h reconciliation queries before pausing Fivetran.
 --
 -- After Fivetran is paused: remove the union + coalesce, keep only the
@@ -13,6 +13,28 @@
 -- Corpus grounding: append-only + staging dedupe is the idempotency contract;
 -- both sources sharing raw_calendly.* means overlap is handled here, not at
 -- ingest time. Source: ".claude/rules/ingest.md", Data Ops notebook.
+--
+-- Track X regression fix (2026-04-23): `raw_calendly.scheduled_events` is
+-- created by the Cloud Run poller on its first successful write (WRITE_APPEND
+-- + CREATE_IF_NEEDED in ingestion/calendly/extract.py). Before that write,
+-- the table does not exist -- which broke the prod `dbt build` immediately
+-- after the Track X merge with:
+--   Not found: Table dee-data-ops:raw_calendly.scheduled_events was not
+--   found in location US
+--
+-- Fix: gate the poller_source CTE behind `adapter.get_relation()`. When the
+-- poller table exists, staging unions both pipelines (dual-run behavior as
+-- designed). When it does not exist yet, staging falls back to the Fivetran
+-- source alone -- same shape as pre-Track X, but emitting the same output
+-- columns (`_source_path`, nullable `_ingested_at`) so downstream models
+-- don't care. Once the poller has its first successful run, subsequent dbt
+-- invocations pick it up automatically with no staging-model edit needed.
+
+{% set poller_relation = adapter.get_relation(
+    database=source('raw_calendly', 'scheduled_events').database,
+    schema=source('raw_calendly', 'scheduled_events').schema,
+    identifier=source('raw_calendly', 'scheduled_events').identifier
+) %}
 
 with
 
@@ -39,7 +61,7 @@ fivetran_source as (
         'fivetran'                                                      as _source_path
     from {{ source('raw_calendly', 'event') }}
 
-),
+){%- if poller_relation is not none %},
 
 poller_source as (
 
@@ -66,13 +88,15 @@ poller_source as (
         'cloud_run'                                                     as _source_path
     from {{ source('raw_calendly', 'scheduled_events') }}
 
-),
+){%- endif %},
 
 combined as (
 
     select * from fivetran_source
+    {%- if poller_relation is not none %}
     union all
     select * from poller_source
+    {%- endif %}
 
 ),
 
@@ -80,7 +104,7 @@ deduped as (
 
     -- Dedup by uri: keep the row with the most recent effective timestamp.
     -- coalesce prefers _ingested_at (Cloud Run) over _fivetran_synced (Fivetran),
-    -- which is correct — the poller has higher cadence and more recent data.
+    -- which is correct -- the poller has higher cadence and more recent data.
     select *
     from combined
     qualify row_number() over (

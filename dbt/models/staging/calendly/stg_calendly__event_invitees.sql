@@ -9,9 +9,30 @@
 -- After Fivetran is paused: remove the union + coalesce, keep only the
 -- invitees source and _ingested_at. (Track X runbook step.)
 --
--- The invitee table is the ONLY source of booking-level email — required to
+-- The invitee table is the ONLY source of booking-level email -- required to
 -- bridge Calendly bookings to GHL contacts. `stg_calendly__events` carries
 -- the event shell but no invitee email; this view is its companion.
+--
+-- Track X regression fix (2026-04-23): `raw_calendly.invitees` is created by
+-- the Cloud Run poller on its first successful write (WRITE_APPEND +
+-- CREATE_IF_NEEDED in ingestion/calendly/extract.py). Before that write, the
+-- table does not exist -- which broke the prod `dbt build` immediately after
+-- the Track X merge with:
+--   Not found: Table dee-data-ops:raw_calendly.invitees was not found in
+--   location US
+--
+-- Fix: gate the poller_source CTE behind `adapter.get_relation()`. When the
+-- poller table exists, staging unions both pipelines. When it does not exist
+-- yet, staging falls back to the Fivetran source alone (same shape as
+-- pre-Track X, with the same output columns preserved). Once the poller has
+-- its first successful run, subsequent dbt invocations pick it up
+-- automatically with no staging-model edit needed.
+
+{% set poller_relation = adapter.get_relation(
+    database=source('raw_calendly', 'invitees').database,
+    schema=source('raw_calendly', 'invitees').schema,
+    identifier=source('raw_calendly', 'invitees').identifier
+) %}
 
 with
 
@@ -42,7 +63,7 @@ fivetran_source as (
         'fivetran'                                                      as _source_path
     from {{ source('raw_calendly', 'event_invitee') }}
 
-),
+){%- if poller_relation is not none %},
 
 poller_source as (
 
@@ -72,13 +93,15 @@ poller_source as (
         'cloud_run'                                                     as _source_path
     from {{ source('raw_calendly', 'invitees') }}
 
-),
+){%- endif %},
 
 combined as (
 
     select * from fivetran_source
+    {%- if poller_relation is not none %}
     union all
     select * from poller_source
+    {%- endif %}
 
 ),
 
