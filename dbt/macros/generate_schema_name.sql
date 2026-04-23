@@ -3,7 +3,8 @@
 
     prod:
       Use +schema: config from dbt_project.yml as-is.
-      Yields staging / warehouse / marts inside the dee-data-ops-prod project.
+      Yields staging / warehouse / marts inside the consolidated
+      project-41542e21-470f-4589-96d (post-U2 retarget 2026-04-23).
 
     dev, ci, anything else:
       Ignore +schema: config entirely. Consolidate all layers into the

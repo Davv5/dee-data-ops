@@ -13,9 +13,13 @@
 #
 # Required repo secrets:
 #   GCP_SA_KEY_PROD — JSON keyfile for the prod service account
-#                     (project: dee-data-ops-prod). Needs BigQuery
-#                     Data Editor on staging/warehouse/marts datasets
-#                     and BigQuery Job User on the project.
+#                     (project: project-41542e21-470f-4589-96d, post-U2
+#                     consolidation 2026-04-23). Needs BigQuery Data Editor
+#                     on staging/warehouse/marts datasets and BigQuery
+#                     Job User on the project. The `_PROD` suffix names
+#                     the deploy lane, not a distinct GCP project —
+#                     dev/ci/prod now share one GCP project during the
+#                     post-U2 transition.
 
 name: dbt Deploy (prod)
 
@@ -41,7 +45,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       DBT_PROFILES_DIR: .
-      GCP_PROJECT_ID_PROD: dee-data-ops-prod
+      GCP_PROJECT_ID_PROD: project-41542e21-470f-4589-96d
     steps:
       - uses: actions/checkout@v4
         with:
