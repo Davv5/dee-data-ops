@@ -160,6 +160,47 @@ def main(dry_run: bool = False) -> None:
         field="pct_within_5min",
         fmt=PCT_FMT,
     )
+
+    # ── Row 4 right — Progress toward 80% SLA target (12×4, v1.8) ─────────
+    # Companion to T1 hero. Same metric + same last-completed ISO-week
+    # window as T1 (so the central number matches the T1 smartscalar's
+    # "this week" value), rendered as a progress bar anchored on the v1
+    # 80% target. Answers "are we on-track?" in one glance — T1 already
+    # answers "which direction are we moving?"
+    #
+    # Goal value (80%) is the v1 target; stretch is 90%, enterprise is
+    # 95%. Chosen per industry benchmarks (lead-response SLA guides
+    # typically cite 80% as "aggressive but plausible," 90% as best-
+    # in-class, 95%+ as enterprise-grade). Revisit with the client once
+    # the baseline is stable.
+    #
+    # Source: "Which chart should you use? | Metabase Learn" — progress
+    # bar prescribed "if you want to see a metric in the context of a
+    # goal, or limit, or other threshold." "BI dashboard best practices
+    # | Metabase Learn" — headline numbers without goal context lack
+    # comparative meaning.
+    t1_progress = upsert_card(
+        mb,
+        name="% First Touch in 5 min — progress toward 80% target",
+        collection_id=coll["id"],
+        database_id=db_id,
+        display="progress",
+        native_query=(
+            "SELECT ROUND(SAFE_DIVIDE("
+            "  COUNTIF(is_within_5_min_sla AND is_first_touch),"
+            "  NULLIF(COUNTIF(is_sdr_touch AND is_first_touch), 0)"
+            ") * 100, 1) AS pct_within_5min "
+            "FROM `dee-data-ops-prod.marts.speed_to_lead_detail` "
+            "WHERE booked_at >= TIMESTAMP("
+            "  DATE_SUB(DATE_TRUNC(CURRENT_DATE(), ISOWEEK), INTERVAL 1 WEEK)) "
+            "  AND booked_at < TIMESTAMP(DATE_TRUNC(CURRENT_DATE(), ISOWEEK))"
+        ),
+        visualization_settings={
+            "progress.goal": 80,
+            **_col_settings({"pct_within_5min": PCT_FMT}),
+        },
+    )
+
     # Item #1 resolved: rollup column renamed median_mins → median_mins_sdr_only
     # to make the SDR-scoped denominator explicit in the column name. T2's
     # scalar.field + column_settings key track the rename.
@@ -856,6 +897,7 @@ def main(dry_run: bool = False) -> None:
         "**Metric:** % of Calendly bookings where the first *human* SDR "
         "touch (CALL or SMS, not automation) lands within 5 minutes, "
         "scoped to SDR-attributed bookings.  \n"
+        "**Target:** 80% of bookings touched within 5 minutes.  \n"
         "**Time windows:** weekly headline (this week vs. last) · "
         "30-day outcome + source + coverage · 90-day volume trend."
     )
@@ -879,8 +921,10 @@ def main(dry_run: bool = False) -> None:
     #             Track Z (2026-04-22). Reads raw_ghl.conversations._ingested_at.
     #             Distinct from Track E's "Data refreshed" footer (row 41).
     #   Row  2 — header banner                                  (2,  0, 24, 2)
-    #   Row  4 — T1 hero (% First Touch in 5 min, this week vs last week)
-    #             (4,  0, 24, 4)  ← full-width hero; smartscalar auto-scales.
+    #   Row  4 — T1 hero (12×4) | Progress toward 80% target (12×4)
+    #             (4,  0, 12, 4) T1 smartscalar — "this week vs last week"
+    #             (4, 12, 12, 4) Progress bar, goal=80 — same metric + same
+    #             ISO-week window as T1, adds SLA target context (v1.8).
     #   Row  8 — T2 | T3 (supporting smart-scalars)             each 12 wide, 3 tall
     #             (8,  0, 12, 3) Median minutes … | (8, 12, 12, 3) Slowest 10% …
     #   Row 11 — T4 | T5 | T6 (volume smart-scalars)            each 8 wide, 3 tall
@@ -905,8 +949,10 @@ def main(dry_run: bool = False) -> None:
             # Row 0 — freshness tile: 6×2 top-left, live-by-default ops indicator
             {"card_id": freshness_tile["id"], "row": 0, "col": 0, "size_x": 6, "size_y": 2, "visualization_settings": {}},
             header_dashcard,
-            # Row 4 — T1 hero: full-width 24×4, smartscalar auto-scales central number
-            {"card_id": t1["id"], "row": 4,  "col": 0,  "size_x": 24, "size_y": 4, "visualization_settings": {}},
+            # Row 4 — T1 hero (12 wide, smartscalar) + progress-bar companion (12 wide)
+            # Same metric + same ISO-week window; progress bar adds target context.
+            {"card_id": t1["id"],          "row": 4, "col": 0,  "size_x": 12, "size_y": 4, "visualization_settings": {}},
+            {"card_id": t1_progress["id"], "row": 4, "col": 12, "size_x": 12, "size_y": 4, "visualization_settings": {}},
             # Row 8 — T2 + T3 supporting chips (12 wide each) — median + slowest-10% read
             {"card_id": t2["id"], "row": 8,  "col": 0,  "size_x": 12, "size_y": 3, "visualization_settings": {}},
             {"card_id": t3["id"], "row": 8,  "col": 12, "size_x": 12, "size_y": 3, "visualization_settings": {}},
@@ -948,7 +994,8 @@ def main(dry_run: bool = False) -> None:
     # rename that goes through this script will be self-cleaning on the next
     # run, with zero extra work from the author.
     kept_ids: set[int] = {
-        t1["id"], t2["id"], t3["id"], t4["id"], t5["id"], t6["id"],
+        t1["id"], t1_progress["id"],  # v1.8: T1 hero + progress-toward-target companion
+        t2["id"], t3["id"], t4["id"], t5["id"], t6["id"],
         t7["id"], t8["id"], t9["id"],
         response_time_dist["id"],
         close_rate_by_touch["id"],
