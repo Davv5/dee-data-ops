@@ -11,6 +11,30 @@ Rolling log of what's been done on this project. Newest entries at the top. Tail
 
 ---
 
+## 2026-04-23 — Speed-to-Lead star-schema refactor CLOSED — dashboard live on wide mart, legacy rollups dropped
+
+**What happened**
+- **Star-schema refactor shipped end-to-end.** Tracks F1 (PR #51) + F2 (PR #52) + F3 (PR #55) all merged. Legacy state (12 `stl_*` flat rollups feeding 12 tiles) replaced with `fct_speed_to_lead_touch` at lowest grain → `dim_sdr` / `dim_source` / SCD-2 `dim_users` snapshot → `speed_to_lead_detail` wide mart → 15 Metabase cards aggregating the wide mart directly.
+- **Prod dashboard rewire executed** (F2 Step E, not a commit — a live REST-API run of `ops/metabase/authoring/dashboards/speed_to_lead.py` against `https://34-66-7-243.nip.io`). Verified 15/15 cards now aggregate `marts.speed_to_lead_detail`; 0 legacy references across all collections. Headline metric intact at locked 2026-04-19 value.
+- **Root-cause fixes shipped under the star-schema effort:** PR #56 (`is_first_touch` semantics — 2.6pp prod parity divergence resolved), PR #57 (`source_freshness` narrowed to drop known-stale `raw_stripe.charge`), PR #60 (`--dry-run` safety gate on authoring script — zero runtime deps, became the pre-flight for Step E), PR #62 (`cache_ttl=0` serialization — Metabase OSS rejects 0; omit from payload instead). Discovered PR #62 live during the Step E first attempt, fixed, re-ran clean.
+- **11 legacy `stl_*` tables dropped from prod BQ** via `bq rm` under user confirmation. `stl_data_freshness` kept (not a rollup — feeds Track Z's end-to-end-lag scalar tile). BigQuery time-travel retains the dropped tables for 7 days as emergency rollback.
+- **Cross-cutting fixes shipped this session:** PR #59 (Track X Calendly staging dual-run views gated on `adapter.get_relation()` so poller tables resolve lazily — fixed `dbt-deploy.yml` regression introduced by PR #58).
+- **Prod deploys across the session:** `a1fd57c` ✓ (F1), `30e7ab6` ✓ (F2), `18f0710` ✓ (PR #56+57 on main), `2be3675` ✓ (PR #59 fix), `1feed69` ✓ (PR #60), `c864cab` ✓ (PR #62), `cc9b1ad` ✓ (F3 merge). Every green deploy ran `stl_headline_parity` successfully against prod until F3 retired it.
+
+**Decisions**
+- **Star schema over purpose-built flat rollups** — grounded in the Data Ops notebook's "Resist the urge to create a mart per dashboard or per report" rule. Plan-architect decomposed into F1/F2/F3 (strictly serial).
+- **`is_first_touch` = overall earliest touch per booking, regardless of role.** Paired with `is_sdr_touch`, `is_first_touch AND is_sdr_touch` reproduces the legacy `first_toucher_role = 'SDR'` filter. "SDR-attributed" in the 2026-04-19 locked metric = SDR touched first (owns the lead), not just "SDR touched the lead at some point." (`grep -n "is_first_touch" WORKLOG.md`)
+- **`cache_ttl=0` serialized as payload omission.** Metabase OSS v0.60.1 rejects explicit 0 with HTTP 400. Server-side contract is null-or-positive-int. Track Z's "live-by-default via explicit 0" assumption was wrong; `cache_ttl=0` → omit → server default → live while `MB_ENABLE_QUERY_CACHING` stays false.
+- **`--dry-run` shipped as path 2 of F2 Step E recon options** (add safety gate first) over proceeding on static diff alone. One round-trip delay; permanent reusable gate for every future authoring-script run.
+- **Guardrails held the line three times** — blocked (1) bulk severity downgrade on parity+freshness tests, (2) F3 smuggling Track E's `stl_data_freshness.sql` during rebase, (3) Secret-Manager-fetched API key prefix echoing to transcript. All corrected.
+
+**Open threads** (outside this workstream — Metabase Learn Implementation itself is closed)
+- **Track X operational bringup** — Calendly Cloud Run poller needs secret creation + Docker smoke + `terraform apply` per `docs/runbooks/calendly-cloud-run-extractor.md`. Staging fix from PR #59 is forward-compatible; nothing flows through the poller until bringup lands.
+- **PR #50 (Track E)** — open with merge conflicts on `speed_to_lead.py` vs F2's full script rewrite. Track E author resolves; the Track E freshness tile is already live (merged via Track Z, PR #54).
+- **PR #44** (curl hardening) — open from earlier session.
+- **`dbt_metadata_sync.py` first-run** — deferred (populates Metabase column tooltips from dbt docs; not blocking dashboard function).
+- **SMTP bootstrap** + **`MB_ENABLE_QUERY_CACHING` env var flip** — still owed for subscription emails + server-wide caching (Track D carryovers; both dormant without user impact).
+
 ## 2026-04-22 (evening) — Track X: Calendly Cloud Run poller (replaces Fivetran connector, 1-min cadence)
 
 **What happened**
