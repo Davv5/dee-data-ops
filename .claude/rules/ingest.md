@@ -89,11 +89,44 @@ def main(since: str | None = None) -> None:
 
 ## Orchestration
 
-- **GitHub Actions `workflow_dispatch` + `schedule:` cron is the only production trigger path** for custom-source ingest. Not Airflow, not Dagster, not a local cron.
+- **Default trigger path:** GitHub Actions `workflow_dispatch` + `schedule:` cron for custom-source ingest. Not Airflow, not Dagster, not a local cron.
 - **Workflow manifest:** each source gets its own workflow at `.github/workflows/ingest-<source>.yml` with a daily (or source-appropriate) cron and a manual `workflow_dispatch` input for `--since` backfills.
 - **On-demand retry / backfill:** `gh workflow run ingest-<source>.yml -f since=<ISO-8601>` (requires the `gh` CLI authenticated with repo scope).
 - **State inspection:** `select * from ops.ingest_checkpoints where source='<source>'` and `select * from ops.ingest_runs where source='<source>' order by started_at desc limit 10`.
 - **Fivetran-managed sources** do not have a workflow file — orchestration is configured in the Fivetran dashboard. Only their `raw_<source>` datasets show up in this repo (via dbt sources declarations).
+
+### Near-real-time exception (Cloud Run Jobs)
+
+Custom extractors whose freshness SLA is **sub-5-minute AND dashboard-load-bearing**
+may run on Cloud Run Jobs + Cloud Scheduler instead of GitHub Actions cron.
+As of 2026-04-22 this applies ONLY to `ingestion/ghl/` hot endpoints
+(conversations, messages) at 1-min cadence, with cold endpoints
+(contacts, opportunities, users, pipelines) at 15-min cadence.
+
+All other custom extractors stay on the GHA path. The GHA workflow is
+retained as a manual backstop via `workflow_dispatch` — flip to it for
+emergency backfill if Cloud Scheduler is paused.
+
+Exception criteria (ALL must hold):
+- Dashboard tile SLA measures a sub-5-min event (here: 5-min Speed-to-Lead SLA)
+- Source API supports polling at the target cadence without exceeding rate limits
+  (GHL: 100 req/10s; 1-min hot pull is well within budget)
+- Concurrency guard exists (BQ advisory lock in `raw_ghl._job_locks`, no file locks —
+  Cloud Run Jobs are stateless; file locks don't survive container boundaries)
+- Terraform-managed (not clicked in the GCP console); state lives under
+  `ops/cloud-run/<source>/terraform/`
+
+**Why we deviate:** the headline STL metric is a 5-minute SLA measurement. A dashboard
+that shows this metric on 5-minute-stale data is structurally incapable of catching a
+live 5-minute-SLA miss. 1-min freshness is a product requirement, not an engineering
+preference. David has signed off. (Track W, 2026-04-22)
+
+**Corpus grounding:** the corpus confirms that double-ingestion risk during scheduler
+migration is handled by the pipeline's native idempotency (append-only +
+downstream staging dedupe) and that a sequenced atomic cutover (disable old scheduler,
+then switch new scheduler to prod) eliminates cursor-state corruption risk.
+(source: `.claude/rules/ingest.md` ingestion contract + "Why Data Migrations Go Wrong
+(3 reasons)", Data Ops notebook)
 
 ## Do not
 

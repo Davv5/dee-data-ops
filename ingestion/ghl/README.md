@@ -1,8 +1,20 @@
 # GHL (GoHighLevel) Extractor
 
-Custom Python extractor for GHL → BigQuery `raw_ghl.*`. Runs on a GitHub Actions cron
-(see `.github/workflows/ingest.yml`). Fivetran does not support GHL on the free tier,
-so this lives in-repo.
+Custom Python extractor for GHL → BigQuery `raw_ghl.*`. Fivetran does not support
+GHL on the free tier, so this lives in-repo.
+
+## Execution paths
+
+**Primary (Cloud Run Jobs + Cloud Scheduler) — Track W, 2026-04-22:**
+- `ghl-hot` job: runs every 1 minute → `conversations`, `messages`
+- `ghl-cold` job: runs every 15 minutes → `contacts`, `opportunities`, `users`, `pipelines`
+- Provisioned by Terraform at `ops/cloud-run/ghl-extractor/terraform/`
+- Operations runbook: `docs/runbooks/ghl-cloud-run-extractor.md`
+
+**Backstop (GitHub Actions `workflow_dispatch`):**
+- `.github/workflows/ingest.yml` — scheduled cron disabled for GHL; `workflow_dispatch`
+  still works for manual backfills and emergency re-runs.
+- To trigger all endpoints manually: `gh workflow run ingest.yml`
 
 ## What it pulls
 

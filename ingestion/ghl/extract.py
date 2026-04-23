@@ -10,9 +10,10 @@ Corpus guidance applied:
   "Data Ingestion / Raw Landing Zone", Data Ops notebook.
 - One dataset per source (`raw_ghl`, not `raw.ghl_*`). Same source.
 - Secrets via env vars only; no credentials in this file or in git.
+- Append-only + downstream staging dedupe is the idempotency contract.
+  Source: `.claude/rules/ingest.md`, Data Ops notebook.
 
 Reasoned defaults (NOT corpus-prescribed):
-- Append-only + `_ingested_at` column; dedupe in staging (Phase 2).
 - Watermark per endpoint stored in BQ, keyed by endpoint name.
 - Only `conversations` and `messages` honor `since`; other endpoints do full
   pulls and rely on staging dedupe. `messages` fans out from
@@ -20,6 +21,15 @@ Reasoned defaults (NOT corpus-prescribed):
   `lastMessageDate` is newer than the cursor.
 - Token-bucket throttle keeps request rate under GHL's 100/10s per-location
   limit; 429 responses retry with Retry-After backoff.
+
+Track W additions (2026-04-22):
+- `--endpoints` CSV flag splits the same image into hot (conversations,messages)
+  and cold (contacts,opportunities,users,pipelines) groups.
+- BQ advisory lock via `raw_ghl._job_locks` prevents concurrent executions of
+  the same endpoint_group from double-ingesting on scheduler overlap.
+  Lock expires after 2 minutes; crashes release via try/finally.
+  Source for BQ-as-lock-store: reasoned default — already have BQ, no second
+  backing store needed (`.claude/rules/ingest.md` decision, Track W).
 """
 
 from __future__ import annotations
@@ -29,6 +39,7 @@ import json
 import os
 import sys
 import time
+import uuid
 from argparse import ArgumentParser
 from datetime import datetime, timezone
 from typing import Any, Callable, Iterable, Optional
@@ -39,6 +50,7 @@ from google.cloud import bigquery
 PROJECT_ID = os.environ["GCP_PROJECT_ID_DEV"]
 RAW_DATASET = "raw_ghl"
 STATE_TABLE = f"{PROJECT_ID}.{RAW_DATASET}._sync_state"
+LOCK_TABLE = f"{PROJECT_ID}.{RAW_DATASET}._job_locks"
 
 GHL_API_BASE = "https://services.leadconnectorhq.com"
 
@@ -55,7 +67,12 @@ VERSIONS: dict[str, str] = {
     "messages": "2021-04-15",
 }
 
-ENDPOINTS: list[str] = list(VERSIONS.keys())
+# Canonical ordering preserves conversations-before-messages dependency.
+ALL_ENDPOINTS: list[str] = ["contacts", "conversations", "opportunities", "pipelines", "users", "messages"]
+
+# Endpoint groups for the Cloud Run hot/cold split (Track W).
+HOT_ENDPOINTS: list[str] = ["conversations", "messages"]
+COLD_ENDPOINTS: list[str] = ["contacts", "opportunities", "users", "pipelines"]
 
 # Token-bucket throttle. GHL v2 rate limit is 100 req / 10s per location;
 # target 90 so bursts leave headroom for Retry-After-driven retries.
@@ -68,6 +85,7 @@ def _bootstrap_adc() -> None:
     """Point Google ADC at the dev keyfile if not already set (local runs).
 
     In CI, google-github-actions/auth@v2 sets GOOGLE_APPLICATION_CREDENTIALS directly.
+    In Cloud Run Jobs, the SA is bound to the job; ADC resolves automatically.
     """
     if "GOOGLE_APPLICATION_CREDENTIALS" in os.environ:
         return
@@ -137,6 +155,70 @@ def ensure_state_table(client: bigquery.Client) -> None:
     )
     """
     client.query(ddl).result()
+
+
+def ensure_lock_table(client: bigquery.Client) -> None:
+    """Create the BQ advisory-lock table if it doesn't exist.
+
+    Used by Cloud Run Jobs to prevent concurrent executions of the same
+    endpoint_group from double-ingesting when the 1-min scheduler fires
+    before the prior run finishes. Lock rows self-expire at 2 min.
+    (Track W, 2026-04-22 — BQ-as-lock-store pattern)
+    """
+    ddl = f"""
+    CREATE TABLE IF NOT EXISTS `{LOCK_TABLE}` (
+        run_id STRING NOT NULL,
+        endpoint_group STRING NOT NULL,
+        started_at TIMESTAMP NOT NULL
+    )
+    """
+    client.query(ddl).result()
+
+
+def _acquire_lock(client: bigquery.Client, run_id: str, endpoint_group: str) -> bool:
+    """Attempt to acquire a BQ advisory lock for this endpoint_group.
+
+    Uses a MERGE to atomically insert the lock row only when no row exists
+    for the same endpoint_group started within the last 2 minutes. Returns
+    True if the lock was acquired (i.e., this run should proceed), False if
+    a prior run is still executing (this run should skip / exit 0).
+
+    Lock TTL is 2 minutes — chosen to be longer than the 1-min Cloud Scheduler
+    cadence but shorter than a stuck-job timeout, so a crashed prior run
+    auto-clears within 2 minutes. (Track W decision, 2026-04-22)
+    """
+    merge_sql = f"""
+    MERGE `{LOCK_TABLE}` AS target
+    USING (SELECT @run_id AS run_id, @endpoint_group AS endpoint_group,
+                  CURRENT_TIMESTAMP() AS started_at) AS source
+    ON target.endpoint_group = source.endpoint_group
+       AND target.started_at > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 2 MINUTE)
+    WHEN NOT MATCHED THEN
+      INSERT (run_id, endpoint_group, started_at)
+      VALUES (source.run_id, source.endpoint_group, source.started_at)
+    """
+    job = client.query(
+        merge_sql,
+        job_config=bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ScalarQueryParameter("run_id", "STRING", run_id),
+                bigquery.ScalarQueryParameter("endpoint_group", "STRING", endpoint_group),
+            ]
+        ),
+    )
+    result = job.result()
+    # num_dml_affected_rows == 1 means the INSERT fired; 0 means MATCHED (lock held)
+    return (job.num_dml_affected_rows or 0) > 0
+
+
+def _release_lock(client: bigquery.Client, run_id: str) -> None:
+    """Delete the lock row for this run_id. Called in try/finally so crashes clean up."""
+    client.query(
+        f"DELETE FROM `{LOCK_TABLE}` WHERE run_id = @run_id",
+        job_config=bigquery.QueryJobConfig(
+            query_parameters=[bigquery.ScalarQueryParameter("run_id", "STRING", run_id)]
+        ),
+    ).result()
 
 
 def read_cursor(client: bigquery.Client, endpoint: str) -> Optional[datetime]:
@@ -431,40 +513,120 @@ def load_rows(client: bigquery.Client, endpoint: str, rows: Iterable[dict[str, A
     return len(rows)
 
 
-def run(dry_run: bool = False) -> int:
+def _endpoint_group_name(endpoints: list[str]) -> str:
+    """Stable name for the lock key — sorted so order doesn't matter."""
+    return ",".join(sorted(endpoints))
+
+
+def run(endpoints: list[str], since_override: Optional[datetime] = None, dry_run: bool = False) -> int:
+    """Run the extractor for the given endpoint list.
+
+    Args:
+        endpoints: which endpoints to pull (subset of ALL_ENDPOINTS)
+        since_override: if set, use as cursor for all endpoints instead of BQ state
+        dry_run: exercise BQ client + state table without writing rows
+    """
     client = get_client()
     ensure_state_table(client)
+    ensure_lock_table(client)
+
+    run_id = str(uuid.uuid4())
+    endpoint_group = _endpoint_group_name(endpoints)
+
+    # BQ advisory lock — skip if prior run for this group is still executing.
+    # Only applies when running as Cloud Run Job (GCP_SECRET_MANAGER_PROJECT set).
+    # For GHA / local runs (no GCP_SECRET_MANAGER_PROJECT), skip the lock so
+    # manual workflow_dispatch reruns aren't blocked.
+    use_lock = bool(os.environ.get("GCP_SECRET_MANAGER_PROJECT"))
+    lock_acquired = False
+
+    if use_lock:
+        lock_acquired = _acquire_lock(client, run_id, endpoint_group)
+        if not lock_acquired:
+            print(json.dumps({
+                "status": "skip",
+                "reason": "prior run still executing",
+                "endpoint_group": endpoint_group,
+            }))
+            return 0
+
+    # Preserve conversations-before-messages ordering regardless of CLI input order.
+    ordered = [e for e in ALL_ENDPOINTS if e in endpoints]
 
     total_loaded = 0
     started_at = datetime.now(timezone.utc)
 
-    for endpoint in ENDPOINTS:
-        cursor = read_cursor(client, endpoint)
-        rows = fetch_endpoint(endpoint, cursor)
+    try:
+        for endpoint in ordered:
+            cursor = since_override if since_override is not None else read_cursor(client, endpoint)
+            rows = fetch_endpoint(endpoint, cursor)
 
-        if dry_run:
-            print(json.dumps({"endpoint": endpoint, "cursor": str(cursor), "would_load": len(rows)}))
-            continue
+            if dry_run:
+                print(json.dumps({"endpoint": endpoint, "cursor": str(cursor), "would_load": len(rows)}))
+                continue
 
-        loaded = load_rows(client, endpoint, rows)
-        if loaded > 0:
-            write_cursor(client, endpoint, started_at)
-        total_loaded += loaded
-        print(json.dumps({"endpoint": endpoint, "cursor": str(cursor), "loaded": loaded}))
+            loaded = load_rows(client, endpoint, rows)
+            if loaded > 0:
+                write_cursor(client, endpoint, started_at)
+            total_loaded += loaded
+            print(json.dumps({"endpoint": endpoint, "cursor": str(cursor), "loaded": loaded}))
 
-    print(json.dumps({"total_loaded": total_loaded, "dry_run": dry_run}))
+        print(json.dumps({"total_loaded": total_loaded, "dry_run": dry_run, "run_id": run_id}))
+    finally:
+        if use_lock and lock_acquired:
+            _release_lock(client, run_id)
+
     return 0
 
 
 def main() -> int:
     parser = ArgumentParser(description="GHL → raw_ghl extractor")
     parser.add_argument(
+        "--endpoints",
+        metavar="ENDPOINT[,ENDPOINT...]",
+        default=None,
+        help=(
+            "Comma-separated list of endpoints to pull. "
+            f"Defaults to all: {','.join(ALL_ENDPOINTS)}. "
+            "Hot group: conversations,messages. "
+            "Cold group: contacts,opportunities,users,pipelines."
+        ),
+    )
+    parser.add_argument(
+        "--since",
+        metavar="ISO-8601",
+        default=None,
+        help=(
+            "Override the BQ cursor for all endpoints with this timestamp "
+            "(e.g. 2026-04-22T00:00:00Z). Useful for backfills."
+        ),
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Exercise BQ client + state-table path without writing rows",
     )
     args = parser.parse_args()
-    return run(dry_run=args.dry_run)
+
+    if args.endpoints:
+        requested = [e.strip() for e in args.endpoints.split(",") if e.strip()]
+        unknown = set(requested) - set(ALL_ENDPOINTS)
+        if unknown:
+            print(f"ERROR: unknown endpoints: {unknown}. Valid: {ALL_ENDPOINTS}", file=sys.stderr)
+            return 1
+        endpoints = requested
+    else:
+        endpoints = list(ALL_ENDPOINTS)
+
+    since_override: Optional[datetime] = None
+    if args.since:
+        try:
+            since_override = datetime.fromisoformat(args.since.replace("Z", "+00:00"))
+        except ValueError:
+            print(f"ERROR: --since must be ISO-8601 (e.g. 2026-04-22T00:00:00Z), got: {args.since}", file=sys.stderr)
+            return 1
+
+    return run(endpoints=endpoints, since_override=since_override, dry_run=args.dry_run)
 
 
 if __name__ == "__main__":
