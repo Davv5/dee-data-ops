@@ -7,46 +7,43 @@ WORKLOG.md is the append-only audit log; grep it for history.
 
 # D-DEE Speed-to-Lead — present-moment snapshot
 
-_Last regenerated: 2026-04-22 (evening — F3 executor)_
+_Last regenerated: 2026-04-23 (close-out)_
 
 ## Where we are
 
-- **Phase:** Phase 5 (dashboard) — Speed-to-Lead star-schema refactor Tracks F1/F2/F3 in flight. F1 (PR #51) merged. F2 (PR #52) awaiting merge to main. F3 code-ready on branch `Davv5/Track-F3-STL-Rollup-Deprecation` (draft PR pending after F2 merge + prod gate).
-- **`main` tip:** `a1fd57c` (F1 merge). Open PRs: F2 (#52), Track E (#50), Track D (#49).
-- **Active branch (F3 worktree):** `Davv5/Track-F3-STL-Rollup-Deprecation`.
-- **Public dashboard URL:** `https://34-66-7-243.nip.io/public/dashboard/163abd8d-b16a-4f88-95b9-881a506aa461` — v1.6 state.
-- **Headline metric (locked 2026-04-19):** % of Calendly-booked calls with a human SDR CALL/SMS touch within 5 minutes, SDR-attributed denominator.
+- **Metabase Learn Implementation: CLOSED.** Speed-to-Lead dashboard refactor landed end-to-end — fct + conformed dims + wide mart `speed_to_lead_detail` in prod; 15 Metabase cards aggregating the wide mart directly; 11 legacy `stl_*` rollups dropped from prod BQ. Public dashboard live on star schema.
+- **`main` tip:** `cc9b1ad` (F3 merge). Deploy on `cc9b1ad` GREEN. 7 PRs merged this session: #55 F3, #56 `is_first_touch` fix, #57 source_freshness narrow, #59 Track X staging, #60 `--dry-run`, #62 `cache_ttl=0`. Plus #51 (F1) and #52 (F2) earlier.
+- **Open PRs:** this chore worklog #61; #50 (Track E — author resolves speed_to_lead.py conflict); #44 (curl hardening, stale).
+- **Public dashboard URL:** `https://34-66-7-243.nip.io/public/dashboard/163abd8d-b16a-4f88-95b9-881a506aa461`. Live on `speed_to_lead_detail` (15/15 cards, verified via Metabase REST API).
+- **Headline metric (locked 2026-04-19):** % of Calendly-booked calls with a human SDR CALL/SMS touch within 5 minutes, SDR-attributed denominator. Last prod parity check before F3 retired the test: GREEN on `2be3675`.
 
 ## Last 3 decisions (full entries in WORKLOG.md)
 
-- **2026-04-22 F3** — Delete 11 stl_* rollup SQLs + retire stl_headline_parity; keep stl_data_freshness. (`grep -n "Track F3" WORKLOG.md`)
-- **2026-04-22 F2** — wide mart speed_to_lead_detail ships; Metabase cards rewired from rollups to direct SQL on the mart. (`grep -n "Track F2" WORKLOG.md`)
-- **2026-04-22 F1** — fct_speed_to_lead_touch + dim_sdr + dim_source additive-only (PR #51 merged). (`grep -n "Track F1" WORKLOG.md`)
+- **2026-04-23 close-out** — Speed-to-Lead star-schema refactor declared CLOSED after live dashboard verification + 11-table drop. (`grep -n "CLOSED" WORKLOG.md`)
+- **2026-04-23** — `cache_ttl=0` serialized as payload omission; Metabase OSS v0.60.1 rejects explicit 0. Track Z assumption corrected. (`grep -n "cache_ttl" WORKLOG.md`)
+- **2026-04-23** — `is_first_touch` = overall earliest touch, any role; paired with `is_sdr_touch` reproduces legacy `first_toucher_role = 'SDR'` filter. Root-caused the 2.6pp prod parity divergence. (`grep -n "is_first_touch" WORKLOG.md`)
 
-## Open threads (what's pending)
+## Open threads (outside Speed-to-Lead refactor)
 
-- **F2 (PR #52) awaiting merge** — must merge before F3 PR can un-draft.
-- **F3 prod gate** — F3 PR is DRAFT until: F2 deployed to prod + `stl_headline_parity` green in prod for one refresh cycle. David un-drafts manually.
-- **`dbt_metadata_sync.py` not yet run against prod** — human step post F3 merge (documented in F3 PR body). Column hovers in Metabase still empty.
-- **`show_outcome` fallback: defer to Track G or fix now?** — STOP-AND-ASK open question per F3 track file. `speed_to_lead_detail` uses real `show_outcome = 'showed'` (F2 shipped this); the rollup YAML comments mentioning the old fallback are now retired. Confirm with David whether any Track G work is needed.
-- **PR #50 (Track E)** awaiting merge — dashboard filters + freshness tile + stl_data_freshness rollup.
-- **PR #49 (Track D)** awaiting merge.
-- **`MB_ENABLE_QUERY_CACHING=true`** env var owed on prod VM.
-- **SMTP bootstrap** owed before `dashboard_subscriptions.py` can create digest.
-- **Public URL retires** when SDR/Manager accounts come online.
-- **`GCP_SA_KEY_PROD` repo secret still unset** → CI/CD `dbt-deploy.yml` blocked.
-- **Roster gaps:** Ayaan Menon, Jake Lynch role decisions; Moayad + Halle not in seed.
+- **Track X operational bringup** — Cloud Run Calendly poller needs secret creation + Docker smoke + `terraform apply` per `docs/runbooks/calendly-cloud-run-extractor.md`. Staging fix (#59) is forward-compatible; nothing flows through the poller until bringup.
+- **PR #50 (Track E)** has merge conflicts on `ops/metabase/authoring/dashboards/speed_to_lead.py` from F2's rewrite. Track E author resolves; freshness tile already live via Track Z (PR #54).
+- **PR #44** (curl hardening) still open from earlier session.
+- **`dbt_metadata_sync.py` first-run** deferred — populates Metabase column tooltips from dbt docs; not blocking dashboard function.
+- **SMTP bootstrap** owed before `dashboard_subscriptions.py` can create the Monday 06:00 ET digest.
+- **`MB_ENABLE_QUERY_CACHING=true`** env var owed on prod VM for server-wide caching.
+- **Public URL retires** when SDR/Manager Metabase accounts come online.
+- **Roster gaps unresolved:** Ayaan Menon, Jake Lynch need role decisions; Moayad + Halle leaderboard-evidenced but not in seed. `dim_source.is_paid` NULL for 98/111 campaign labels.
+- **Stripe Fivetran sync gap:** 4,750 checkout_sessions, zero rows in customer/charge/invoice/payment_intent; `source_freshness` narrowed to exclude.
 - **GHL PIT rotation** still owed (transcript-exposed 2026-04-19).
-- **Stripe Fivetran sync gap**: 4,750 checkout sessions, zero downstream rows.
+- **Week-0 client asks** still owed (Fanbasis API docs/credentials, layered SLA thresholds, end-to-end access verification).
 
 ## Where to look (retrieval map)
 
-- **Engagement context / client facts / locked metric:** `CLAUDE.local.md` (gitignored).
-- **Portable conventions:** `CLAUDE.md` + `dbt_style_guide.md` + `.claude/rules/*.md`.
-- **Corpus declaration:** `.claude/corpus.yaml` — 4 notebooks (Data Ops, Metabase Craft, Metabase Learn, D-DEE Engagement).
-- **Speed-to-Lead mart:** `dbt/models/marts/speed_to_lead_detail.sql` + `_marts__models.yml`. Rollup layer now contains only `stl_data_freshness` (freshness tile). Old 11 rollups deleted in F3.
-- **Speed-to-Lead warehouse layer:** `dbt/models/warehouse/facts/fct_speed_to_lead_touch.sql` + `dim_sdr.sql` + `dim_source.sql`.
-- **Singular tests (live):** `dbt/tests/stl_grain_integrity.sql` (speed_to_lead_detail grain contract). `stl_headline_parity.sql` RETIRED in F3.
-- **Metabase dashboard authoring:** `ops/metabase/authoring/dashboards/speed_to_lead.py` (all tiles — rewired to speed_to_lead_detail in F2).
-- **Handover docs:** `docs/handovers/Davv5-Track-F[123]-*.md`.
-- **Full history:** `grep -n "^## " WORKLOG.md`.
+- **Engagement context / client facts / locked metric:** `CLAUDE.local.md` (gitignored overlay).
+- **Portable conventions:** `CLAUDE.md` + `dbt_style_guide.md` + `.claude/rules/*.md` (path-scoped, auto-load).
+- **Corpus declaration:** `.claude/corpus.yaml` — 4 notebooks (Data Ops, Metabase Craft, Metabase Learn, D-DEE Engagement). Scope routing in `.claude/rules/using-the-notebook.md`.
+- **Star-schema marts:** `dbt/models/warehouse/facts/fct_speed_to_lead_touch.sql` (lowest grain), `dbt/models/warehouse/dimensions/{dim_sdr,dim_source}.sql`, `dbt/models/marts/speed_to_lead_detail.sql`. `stl_data_freshness` kept at `dbt/models/marts/rollups/speed_to_lead/`.
+- **Metabase authoring:** `ops/metabase/authoring/dashboards/speed_to_lead.py` (tiles + layout); `ops/metabase/authoring/{sync,client}.py` — `--dry-run` flag supported. `ops/metabase/authoring/infrastructure/{bigquery_connection,dbt_metadata_sync,caching_config,dashboard_subscriptions}.py`.
+- **Handover docs per track:** `docs/handovers/Davv5-Track-*.md`.
+- **Full history:** `grep -n "^## " WORKLOG.md`; `grep -n "CLOSED" WORKLOG.md` surfaces the close-out entry.
+- **Corpus (free, no quota):** ask-corpus skill → `.claude/corpus.yaml` → 4 notebooks.
