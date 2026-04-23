@@ -35,6 +35,29 @@ Rolling log of what's been done on this project. Newest entries at the top. Tail
 - **`dbt_metadata_sync.py` first-run** — deferred (populates Metabase column tooltips from dbt docs; not blocking dashboard function).
 - **SMTP bootstrap** + **`MB_ENABLE_QUERY_CACHING` env var flip** — still owed for subscription emails + server-wide caching (Track D carryovers; both dormant without user impact).
 
+## 2026-04-22 — Track E: Speed-to-Lead v1.3.1 authoring polish (filters + dividers + footer + freshness)
+
+**What happened**
+- Created `dbt/models/marts/rollups/speed_to_lead/stl_data_freshness.sql` — 1-row rollup exposing `max(booked_at)` as `last_booking_at` + `run_ts`. Materialised as table. `dbt build --target dev --select stl_data_freshness` passed (1 row: last_booking_at=2026-04-20 13:40:46).
+- Added `stl_data_freshness` model doc to `_stl__models.yml` (grain + column descriptions).
+- Added dashboard-level Date filter (type=date/all-options, default="past7days~") + SDR filter (type=string/=, default=None) to `Speed-to-Lead` dashboard. Wired Date filter to T1-T6 weekly hero tiles and Lead Detail via Field Filter template tags (`[[WHERE {{date_range}}]]`). Wired SDR filter to leaderboard (`[[WHERE {{sdr_filter}}]]`) + Lead Detail.
+- Added 4 markdown section dividers: `## Speed Metrics` (row 2), `## Distribution & Outcome` (row 13), `## Coverage & Rep Performance` (row 26), `## Data Quality Notes` (row 40).
+- Added footer markdown text card (row 47, full-width 24×2) with maintainer contact `mannyshah4344@gmail.com`.
+- Added `"Data as of"` freshness scalar (row 45 col 12, Option C) reading `last_booking_at` from `stl_data_freshness`.
+- Authoring script run: exit 0, second run idempotent (zero orphan lines). `cache_ttl=21600` survived re-PUT (Track D's setting intact).
+- Added Lessons-learned bullet to `.claude/rules/metabase.md` re: Field Filter template-tag pattern.
+
+**Decisions**
+- Date filter default `"past7days~"` — Metabase accepted this string without rewriting; Q1 resolved empirically. Canonical form is `"past7days~"`.
+- Freshness tile layout Option C (row 45 adjacent-right of "Data refreshed" scalar) — T1 hero is full-width 24×4, no room for Option A. Option C pairs the two footer scalars as a "currency vs recency" pair.
+- Keep both footer scalars (Q4 = yes) — "Data refreshed" = dbt run time, "Data as of" = latest event seen. Different signals, both useful.
+- Pre-aggregated `_30d` cards NOT bound to Date filter — rollup window is fixed. Partial coverage is corpus-blessed.
+- Field Filter (dimension target) over basic text variable for date/SDR filters — unlocks relative-date widget and category picker.
+
+**Open threads**
+- Q3 (public share interactive filters): public URL returns HTTP 200. Interactive filter behaviour for anonymous viewers not verified — known Metabase OSS limitation; filters work for authenticated users and Track D's email subscription.
+- `sales_activity_detail` not materialised in dev_david at track start; had to build upstream first. Not a blocker but note for future tracks.
+
 ## 2026-04-22 (evening) — Track X: Calendly Cloud Run poller (replaces Fivetran connector, 1-min cadence)
 
 **What happened**

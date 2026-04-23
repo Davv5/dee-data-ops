@@ -136,6 +136,16 @@ Add a new-client adaptation to `NEW_CLIENT_METABASE_SOP.md` post-v1.
 
 ## Lessons learned
 
+- Dashboard filters on native-SQL questions bind via template tags. Use
+  Field Filters (type=dimension, target shape `["dimension", ["template-tag",
+  "<tag>"]]`) for smart date/category widgets; omit the column name and
+  `=` operator in the SQL (Metabase injects the subquery). Wrap the WHERE
+  in `[[...]]` so the card renders standalone when unfiltered. Partial
+  filter coverage — leaving pre-aggregated cards unbound — is acceptable
+  when the rollup doesn't carry the filter's dimension
+  (sources: "Field Filters" + "Adding filters and making interactive BI
+  dashboards", Metabase Learn notebook).
+
 - Enable query-result caching at the server level (`MB_ENABLE_QUERY_CACHING=true`
   in docker-compose.yml) so per-dashboard overrides work. Per-dashboard
   `cache_ttl` is aligned with the upstream rollup refresh cadence:
@@ -180,3 +190,19 @@ Add a new-client adaptation to `NEW_CLIENT_METABASE_SOP.md` post-v1.
   so Monday 06:00 fires at 06:00 ET, not UTC.
   (source: *"Pushing data"*, Metabase Learn notebook, source 46e8daaf;
   *"Dashboard subscriptions"*, Metabase Learn notebook, source 9fe1ca85.)
+
+- **Any track introducing a new `stl_*` rollup (or any new dbt model
+  referenced by a Metabase card) must run `dbt build --target prod
+  --select <model>` BEFORE the authoring script pushes the dashboard
+  change to prod Metabase.** The authoring script mutates the live
+  prod dashboard; if the backing table doesn't exist in prod BQ yet,
+  the new tile errors and the dashboard shows a top-level banner for
+  end users. Track E (PR #50) hit this exact trap on 2026-04-22 when
+  `stl_data_freshness.sql` was built in dev but not prod. Future
+  plan-architect track files must include a "dbt prod build" pre-step
+  for any new model, and pr-reviewer should request-changes if the
+  track introduces a new rollup without that step.
+  *Caveat:* local-shell `--target prod` is hook-blocked until the
+  Phase-6 CI workflow (`dbt-deploy.yml` + `GCP_SA_KEY_PROD`) ships —
+  the step is human-only for now, which is why it must be explicit
+  in the track file.

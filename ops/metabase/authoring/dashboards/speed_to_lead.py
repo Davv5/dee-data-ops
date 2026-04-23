@@ -16,16 +16,25 @@ dashboards via slice-and-dice in the BI tool." — mart-naming.md rule 2,
 Data Ops notebook.
 
 Two dashboards are upserted in the `Speed-to-Lead` collection:
-- `Speed-to-Lead` — v1.6 layout: T1 hero (full-width 24×4), T2+T3
-  supporting chips at row 6, volume scorecards at row 9 (T6 = % with
-  1-hour activity), response-time distribution paired with close-rate-by-touch
-  at row 12, full-width source-performance at row 18 with mini-bar formatting
-  on percentage columns, coverage heatmap (table-pivot + conditional coloring)
-  at row 24, full-width SDR leaderboard with per-row drill-through at row 31,
-  lead-tracking match-rate donut demoted to footer-row DQ tile at row 39.
-  Vocabulary pass: all "(weekly)"/"(30d)"/"(last 90d)" abbreviations replaced
-  with ", this week vs last week" / ", trailing 30 days" / ", trailing 90 days".
-  Orphan-cleanup block archives superseded cards from Tracks A+B+C renames.
+- `Speed-to-Lead` — v1.3.1 layout: header banner (row 0), four markdown
+  section dividers bracketing the narrative arc (Speed Metrics / Distribution
+  & Outcome / Coverage & Rep Performance / Data Quality Notes), T1 hero
+  full-width at row 3, T2+T3 chips at row 7, volume scorecards at row 10,
+  response-time distribution paired with close-rate-by-touch at row 14,
+  full-width source-performance at row 20, coverage heatmap at row 27,
+  full-width SDR leaderboard at row 33, lead-tracking match-rate donut
+  under "Data Quality Notes" at row 41, footer row at row 45 (Data
+  refreshed scalar + Data as of freshness tile), footer markdown text card
+  at row 47.
+  Dashboard-level filters: Date (Last 7 days, bound to T1-T6 weekly tiles
+  + Lead Detail); SDR (unset = all, bound to leaderboard + Lead Detail).
+  Filter coverage is intentionally partial — pre-aggregated _30d cards
+  are not bound because their window is fixed at the rollup layer.
+  Source: "Adding filters and making interactive BI dashboards" (Metabase
+  Learn notebook) — partial coverage is acceptable.
+  Vocabulary pass: all "(weekly)"/"(30d)"/"(last 90d)" replaced with
+  ", this week vs last week" / ", trailing 30 days" / ", trailing 90 days".
+  Orphan-cleanup block archives superseded cards from Tracks A+B+C+E renames.
 - `Speed-to-Lead — Lead Detail` — Page 1b lead-grain drill-down table
 
 Run::
@@ -61,6 +70,26 @@ def _col_settings(mapping: dict[str, dict]) -> dict:
     return {"column_settings": {f'["name","{k}"]': v for k, v in mapping.items()}}
 
 
+def _text_dashcard(*, row: int, text: str, size_y: int = 1, col: int = 0, size_x: int = 24) -> dict:
+    """Markdown text dashcard for section dividers + footer + banner.
+
+    Source: "Markdown in dashboards / Dashboards: organizing with text boxes"
+    (Metabase Learn notebook) — text cards used as section dividers and
+    footer contact cards.
+    """
+    return {
+        "card_id": None,
+        "row": row, "col": col, "size_x": size_x, "size_y": size_y,
+        "visualization_settings": {
+            "text": text,
+            "virtual_card": {
+                "name": None, "display": "text", "archived": False,
+                "dataset_query": {}, "visualization_settings": {},
+            },
+        },
+    }
+
+
 def main(dry_run: bool = False) -> None:
     mb = MetabaseClient(dry_run=dry_run or None)
     db_id = find_database_id(mb, DATABASE_NAME)
@@ -83,7 +112,13 @@ def main(dry_run: bool = False) -> None:
         comparator never flips on partial data.
 
         Metric-specific SQL is injected via the `field` parameter. Each
-        trend_smartscalar call below passes its own aggregation expression."""
+        trend_smartscalar call below passes its own aggregation expression.
+
+        v1.3.1 (Track E): date_range Field Filter injected into the WHERE
+        via [[AND {{date_range}}]] so the dashboard Date filter narrows the
+        weekly series within the 12-week window floor. Filter binds to
+        booked_date (real column on speed_to_lead_detail). Source:
+        "Field Filters" (Metabase Learn notebook)."""
         # Map field name to its per-week aggregation expression.
         # All metrics are SDR-scoped (is_sdr_touch AND is_first_touch denominator)
         # except pct_with_1hr_activity which is denominated on total bookings.
@@ -130,9 +165,27 @@ def main(dry_run: bool = False) -> None:
                 "WHERE booked_at >= TIMESTAMP("
                 "  DATE_SUB(DATE_TRUNC(CURRENT_DATE(), ISOWEEK), INTERVAL 12 WEEK)) "
                 "  AND booked_at < TIMESTAMP(DATE_TRUNC(CURRENT_DATE(), ISOWEEK)) "
+                # v1.3.1 (Track E): optional Field Filter; binds to booked_date
+                # so the dashboard Date filter narrows the weekly series within
+                # the 12-week floor.
+                "[[AND {{date_range}}]] "
                 "GROUP BY week_start "
                 "ORDER BY week_start"
             ),
+            template_tags={
+                "date_range": {
+                    "id": "date-range-weekly",
+                    "name": "date_range",
+                    "display-name": "Date range",
+                    "type": "dimension",
+                    # v1.3.1 (Track E): retargeted from week_start (post-GROUP BY
+                    # alias) to booked_date (real column on speed_to_lead_detail)
+                    # so the field filter injects a pre-aggregation WHERE clause.
+                    "dimension": ["field", "booked_date", {"base-type": "type/Date"}],
+                    "widget-type": "date/all-options",
+                    "default": None,
+                },
+            },
             visualization_settings={
                 "scalar.field": field,
                 "scalar.comparisons": [{"id": "1", "type": "previousPeriod"}],
@@ -140,7 +193,7 @@ def main(dry_run: bool = False) -> None:
             },
         )
 
-    # ── Rows 2–11 — headline smart-scalars (weekly, vs last week) ───────
+    # ── Rows 3–12 — headline smart-scalars (weekly, vs last week) ───────
     # Tile names are client-facing. Vocabulary grounded in the Data Ops
     # corpus audit (2026-04-22): no engineering jargon ("SLA", "DQ"),
     # no abbreviations, business-phrased metrics only.
@@ -154,7 +207,11 @@ def main(dry_run: bool = False) -> None:
     # v1.6 vocabulary pass (Track C): "(weekly)" suffix replaced with
     # ", this week vs last week" throughout all headline tiles. Comma +
     # sentence-case qualifier reads as description, not a label — consistent
-    # with "% On-Time" / "Lead Source Performance" precedent shipped in v1.3.
+    # with "% On-Time" / "Lead Source" precedent shipped in v1.3.
+    #
+    # v1.3.1 (Track E): all six T1-T6 tiles get date_range Field Filter via
+    # trend_smartscalar's new template_tags + [[WHERE {{date_range}}]] clause.
+    # Rows shifted by +1 (Speed Metrics section divider inserted at row 2).
     t1 = trend_smartscalar(
         name="% First Touch in 5 min, this week vs last week",
         field="pct_within_5min",
@@ -180,12 +237,13 @@ def main(dry_run: bool = False) -> None:
         fmt=MIN_FMT,
     )
 
-    # ── Row 9 — T4, T5, T6 volume smart-scalars (weekly, vs last week) ──
+    # ── Row 10 — T4, T5, T6 volume smart-scalars (weekly, vs last week) ──
     # Promoted from simple scorecards to smart-scalars in v1.3 so volume
     # direction week-over-week is visible on the headline page. Each tile
     # reads one value column from `stl_headline_trend_weekly`.
     # v1.5: shifted from row 5 to row 9 to make room for hero T1 + chips.
     # v1.6 vocabulary pass (Track C): "(weekly)" → ", this week vs last week".
+    # v1.3.1: row shifted again (+1) for Speed Metrics section divider.
     t4 = trend_smartscalar(
         name="Bookings, this week vs last week",
         field="bookings",
@@ -261,7 +319,7 @@ def main(dry_run: bool = False) -> None:
         },
     )
 
-    # ── Row 12 left — cumulative response-time distribution (12×6) ──────
+    # ── Row 14 left — cumulative response-time distribution (12×6) ──────
     # Bar (not area) communicates the cumulative-step shape better. One
     # bar per threshold (2m, 5m, 15m, 30m, 1h, 4h, 24h, >24h or similar;
     # shape is owned by the rollup). X-axis title "First touch within"
@@ -274,6 +332,7 @@ def main(dry_run: bool = False) -> None:
     # aggregate directly on speed_to_lead_detail. Threshold labels + sort
     # ordinals match exactly the stl_* rollup to preserve stable x-axis labels
     # (graph.dimensions = ["threshold_label"] — label change re-renders from zero).
+    # v1.3.1 (Track E): row shifted 12→14 for Distribution & Outcome divider.
     response_time_dist = upsert_card(
         mb,
         name="Response-time distribution, trailing 30 days",
@@ -335,6 +394,13 @@ def main(dry_run: bool = False) -> None:
     #
     # minutes_to_touch column alias: renamed from mins_to_touch to match the
     # mart's column name. _col_settings key updated accordingly.
+    #
+    # v1.3.1 (Track E): added date_range Field Filter + sdr_filter Field
+    # Filter alongside the existing within_5min/sdr_name/lead_source text
+    # variables. date_range narrows booked_at via [[AND {{date_range}}]];
+    # sdr_filter narrows sdr_name via [[AND {{sdr_filter}}]].
+    # Source: "Field Filters" (Metabase Learn notebook) — field filters
+    # use dimension targets and inject the subquery directly.
     detail_card = upsert_card(
         mb,
         name="Lead Detail — recent bookings",
@@ -353,6 +419,8 @@ def main(dry_run: bool = False) -> None:
             "[[AND CAST(is_within_5_min_sla AS STRING) = {{within_5min}}]] "
             "[[AND sdr_name = {{sdr_name}}]] "
             "[[AND lead_source = {{lead_source}}]] "
+            "[[AND {{date_range}}]] "
+            "[[AND {{sdr_filter}}]] "
             "ORDER BY booked_at DESC"
         ),
         template_tags={
@@ -384,6 +452,31 @@ def main(dry_run: bool = False) -> None:
                 "type": "text",
                 "default": None,
             },
+            # v1.3.1: Date range Field Filter for dashboard Date parameter.
+            # Binds to booked_at (TIMESTAMP). [[AND {{date_range}}]] wrapper
+            # makes this clause optional so the card renders standalone.
+            "date_range": {
+                "id": "date-range-detail",
+                "name": "date_range",
+                "display-name": "Date range",
+                "type": "dimension",
+                "dimension": ["field", "booked_at", {"base-type": "type/DateTime"}],
+                "widget-type": "date/all-options",
+                "default": None,
+            },
+            # v1.3.1: SDR Field Filter for dashboard SDR parameter.
+            # Binds to sdr_name (TEXT). Distinct from the existing text-type
+            # sdr_name tag above (which is for the detail dashboard's own
+            # category filter); this is the dashboard-level SDR filter.
+            "sdr_filter": {
+                "id": "sdr-filter-detail",
+                "name": "sdr_filter",
+                "display-name": "SDR (dashboard filter)",
+                "type": "dimension",
+                "dimension": ["field", "sdr_name", {"base-type": "type/Text"}],
+                "widget-type": "string/=",
+                "default": None,
+            },
         },
         visualization_settings=_col_settings({
             "minutes_to_touch": NUM_FMT,
@@ -403,6 +496,23 @@ def main(dry_run: bool = False) -> None:
             {"name": "First Touch Within 5 min?", "slug": "within_5min",  "id": "within5min",       "type": "category", "default": None},
             {"name": "SDR",                       "slug": "sdr_name",     "id": "sdr_name_param",   "type": "category", "default": None},
             {"name": "Lead Source",               "slug": "lead_source",  "id": "lead_source_param","type": "category", "default": None},
+            # v1.3.1: Date range + SDR dashboard-level filters added so
+            # clicking through from the parent Speed-to-Lead dashboard
+            # preserves filter context.
+            {
+                "id": "date-range-dash",
+                "name": "Date range",
+                "slug": "date_range",
+                "type": "date/all-options",
+                "default": None,
+            },
+            {
+                "id": "sdr-filter-dash",
+                "name": "SDR filter",
+                "slug": "sdr_filter",
+                "type": "string/=",
+                "default": None,
+            },
         ],
     )
 
@@ -414,7 +524,7 @@ def main(dry_run: bool = False) -> None:
                 "card_id": detail_card["id"],
                 "row": 0, "col": 0, "size_x": 24, "size_y": 16,
                 "visualization_settings": {},
-                # Wire all four dashboard-level parameters to the card's template-tags.
+                # Wire all dashboard-level parameters to the card's template-tags.
                 "parameter_mappings": [
                     {
                         "parameter_id": "first_touch_only_param",
@@ -428,13 +538,25 @@ def main(dry_run: bool = False) -> None:
                     },
                     {"parameter_id": "sdr_name_param",   "card_id": detail_card["id"], "target": ["variable", ["template-tag", "sdr_name"]]},
                     {"parameter_id": "lead_source_param","card_id": detail_card["id"], "target": ["variable", ["template-tag", "lead_source"]]},
+                    # v1.3.1: wire dashboard Date + SDR filters using dimension targets
+                    # (Field Filters). Source: "Field Filters" (Metabase Learn notebook).
+                    {
+                        "parameter_id": "date-range-dash",
+                        "card_id": detail_card["id"],
+                        "target": ["dimension", ["template-tag", "date_range"]],
+                    },
+                    {
+                        "parameter_id": "sdr-filter-dash",
+                        "card_id": detail_card["id"],
+                        "target": ["dimension", ["template-tag", "sdr_filter"]],
+                    },
                 ],
             },
         ],
     )
 
-    # ── Row 12 right — close-rate by touch-time bucket (12×6) ───────────
-    # Paired with response_time_dist at row 12 left: cause (distribution
+    # ── Row 14 right — close-rate by touch-time bucket (12×6) ───────────
+    # Paired with response_time_dist at row 14 left: cause (distribution
     # curve) beside effect (close-rate). Primary metric close_rate_pct as
     # bar height; bookings in tooltip so viewers can gauge sample size.
     # v1.6 vocabulary pass (Track C): "(30d)" → ", trailing 30 days".
@@ -496,7 +618,7 @@ def main(dry_run: bool = False) -> None:
         },
     )
 
-    # ── Row 18 — lead-source × outcome table (full-width 24×6, v1.5) ───────
+    # ── Row 20 — lead-source × outcome table (full-width 24×6, v1.5) ───────
     # Column aliasing via `column_title` mirrors the SDR leaderboard
     # convention — BI surface never shows snake_case.
     #
@@ -572,7 +694,7 @@ def main(dry_run: bool = False) -> None:
         },
     )
 
-    # ── Row 24 — SDR coverage heatmap (day of week × hour of day, 24×6) ──
+    # ── Row 27 — SDR coverage heatmap (day of week × hour of day, 24×6) ──
     # v1.6 (Track C) heatmap display fallback:
     #   BEFORE (v1.3–v1.5): display="pivot" + pivot_table.column_split.
     #   REASON FOR SWAP: pivot_table.column_split is a Pro feature on some
@@ -657,7 +779,7 @@ def main(dry_run: bool = False) -> None:
         },
     )
 
-    # ── Row 31 — SDR leaderboard (full-width 24×7, v1.5) ────────────────
+    # ── Row 33 — SDR leaderboard (full-width 24×7, v1.5) ────────────────
     # Column headers aliased to Title Case via `column_title` so the
     # BI surface never shows snake_case — corpus-mandated separation of
     # the database naming layer from the client-facing layer.
@@ -673,6 +795,9 @@ def main(dry_run: bool = False) -> None:
     # on speed_to_lead_detail. Metrics scoped to is_sdr_touch AND is_first_touch
     # to match the SDR-attributed denominator used throughout the dashboard.
     # within_5min = raw count; pct_within_5min = pct of SDR-attributed bookings.
+    # v1.3.1 (Track E): added sdr_filter Field Filter so the dashboard SDR
+    # parameter can narrow the leaderboard to a single rep. Source:
+    # "Field Filters" (Metabase Learn notebook).
     t8 = upsert_card(
         mb,
         name="SDR leaderboard, trailing 30 days",
@@ -698,9 +823,23 @@ def main(dry_run: bool = False) -> None:
             "FROM `dee-data-ops-prod.marts.speed_to_lead_detail` "
             "WHERE is_sdr_touch AND is_first_touch "
             "  AND booked_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY) "
+            # v1.3.1 (Track E): optional SDR Field Filter; binds to sdr_name
+            # (real column on speed_to_lead_detail).
+            "  [[AND {{sdr_filter}}]] "
             "GROUP BY sdr_name "
             "ORDER BY bookings DESC"
         ),
+        template_tags={
+            "sdr_filter": {
+                "id": "sdr-filter-leaderboard",
+                "name": "sdr_filter",
+                "display-name": "SDR",
+                "type": "dimension",
+                "dimension": ["field", "sdr_name", {"base-type": "type/Text"}],
+                "widget-type": "string/=",
+                "default": None,
+            },
+        },
         visualization_settings={
             **_col_settings({
                 "sdr_name": {
@@ -729,11 +868,12 @@ def main(dry_run: bool = False) -> None:
         },
     )
 
-    # ── Row 39 right — Lead-tracking match-rate donut (DQ tile, 12×2) ───
+    # ── Row 41 — Lead-tracking match-rate donut (DQ tile, 12×4) ─────────
     # Demoted from row 27 prime real estate to footer-row DQ tile in v1.4.
-    # DQ signal is still useful, just not headline-tier. Track C may
-    # revisit the display type. Categories remapped in SQL from engineering
-    # flag tokens to business-phrased states (Data Ops corpus audit 2026-04-22):
+    # v1.3.1 (Track E): further demoted under "## Data Quality Notes"
+    # section divider at row 40. Resized from 12×2 to 12×4 for readability.
+    # DQ signal is still useful, just not headline-tier. Categories remapped
+    # in SQL from engineering flag tokens to business-phrased states:
     #   clean         → Matched
     #   no_sdr_touch  → No SDR touch yet
     #   role_unknown  → Unassigned rep
@@ -812,6 +952,11 @@ def main(dry_run: bool = False) -> None:
     # speed_to_lead_detail.mart_refreshed_at. Same semantic: the timestamp
     # when the dbt build last ran. Column renamed from computed_at to
     # mart_refreshed_at; _col_settings key updated accordingly.
+    # Q4 decision (Track E): keep this scalar alongside the new "Data as of"
+    # tile (row 45 col 12). "Data refreshed" = dbt run time;
+    # "Data as of" = latest event in the mart (max(booked_at) from
+    # stl_data_freshness). Source: "BI Dashboard Visualization Best
+    # Practices" (Metabase Learn notebook).
     footer = upsert_card(
         mb,
         name="Data refreshed",
@@ -827,7 +972,51 @@ def main(dry_run: bool = False) -> None:
         }),
     )
 
+    # ── Footer — "Data as of" freshness tile ─────────────────────────────
+    # v1.3.1 (Track E, Item 4): freshness number card backed by the new
+    # stl_data_freshness rollup (max(booked_at) on sales_activity_detail).
+    # Placed at row 45 col 12 (Option C — adjacent-right of "Data refreshed"
+    # scalar in the footer row). Option A (top-right of T1 hero) was ruled
+    # out because T1 is full-width 24×4 — no col 16 slot available.
+    # Source: "BI Dashboard Visualization Best Practices" (Metabase Learn
+    # notebook) — "pair this Number card with a Markdown text card explaining
+    # the underlying data's natural reporting cadence."
+    data_as_of = upsert_card(
+        mb,
+        name="Data as of",
+        collection_id=coll["id"],
+        database_id=db_id,
+        display="scalar",
+        native_query=(
+            "SELECT last_booking_at "
+            "FROM `dee-data-ops-prod.marts.stl_data_freshness`"
+        ),
+        visualization_settings=_col_settings({
+            "last_booking_at": {
+                "date_style": "MMM D, YYYY",
+                "time_enabled": "minutes",
+                # Per Metabase Learn corpus ("BI Dashboard Visualization
+                # Best Practices") — a freshness tile should present the
+                # latest timestamp on the underlying data, NOT
+                # current_timestamp(). stl_data_freshness.last_booking_at
+                # = max(booked_at) on sales_activity_detail.
+            },
+        }),
+    )
+
     # ── Dashboard: Speed-to-Lead (Page 1) ────────────────────────────────
+    # v1.3.1 (Track E): added dashboard-level Date + SDR parameters.
+    # - Date (type=date/all-options, default="past7days~" = "Last 7 days
+    #   including current period"): binds to T1-T6 weekly tiles + Lead
+    #   Detail. Default "past7days~" is a candidate string — verify
+    #   empirically on first run (Q1: Metabase may rewrite to a canonical
+    #   form; read back via mb.get(f"/dashboard/{dash['id']}") and update
+    #   if Metabase normalized it). Source: "Filter with date filters"
+    #   (Metabase Learn notebook) — "include current period" extends the
+    #   window to include today's in-progress data.
+    # - SDR (type=string/=, default=None = all SDRs): binds to leaderboard
+    #   + Lead Detail. Unset default preserves the comparison-across-reps
+    #   story that is the point of the leaderboard.
     dash = upsert_dashboard(
         mb,
         name="Speed-to-Lead",
@@ -837,6 +1026,28 @@ def main(dry_run: bool = False) -> None:
             "booking event. Headline: % of bookings where the first outbound "
             "human SDR touch lands within 5 minutes."
         ),
+        parameters=[
+            {
+                "id": "date-range-dash",
+                "name": "Date range",
+                "slug": "date_range",
+                "type": "date/all-options",
+                # "Last 7 days including current period" per Metabase Learn
+                # "Filter with date filters" (corpus: Metabase Learn notebook).
+                # Q1: verify this string format is correct empirically on
+                # first run. Alternate candidate: "past7days-include-this".
+                # If Metabase rewrites/rejects this, copy the canonical form
+                # from mb.get(f"/dashboard/{dash['id']}")['parameters'][0]['default'].
+                "default": "past7days~",
+            },
+            {
+                "id": "sdr-filter-dash",
+                "name": "SDR",
+                "slug": "sdr",
+                "type": "string/=",
+                "default": None,  # all SDRs — leaderboard comparison story intact
+            },
+        ],
     )
 
     # Header text card — scope definition + time-window map for public
@@ -857,47 +1068,48 @@ def main(dry_run: bool = False) -> None:
         "touch (CALL or SMS, not automation) lands within 5 minutes, "
         "scoped to SDR-attributed bookings.  \n"
         "**Time windows:** weekly headline (this week vs. last) · "
-        "30-day outcome + source + coverage · 90-day volume trend."
+        "30-day outcome + source + coverage · 90-day volume trend.  \n"
+        "**Filter coverage:** Date filter narrows T1-T6 weekly tiles and "
+        "Lead Detail. SDR filter narrows leaderboard and Lead Detail. "
+        "Pre-aggregated 30-day cards are not filter-bound (window fixed "
+        "at rollup layer) — this is intentional partial coverage "
+        "(source: \"Adding filters and making interactive BI dashboards\", "
+        "Metabase Learn notebook)."
     )
-    header_dashcard = {
-        "card_id": None,
-        "row": 0, "col": 0, "size_x": 24, "size_y": 2,
-        "visualization_settings": {
-            "text": header_text,
-            "virtual_card": {"name": None, "display": "text", "archived": False, "dataset_query": {}, "visualization_settings": {}},
-        },
-    }
+    header_dashcard = _text_dashcard(row=0, text=header_text, size_y=2)
 
-    # v1.7 layout map (Track Z — live-by-default freshness tile at row 0).
-    # All rows shifted down by 2 to make room for the new freshness tile.
-    # Freshness tile: Track Z's end-to-end ingest lag indicator (top-left, 6×2).
+    # v1.3.1 + Track Z merged layout map.
     # Metabase dashboards use a 24-column grid.
+    # Track Z's freshness tile (6×2, col 0) shares row 0 with the Track E
+    # header banner (18×2, col 6). All other Track E rows retain their
+    # original positions — the 6-wide freshness tile doesn't collide with
+    # any divider or card below row 2.
     # Layout map (row, col, size_x, size_y):
     #
-    #   Row  0 — freshness tile "Data freshness (end-to-end lag)"
-    #             (0,  0, 6, 2) — top-left scalar; live-by-default ops indicator.
-    #             Track Z (2026-04-22). Reads raw_ghl.conversations._ingested_at.
-    #             Distinct from Track E's "Data refreshed" footer (row 41).
-    #   Row  2 — header banner                                  (2,  0, 24, 2)
-    #   Row  4 — T1 hero (% First Touch in 5 min, this week vs last week)
-    #             (4,  0, 24, 4)  ← full-width hero; smartscalar auto-scales.
-    #   Row  8 — T2 | T3 (supporting smart-scalars)             each 12 wide, 3 tall
-    #             (8,  0, 12, 3) Median minutes … | (8, 12, 12, 3) Slowest 10% …
-    #   Row 11 — T4 | T5 | T6 (volume smart-scalars)            each 8 wide, 3 tall
-    #             T6 = % with 1-hour activity, this week vs last week
-    #   Row 14 — Response-time distribution (12) | Close rate by touch time (12)
+    #   Row  0 — Data freshness (end-to-end lag)                (0,  0, 6,  2)
+    #          | header banner                                  (0,  6, 18, 2)
+    #   Row  2 — "## Speed Metrics" section divider             (2,  0, 24, 1)
+    #   Row  3 — T1 hero (% First Touch in 5 min, weekly)       (3,  0, 24, 4)
+    #   Row  7 — T2 | T3 (supporting smart-scalars)             each 12 wide, 3 tall
+    #             (7,  0, 12, 3) Median minutes  | (7, 12, 12, 3) Slowest 10%
+    #   Row 10 — T4 | T5 | T6 (volume smart-scalars)            each 8 wide, 3 tall
+    #   Row 13 — "## Distribution & Outcome" section divider    (13, 0, 24, 1)
+    #   Row 14 — Response-time distribution (12) | Close rate by touch (12)
     #             (14, 0, 12, 6)                  | (14, 12, 12, 6)
-    #             Cause (curve) beside effect (close-rate) — one story per row
     #   Row 20 — Lead source performance, trailing 30 days (full-width 24×6)
-    #             (20, 0, 24, 6) — percentage columns have show_mini_bar:True
-    #   Row 26 — SDR coverage, day of week by hour of day (full-width 24×6)
-    #             (26, 0, 24, 6) — table-pivot + conditional cell coloring (v1.6)
+    #             (20, 0, 24, 6)
+    #   Row 26 — "## Coverage & Rep Performance" section divider (26, 0, 24, 1)
+    #   Row 27 — SDR coverage heatmap (full-width 24×6, table-pivot)
+    #             (27, 0, 24, 6)
     #   Row 33 — SDR leaderboard, trailing 30 days (full-width 24×7)
-    #             (33, 0, 24, 7) — per-row click → Lead Detail
-    #   Row 41 — Data refreshed footer | Lead tracking match rate (DQ tile)
-    #             (41, 0, 12, 2)       | (41, 12, 12, 2)
-    #             Track E owns "Data refreshed" footer; Track Z freshness tile is at row 0.
-    header_dashcard["row"] = 2  # shifted down 2 from v1.6's row 0
+    #             (33, 0, 24, 7)
+    #   Row 40 — "## Data Quality Notes" section divider        (40, 0, 24, 1)
+    #   Row 41 — Lead tracking match rate donut (12×4)          (41, 0, 12, 4)
+    #   Row 45 — Data refreshed scalar (12×2) | Data as of freshness tile (6×2)
+    #             (45, 0, 12, 2)                 | (45, 12, 6, 2)
+    #   Row 47 — Footer markdown text card (full-width 24×2)    (47, 0, 24, 2)
+    header_dashcard["col"] = 6     # make room for Track Z freshness tile at col 0
+    header_dashcard["size_x"] = 18
     set_dashboard_cards(
         mb,
         dashboard_id=dash["id"],
@@ -905,28 +1117,125 @@ def main(dry_run: bool = False) -> None:
             # Row 0 — freshness tile: 6×2 top-left, live-by-default ops indicator
             {"card_id": freshness_tile["id"], "row": 0, "col": 0, "size_x": 6, "size_y": 2, "visualization_settings": {}},
             header_dashcard,
-            # Row 4 — T1 hero: full-width 24×4, smartscalar auto-scales central number
-            {"card_id": t1["id"], "row": 4,  "col": 0,  "size_x": 24, "size_y": 4, "visualization_settings": {}},
-            # Row 8 — T2 + T3 supporting chips (12 wide each) — median + slowest-10% read
-            {"card_id": t2["id"], "row": 8,  "col": 0,  "size_x": 12, "size_y": 3, "visualization_settings": {}},
-            {"card_id": t3["id"], "row": 8,  "col": 12, "size_x": 12, "size_y": 3, "visualization_settings": {}},
-            # Row 11 — volume smart-scalars (T6 = % With 1-Hour Activity, no tile-level drill)
-            {"card_id": t4["id"], "row": 11,  "col": 0,  "size_x": 8, "size_y": 3, "visualization_settings": {}},
-            {"card_id": t5["id"], "row": 11,  "col": 8,  "size_x": 8, "size_y": 3, "visualization_settings": {}},
-            {"card_id": t6["id"], "row": 11,  "col": 16, "size_x": 8, "size_y": 3, "visualization_settings": {}},
+            # Row 2 — Speed Metrics section divider
+            _text_dashcard(row=2, text="## Speed Metrics"),
+            # Row 3 — T1 hero: full-width 24×4, smartscalar auto-scales central number
+            {
+                "card_id": t1["id"], "row": 3, "col": 0, "size_x": 24, "size_y": 4,
+                "visualization_settings": {},
+                "parameter_mappings": [
+                    {
+                        "parameter_id": "date-range-dash",
+                        "card_id": t1["id"],
+                        "target": ["dimension", ["template-tag", "date_range"]],
+                    },
+                ],
+            },
+            # Row 7 — T2 + T3 supporting chips (12 wide each)
+            {
+                "card_id": t2["id"], "row": 7, "col": 0, "size_x": 12, "size_y": 3,
+                "visualization_settings": {},
+                "parameter_mappings": [
+                    {
+                        "parameter_id": "date-range-dash",
+                        "card_id": t2["id"],
+                        "target": ["dimension", ["template-tag", "date_range"]],
+                    },
+                ],
+            },
+            {
+                "card_id": t3["id"], "row": 7, "col": 12, "size_x": 12, "size_y": 3,
+                "visualization_settings": {},
+                "parameter_mappings": [
+                    {
+                        "parameter_id": "date-range-dash",
+                        "card_id": t3["id"],
+                        "target": ["dimension", ["template-tag", "date_range"]],
+                    },
+                ],
+            },
+            # Row 10 — volume smart-scalars
+            {
+                "card_id": t4["id"], "row": 10, "col": 0, "size_x": 8, "size_y": 3,
+                "visualization_settings": {},
+                "parameter_mappings": [
+                    {
+                        "parameter_id": "date-range-dash",
+                        "card_id": t4["id"],
+                        "target": ["dimension", ["template-tag", "date_range"]],
+                    },
+                ],
+            },
+            {
+                "card_id": t5["id"], "row": 10, "col": 8, "size_x": 8, "size_y": 3,
+                "visualization_settings": {},
+                "parameter_mappings": [
+                    {
+                        "parameter_id": "date-range-dash",
+                        "card_id": t5["id"],
+                        "target": ["dimension", ["template-tag", "date_range"]],
+                    },
+                ],
+            },
+            {
+                "card_id": t6["id"], "row": 10, "col": 16, "size_x": 8, "size_y": 3,
+                "visualization_settings": {},
+                "parameter_mappings": [
+                    {
+                        "parameter_id": "date-range-dash",
+                        "card_id": t6["id"],
+                        "target": ["dimension", ["template-tag", "date_range"]],
+                    },
+                ],
+            },
+            # Row 13 — Distribution & Outcome section divider
+            _text_dashcard(row=13, text="## Distribution & Outcome"),
             # Row 14 — response-time curve (left) paired with close-rate-by-touch (right)
             {"card_id": response_time_dist["id"],  "row": 14, "col": 0,  "size_x": 12, "size_y": 6, "visualization_settings": {}},
             {"card_id": close_rate_by_touch["id"], "row": 14, "col": 12, "size_x": 12, "size_y": 6, "visualization_settings": {}},
             # Row 20 — lead source performance (full-width, per-row click → Lead Detail, mini-bars on pct columns)
             {"card_id": source_outcome["id"], "row": 20, "col": 0, "size_x": 24, "size_y": 6, "visualization_settings": {}},
-            # Row 26 — coverage heatmap (full width, 6 tall)
-            {"card_id": coverage_heatmap["id"], "row": 26, "col": 0, "size_x": 24, "size_y": 6, "visualization_settings": {}},
-            # Row 33 — SDR leaderboard (full-width, per-row click → Lead Detail)
-            {"card_id": t8["id"], "row": 33, "col": 0, "size_x": 24, "size_y": 7, "visualization_settings": {}},
-            # Row 41 — refresh footer (left) | match-rate donut demoted to DQ tile (right)
-            # Track E owns "Data refreshed" footer tile; Track Z freshness tile is at row 0.
-            {"card_id": footer["id"], "row": 41, "col": 0,  "size_x": 12, "size_y": 2, "visualization_settings": {}},
-            {"card_id": t9["id"],     "row": 41, "col": 12, "size_x": 12, "size_y": 2, "visualization_settings": {}},
+            # Row 26 — Coverage & Rep Performance section divider
+            _text_dashcard(row=26, text="## Coverage & Rep Performance"),
+            # Row 27 — coverage heatmap (full width, 6 tall)
+            {"card_id": coverage_heatmap["id"], "row": 27, "col": 0, "size_x": 24, "size_y": 6, "visualization_settings": {}},
+            # Row 33 — SDR leaderboard (full-width, per-row click → Lead Detail, SDR filter)
+            {
+                "card_id": t8["id"], "row": 33, "col": 0, "size_x": 24, "size_y": 7,
+                "visualization_settings": {},
+                "parameter_mappings": [
+                    {
+                        "parameter_id": "sdr-filter-dash",
+                        "card_id": t8["id"],
+                        "target": ["dimension", ["template-tag", "sdr_filter"]],
+                    },
+                ],
+            },
+            # Row 40 — Data Quality Notes section divider
+            _text_dashcard(row=40, text="## Data Quality Notes"),
+            # Row 41 — match-rate donut demoted to DQ tile (12×4)
+            {"card_id": t9["id"], "row": 41, "col": 0, "size_x": 12, "size_y": 4, "visualization_settings": {}},
+            # Row 45 — refresh footer (left 12) | freshness tile (right 6)
+            # Q4: keep both scalars — "Data refreshed" = dbt run time,
+            # "Data as of" = latest event in mart. Both are corpus-compatible
+            # and signal different things (source: "BI Dashboard Visualization
+            # Best Practices", Metabase Learn notebook).
+            {"card_id": footer["id"],     "row": 45, "col": 0,  "size_x": 12, "size_y": 2, "visualization_settings": {}},
+            {"card_id": data_as_of["id"], "row": 45, "col": 12, "size_x": 6,  "size_y": 2, "visualization_settings": {}},
+            # Row 47 — footer markdown text card (full-width 24×2)
+            # Source: "BI Dashboard Visualization Best Practices" (Metabase
+            # Learn notebook) — "it is a best practice to use a text box as a
+            # dashboard footer to include the maintainer's contact info, context
+            # on the data, and helpful links."
+            _text_dashcard(
+                row=47,
+                size_y=2,
+                text=(
+                    "Last refreshed at 6am PT daily from BigQuery. "
+                    "Contact [mannyshah4344@gmail.com](mailto:mannyshah4344@gmail.com) "
+                    "for questions."
+                ),
+            ),
         ],
     )
     # t7 (old 90d area) deliberately NOT in the dashcards list — card
@@ -956,6 +1265,7 @@ def main(dry_run: bool = False) -> None:
         coverage_heatmap["id"],
         footer["id"],
         detail_card["id"],
+        data_as_of["id"],      # Track E: "Data as of" footer freshness tile
         freshness_tile["id"],  # Track Z: top-of-dashboard raw ingest lag tile
     }
     all_collection_cards = [
