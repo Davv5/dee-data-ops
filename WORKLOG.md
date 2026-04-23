@@ -11,6 +11,31 @@ Rolling log of what's been done on this project. Newest entries at the top. Tail
 
 ---
 
+## 2026-04-22 (pm) — Track F1: warehouse layer — fct_speed_to_lead_touch + dim_sdr + dim_source (additive-only)
+
+**What happened**
+- Created `dbt/models/warehouse/facts/fct_speed_to_lead_touch.sql` — one row per (booking × touch-event), lowest grain. 5,406 rows in dev (all `no_sdr_touch` — see open threads).
+- Created `dbt/models/warehouse/dimensions/dim_sdr.sql` — role-filtered conformed dim on `dim_users`; 4 active SDRs in dev (Marco, Boipelo, Blagoj, Aariz).
+- Created `dbt/models/warehouse/dimensions/dim_source.sql` — lead-source dim; 111 distinct values, 13 seeded with description + is_paid.
+- Created `dbt/seeds/stl_lead_source_lookup.csv` — 12 inferrable channel-level values classified + `__unknown__` sentinel.
+- Updated `dbt/snapshots/dim_users_snapshot.sql` — expanded check_cols to `['name', 'role', 'email', 'is_active']` per track spec; explicit column select.
+- Ran `dbt snapshot --target dev` — 22 rows merged into `snapshots.dim_users_snapshot`.
+- `dbt build --target dev --select dim_sdr dim_source fct_speed_to_lead_touch` — PASS=27 WARN=0 ERROR=0 (3 models + 24 tests all green).
+- Updated `_facts__models.yml`, `_dimensions__models.yml`, `_seeds__models.yml`, `_facts__docs.md`, `_dimensions__docs.md` with new model/column docs.
+
+**Decisions**
+- Grain is `(booking × touch-event)` — lowest justifiable grain. Justification: "3 Data Modeling Mistakes That Can Derail a Team", Data Ops notebook. Bookings with zero SDR touches emit one `touch_sk = NULL` row to preserve denominator counts.
+- `dim_sdr` is a conformed view (role-filtered subset) on `dim_users`, not a fresh dim. Source: "Creating a Data Model w/ dbt: Facts", Data Ops notebook.
+- `dim_source` seed covers only the 12 inferrable channel-level `lead_source` values. The actual values are campaign/content labels (~100 entries), not the channel taxonomy the plan assumed — flagged to David (see open threads).
+- `show_outcome` derivation: v1 heuristic using Calendly `event_status` + GHL `last_stage_change_at >= scheduled_for`. Fallback documented inline (code comment) for F3 finalization.
+- `is_sdr_touch` uses current-state `dim_users.role` in F1; SCD-2 as-of join deferred to F2.
+
+**Open threads**
+- **Sanity query returns NULL** (pct_within_5min_7d = NULL) for both the new fact and the existing `stl_headline_7d` rollup in dev. Root cause: `fct_calls_booked.contact_sk` is NULL for all 5,406 bookings — the `stg_calendly__event_invitees` staging is not yet wired (pre-existing open thread). The metric will light up once invitee staging ships. NOT a grain/calculation bug.
+- **`dim_source` seed**: 98 of 111 `lead_source` values are campaign-specific labels (e.g., "ig blueprint case study", "AI Brand Prompts") with `is_paid = NULL`. David needs to classify these or confirm the existing 12 channel-level classifications are sufficient for F2.
+- **Roster gap**: Ayaan, Jake, Moayad, Halle not in `dim_sdr` (roles unresolved in `ghl_sdr_roster`). Their touches will carry `attribution_quality_flag = 'role_unknown'` when invitee staging unlocks the join. Out of scope for F1.
+- **Prod snapshot run** is F2's pre-step responsibility. `dbt snapshot --target prod` must run before F2's mart can use role-at-touch-time SCD joins.
+
 ## 2026-04-22 (pm) — Metabase Learn corpus + v1.3.1 polish (Track D shipped, Track E in flight) + OSS permissions research
 
 **What happened**
