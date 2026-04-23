@@ -32,9 +32,13 @@ Derived from Calendly `event_status` + GHL `last_stage_change_at`:
 role-at-touch-time accuracy, F2 will layer in `dim_users_snapshot` with
 `dbt_valid_from <= touched_at < coalesce(dbt_valid_to, current_timestamp())`.
 
-`is_first_touch` is TRUE on exactly one row per booking — the earliest
-`is_sdr_touch = TRUE` row by `touched_at`. It drives the `is_within_5_min_sla`
-headline metric.
+`is_first_touch` is TRUE on exactly one row per booking — the OVERALL earliest
+outbound touch by `touched_at`, regardless of toucher role. Paired with
+`is_sdr_touch`, the combination `is_first_touch AND is_sdr_touch` reproduces the
+legacy `sales_activity_detail.first_toucher_role = 'SDR'` semantic, which is how
+the 2026-04-19 locked Speed-to-Lead headline metric ("SDR-attributed denominator")
+is computed. `is_within_5_min_sla` is only TRUE on rows where both flags hold
+AND the first touch landed within 5 minutes of `booked_at`.
 
 ### NULL FK rows and attribution_quality_flag
 

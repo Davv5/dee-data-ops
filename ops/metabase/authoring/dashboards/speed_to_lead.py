@@ -474,7 +474,7 @@ def main() -> None:
             "    END AS bucket_sort"
             "  FROM `dee-data-ops-prod.marts.speed_to_lead_detail`"
             "  WHERE booked_at >= TIMESTAMP(DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY))"
-            "    AND is_first_touch"
+            "    AND is_first_touch AND is_sdr_touch"
             ") "
             "SELECT touch_bucket, bucket_sort, "
             "  COUNT(DISTINCT booking_id) AS bookings, "
