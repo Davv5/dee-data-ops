@@ -72,6 +72,28 @@ seeds:
       - name: cash_all_time
         description: "Currency string."
 
+  - name: stl_lead_source_lookup
+    description: >
+      Lead-source enrichment seed for the Speed-to-Lead pipeline. Maps the
+      raw `lead_source` campaign/channel labels from `dim_contacts` to
+      human-readable descriptions and a paid/organic flag. Only high-volume,
+      clearly-inferrable channel-level values are classified here; campaign-
+      specific labels require David's classification (flagged in WORKLOG
+      "Open threads"). The `__unknown__` sentinel row handles NULL lead_source.
+    columns:
+      - name: lead_source
+        description: Raw lead_source value as it appears in dim_contacts (case-sensitive match attempted; dim_source uses lower() for joins).
+        tests:
+          - not_null
+          - unique
+      - name: source_description
+        description: Human-readable description of the lead source for BI tooltips and Metabase card labels.
+      - name: is_paid
+        description: >
+          TRUE if the source is paid traffic; FALSE if organic/referral.
+          NULL for the __unknown__ sentinel and for any unseeded campaign
+          labels whose paid/organic status is ambiguous — flagged to David.
+
   - name: oracle_closer_leaderboard_20260319
     description: "Oracle validation fixture — closer leaderboard (7 closers + TOTAL row). source: Master Lead Sheet.xlsx snapshot 2026-03-19."
     columns:

@@ -5,10 +5,10 @@
         target_schema='snapshots',
         unique_key='user_id',
         strategy='check',
-        check_cols=['role', 'email']
+        check_cols=['name', 'role', 'email', 'is_active']
     )
 }}
 
-select * from {{ ref('dim_users') }}
+select user_id, name, role, email, is_active from {{ ref('dim_users') }}
 
 {% endsnapshot %}
