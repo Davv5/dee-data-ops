@@ -32,7 +32,23 @@ sources:
       blob-shim against `Raw.ghl_objects_raw` (1,314 rows) and accept
       messages/users as empty (no upstream source has them right now).
       Diagnosis belongs to U4a, not U3.
-    schema: raw_ghl
+
+      U4a update (2026-04-24): U3's `ghl-messages-missing` gap was traced
+      to (a) a wrong-path container entrypoint on GTM's `ghl-comprehensive-
+      backfill` Cloud Run Job, (b) a missing `conversations/message.readonly`
+      PIT scope + stale token in Secret Manager, and (c) a nested-envelope
+      bug in `ingest/sources/ghl/backfill_comprehensive.py::_fetch_messages`.
+      After all three fixes, `raw_ghl.ghl__messages_raw` populates — but
+      `fct_outreach` still dropped ~95% of touches in its inner join to
+      conversations because `raw_ghl.ghl__conversations_raw` only holds the
+      101 Phase-2 rows. Fix: swap `conversations` to a blob-shim against
+      `Raw.ghl_objects_raw` filtered on entity_type='conversations' — the
+      legacy path that holds 1,314 rows matching the parent universe we
+      fetched messages for. Implemented via the `ghl_blob` source below.
+    # schema resolves to `raw_ghl` by default; overridden to a frozen snapshot
+    # dataset when the U4a `plumbing_parity` target is invoked with
+    # `--vars '{raw_schema_override: raw_snapshot_u4a_<date>}'`.
+    schema: "{{ var('raw_schema_override', none) or 'raw_ghl' }}"
     config:
       loaded_at_field: _ingested_at
     tables:
@@ -176,3 +192,28 @@ sources:
             description: JSON column — full pipeline object (including nested stages).
             tests:
               - not_null
+
+  # U4a blob-shim source (2026-04-24) — points at the legacy single-table
+  # `Raw.ghl_objects_raw` for the entity types where Phase-2 per-object
+  # tables hold fewer rows than the blob (currently: conversations, 101 vs
+  # 1,314). Retire when `ghl-incremental-v2` catches up and the per-object
+  # tables match the blob's coverage.
+  - name: ghl_blob
+    description: >
+      Legacy blob landing for GHL. Single table (`Raw.ghl_objects_raw`)
+      keyed on `(entity_type, entity_id)` with `payload_json` carrying the
+      full API object. Used today by `stg_ghl__conversations` only, to
+      bypass the Phase-2 coverage gap (raw_ghl has 101 of 1,314 convos).
+    # Under `plumbing_parity` with `--vars raw_schema_override=<snapshot>`,
+    # this resolves to the snapshot dataset; otherwise it points at the
+    # live `Raw` dataset in the consolidated project.
+    schema: "{{ var('raw_schema_override', none) or 'Raw' }}"
+    config:
+      loaded_at_field: ingested_at
+    tables:
+      - name: ghl_objects_raw
+        identifier: ghl_objects_raw
+        description: >
+          One row per GHL object (any entity_type). Staging models filter on
+          `entity_type = '<name>'` and normalize columns to the per-object
+          shape expected downstream.

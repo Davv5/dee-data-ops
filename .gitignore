@@ -21,6 +21,10 @@ dbt_packages/
 logs/
 .user.yml
 
+# Snapshot runtime artifacts (regenerated on every snapshot run; do not commit)
+ops/bq/.last_snapshot_ts
+ops/bq/.last_snapshot.log
+
 # macOS
 .DS_Store
 

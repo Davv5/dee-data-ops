@@ -17,7 +17,10 @@ sources:
       Known gap (U1 preflight §9): 0% transcript coverage across 1,157 calls.
       `$.transcript` is null in every row. Stg passes the null through; root
       cause + fix are scoped to U6 (port + fix Fathom extractor).
-    schema: Raw
+    # schema resolves to `Raw` by default; overridden to a frozen snapshot
+    # dataset when the U4a `plumbing_parity` target is invoked with
+    # `--vars '{raw_schema_override: raw_snapshot_u4a_<date>}'`.
+    schema: "{{ var('raw_schema_override', none) or 'Raw' }}"
     config:
       loaded_at_field: ingested_at
       freshness:
