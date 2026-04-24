@@ -1,5 +1,5 @@
 ---
-paths: ["dbt/models/marts/**"]
+paths: ["2-dbt/models/marts/**"]
 ---
 
 # Mart Naming Conventions
@@ -76,4 +76,4 @@ The prefix switch is exactly what makes the mart layer recognizable as "the part
   with the parity test green, then deprecate in F3 (this track).
   (source: *"3 Data Modeling Mistakes That Can Derail a Team"* + *"Data Modeling in
   the Modern Data Stack"*, Data Ops notebook; Track F plan files in
-  `docs/handovers/Davv5-Track-F[123]-*.md`.)
+  `docs/_archive/Davv5-Track-F[123]-*.md`.)

@@ -1,10 +1,10 @@
 ---
-paths: ["dbt/models/staging/**"]
+paths: ["2-dbt/models/staging/**"]
 ---
 
 # Staging conventions
 
-Load this rule when working on any file under `dbt/models/staging/`. Detailed style reference: `dbt_style_guide.md`.
+Load this rule when working on any file under `2-dbt/models/staging/`. Detailed style reference: `docs/conventions/dbt_style_guide.md`.
 
 ## Structure
 
@@ -48,7 +48,7 @@ Each `staging/<source>/` directory must include:
 Example:
 
 ```yaml
-# dbt/models/staging/ghl/_ghl__models.yml
+# 2-dbt/models/staging/ghl/_ghl__models.yml
 version: 2
 models:
   - name: stg_ghl__contacts
@@ -92,5 +92,5 @@ select * from final
 
 - When JSON flattening GHL contacts, always `safe_cast` timestamps — the source returns both epoch-ms and ISO-8601 strings depending on call. Without `safe_cast` one form silently fails.
 - Calendly `invitee_email` can be null; do not rely on it as a non-null PK source. Use `invitee_uuid`.
-- **No `join` keyword in any file under `dbt/models/staging/**`.** Sub-selects and `unnest` are fine; any row-combining logic must live in `warehouse/` or `marts/`. Enforced by the `no-joins-in-staging` pre-commit hook.
+- **No `join` keyword in any file under `2-dbt/models/staging/**`.** Sub-selects and `unnest` are fine; any row-combining logic must live in `warehouse/` or `marts/`. Enforced by the `no-joins-in-staging` pre-commit hook.
 - **No hard-coded `entity_type` filters that assume a legacy single-table GHL raw layout.** Per-entity raw tables (`raw_ghl.ghl__<entity>_raw`) do not carry an `entity_type` column — any `WHERE entity_type = '...'` filter will silently return zero rows.

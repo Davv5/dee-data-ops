@@ -1,10 +1,10 @@
 ---
-paths: ["ops/metabase/**"]
+paths: ["3-bi/metabase/**"]
 ---
 
 # Metabase conventions
 
-Load when working on anything under `ops/metabase/**`. Metabase is D-DEE's dashboard layer — self-hosted OSS on GCP, reading `dee-data-ops-prod.marts.*`.
+Load when working on anything under `3-bi/metabase/**`. Metabase is D-DEE's dashboard layer — self-hosted OSS on GCP, reading `dee-data-ops-prod.marts.*`.
 
 Two corpus sources ground these conventions — cite them when extending:
 - *Metabase official docs* (https://www.metabase.com/docs/latest/)
@@ -14,7 +14,7 @@ Two corpus sources ground these conventions — cite them when extending:
 
 ### 1. Dashboards are code
 
-Every dashboard, question, and collection on the **production** Metabase instance must be the output of a Python script committed under `ops/metabase/authoring/`. Nothing in production is GUI-authored.
+Every dashboard, question, and collection on the **production** Metabase instance must be the output of a Python script committed under `3-bi/metabase/authoring/`. Nothing in production is GUI-authored.
 
 - Authoring scripts call the Metabase REST API (`POST /api/card`, `POST /api/dashboard`, `POST /api/dashboard/:id/cards`, …).
 - Every script is idempotent — running it twice produces the same Metabase state. Use `entity_id` on all upserts.
@@ -30,12 +30,12 @@ Dashboards-as-code means the Postgres app-DB state is **derivable** from the aut
 
 - `pg_dump` runs nightly from a GCE cron job, writes to `gs://dee-data-ops-prod-metabase-backups/app-db/YYYY-MM-DD.sql.gz`.
 - Retention: 30 days. Lifecycle rule on the bucket moves >30-day backups to cold storage or deletes.
-- Recovery drill is documented in `ops/metabase/RECOVERY.md` — run it once every quarter.
+- Recovery drill is documented in `3-bi/metabase/RECOVERY.md` — run it once every quarter.
 - Do NOT commit `pg_dump` output to git. The backup bucket is the source of truth for app-DB state.
 
 ### 3. Every connection is code
 
-BigQuery datasource config, Google OAuth config, email/Slack notification channels — all are declared in authoring scripts under `ops/metabase/authoring/infrastructure/`, not clicked in the GUI.
+BigQuery datasource config, Google OAuth config, email/Slack notification channels — all are declared in authoring scripts under `3-bi/metabase/authoring/infrastructure/`, not clicked in the GUI.
 
 - Secrets (BQ SA JSON, OAuth client secret, SMTP password) live in **GCP Secret Manager** in `dee-data-ops-prod`. Authoring scripts resolve them at runtime via `google.cloud.secretmanager`.
 - The VM's startup script pulls secrets into container env vars — the same pattern Track J established for the GHL extractor.
@@ -47,7 +47,7 @@ BigQuery datasource config, Google OAuth config, email/Slack notification channe
 
 ```bash
 dbt-metabase models \
-  --dbt-manifest-path dbt/target/manifest.json \
+  --dbt-manifest-path 2-dbt/target/manifest.json \
   --metabase-url "$MB_URL" \
   --metabase-api-key "$MB_SESSION_TOKEN" \
   --metabase-database "dee-data-ops-prod"
@@ -62,7 +62,7 @@ Never hand-edit a column description in Metabase. Edit it in the dbt `.yml` and 
 One authoring script per mart. File name mirrors the mart:
 
 ```
-ops/metabase/authoring/dashboards/
+3-bi/metabase/authoring/dashboards/
   sales_activity_detail.py   # reads marts.sales_activity_detail → Page 1
   lead_journey.py            # reads marts.lead_journey           → Page 2
   revenue_detail.py          # reads marts.revenue_detail         → Page 3
@@ -73,12 +73,12 @@ Each script owns:
 - The questions inside it (named after the underlying mart column it surfaces)
 - The dashboard(s) those questions roll into
 
-Cross-mart dashboards live in their own script under `ops/metabase/authoring/dashboards/executive_summary.py` etc.
+Cross-mart dashboards live in their own script under `3-bi/metabase/authoring/dashboards/executive_summary.py` etc.
 
 ## Directory layout
 
 ```
-ops/metabase/
+3-bi/metabase/
 ├── README.md                         # install + run guide (top-level)
 ├── RECOVERY.md                       # restore-from-backup drill
 ├── terraform/                        # GCP infra as code
@@ -122,14 +122,14 @@ Metabase v60+ ships an official MCP server (see `/docs/latest/ai/mcp` on your in
 ## Template-ability for next client
 
 What ports forward to a new PS engagement unchanged:
-- Everything under `ops/metabase/terraform/` (parameterized by project ID + SA names)
-- Everything under `ops/metabase/runtime/`
-- `ops/metabase/authoring/client.py` + `sync.py`
+- Everything under `3-bi/metabase/terraform/` (parameterized by project ID + SA names)
+- Everything under `3-bi/metabase/runtime/`
+- `3-bi/metabase/authoring/client.py` + `sync.py`
 - This rules file
 
 What is client-specific (edit per engagement):
-- `ops/metabase/authoring/dashboards/*.py` — mart-specific
-- `ops/metabase/authoring/infrastructure/bigquery_connection.py` — project-specific
+- `3-bi/metabase/authoring/dashboards/*.py` — mart-specific
+- `3-bi/metabase/authoring/infrastructure/bigquery_connection.py` — project-specific
 - The domain/hostname
 
 Add a new-client adaptation to `NEW_CLIENT_METABASE_SOP.md` post-v1.

@@ -1,10 +1,10 @@
 ---
-paths: ["dbt/models/warehouse/**"]
+paths: ["2-dbt/models/warehouse/**"]
 ---
 
 # Warehouse-layer conventions
 
-Load when working on any file under `dbt/models/warehouse/`. Detailed style reference: `dbt_style_guide.md`. Modeling principles are grounded in the Data Ops NotebookLM corpus (query via the `ask-corpus` skill).
+Load when working on any file under `2-dbt/models/warehouse/`. Detailed style reference: `docs/conventions/dbt_style_guide.md`. Modeling principles are grounded in the Data Ops NotebookLM corpus (query via the `ask-corpus` skill).
 
 ## Structure
 
