@@ -7,7 +7,7 @@ models:
       client-facing marts (sales_activity_detail, lead_journey,
       revenue_detail). One row per (mart, snapshot_date). Feeds the
       volume_drift warn-test (singular test at
-      `dbt/tests/volume_drift.sql`) which compares each day's count to the
+      `2-dbt/tests/volume_drift.sql`) which compares each day's count to the
       prior day and surfaces mart_name / snapshot_date / pct_drift when
       movement exceeds ±10%. The nightly workflow runs that test with
       `--warn-error` in a separate step (continue-on-error) so a warn

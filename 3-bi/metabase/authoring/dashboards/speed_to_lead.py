@@ -31,8 +31,8 @@ Two dashboards are upserted in the `Speed-to-Lead` collection:
 Run::
 
     source .venv/bin/activate
-    set -a && source ops/metabase/.env.metabase && set +a
-    python -m ops.metabase.authoring.dashboards.speed_to_lead
+    set -a && source 3-bi/metabase/.env.metabase && set +a
+    cd 3-bi && python -m metabase.authoring.dashboards.speed_to_lead
 
 Re-running is a no-op for unchanged content — upserts match by
 (name, collection_id). MB_URL comes from the env file; the API key is

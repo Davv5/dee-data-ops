@@ -22,16 +22,16 @@ at 1-min cadence, using the shared `ingest` Artifact Registry repo.
      --display-name="Cloud Scheduler invoker"
    ```
 4. The `calendly-api-token` secret must be created and populated by David
-   (see `ingestion/calendly/README.md` for the exact commands).
+   (see `1-raw-landing/calendly/README.md` for the exact commands).
 5. The extractor image must be pushed to Artifact Registry before `apply`:
    ```bash
-   bash ops/cloud-run/calendly-extractor/build-and-push.sh
+   bash 1-raw-landing/deploy/calendly-extractor/build-and-push.sh
    ```
 
 ## First-time setup
 
 ```bash
-cd ops/cloud-run/calendly-extractor/terraform
+cd 1-raw-landing/deploy/calendly-extractor/terraform
 
 # Initialize providers
 terraform init

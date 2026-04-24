@@ -14,7 +14,7 @@ Two layers of control:
    starting the container**. On this deployment, that means:
 
      a. SSH into the GCE VM running Metabase.
-     b. Edit ``ops/metabase/runtime/docker-compose.yml`` to add::
+     b. Edit ``3-bi/metabase/runtime/docker-compose.yml`` to add::
 
             environment:
               MB_ENABLE_QUERY_CACHING: "true"
@@ -74,8 +74,8 @@ Implementation notes (live API behaviour observed 2026-04-22, v0.60.1):
 Run::
 
     source .venv/bin/activate
-    set -a && source ops/metabase/.env.metabase && set +a
-    python -m ops.metabase.authoring.infrastructure.caching_config
+    set -a && source 3-bi/metabase/.env.metabase && set +a
+    cd 3-bi && python -m metabase.authoring.infrastructure.caching_config
 
 Re-running is a no-op when state already matches. If enable-query-caching
 is still OFF, the script warns but does not exit non-zero — fixing that
@@ -132,7 +132,7 @@ def _find_dashboard(mb: MetabaseClient, name: str) -> dict:
     if not matches:
         raise LookupError(
             f"No Metabase dashboard named {name!r}. Ship the authoring "
-            "script for it first (ops/metabase/authoring/dashboards/speed_to_lead.py)."
+            "script for it first (3-bi/metabase/authoring/dashboards/speed_to_lead.py)."
         )
     # Prefer the publicly-shared copy if there are duplicates.
     public = [d for d in matches if d.get("public_uuid")]
@@ -158,7 +158,7 @@ def main() -> None:
         print("-- READ-ONLY (cannot PUT via API on v0.60.1)")
         print(
             "\n  ACTION REQUIRED: Set MB_ENABLE_QUERY_CACHING=true in "
-            "ops/metabase/runtime/docker-compose.yml, restart the container,\n"
+            "3-bi/metabase/runtime/docker-compose.yml, restart the container,\n"
             "  then re-run this script. See this file's docstring for exact steps."
         )
         # Continue to set the per-dashboard TTL even if the toggle is off,

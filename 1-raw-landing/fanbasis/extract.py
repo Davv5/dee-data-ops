@@ -9,7 +9,7 @@ Status: skeleton. BQ side is wired and exercisable via --dry-run. The Fanbasis A
 confirmed. If the API proves unreliable, fall back to the CSV-export path documented
 in the README (scope Risk #5).
 
-Mirrors `ingestion/ghl/extract.py` — see that file for design-choice rationale and
+Mirrors `1-raw-landing/ghl/extract.py` — see that file for design-choice rationale and
 corpus citations.
 """
 

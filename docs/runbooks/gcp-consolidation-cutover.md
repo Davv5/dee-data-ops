@@ -32,7 +32,7 @@ Outline:
 
 1. Create service account `merge-dbt-ci@project-41542e21-470f-4589-96d.iam.gserviceaccount.com` with roles from preflight §12.
 2. Generate keyfile; store as a new Secret Manager entry (`merge-dbt-ci-key`) in `project-41542e21-...`; also store as the GitHub repo secret `GCP_SA_KEY_PROD` (currently unset — this simultaneously unblocks the existing CI/CD `dbt-deploy.yml` gap flagged in project-state).
-3. Update `dbt/profiles.yml`:
+3. Update `2-dbt/profiles.yml`:
    - `dev.project` → `project-41542e21-470f-4589-96d` (default via `GCP_PROJECT_ID_DEV` env var).
    - `ci.project` → same.
    - `prod.project` → same.

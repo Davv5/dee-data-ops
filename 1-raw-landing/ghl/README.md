@@ -8,7 +8,7 @@ GHL on the free tier, so this lives in-repo.
 **Primary (Cloud Run Jobs + Cloud Scheduler) — Track W, 2026-04-22:**
 - `ghl-hot` job: runs every 1 minute → `conversations`, `messages`
 - `ghl-cold` job: runs every 15 minutes → `contacts`, `opportunities`, `users`, `pipelines`
-- Provisioned by Terraform at `ops/cloud-run/ghl-extractor/terraform/`
+- Provisioned by Terraform at `1-raw-landing/deploy/ghl-extractor/terraform/`
 - Operations runbook: `docs/runbooks/ghl-cloud-run-extractor.md`
 
 **Backstop (GitHub Actions `workflow_dispatch`):**
@@ -99,7 +99,7 @@ the first `N` conversation IDs instead of all of them. Useful for iterating
 on pagination / response-shape logic without burning a 2-hour backfill:
 
 ```bash
-GHL_MESSAGES_SAMPLE_N=5 python ingestion/ghl/extract.py --dry-run
+GHL_MESSAGES_SAMPLE_N=5 python 1-raw-landing/ghl/extract.py --dry-run
 ```
 
 ## Schema organization — one dataset per source
@@ -149,13 +149,13 @@ CI auth is handled by `google-github-actions/auth@v2` using the `GCP_SA_KEY` sec
 cd "/Users/david/Documents/data ops"
 set -a && source .env && set +a
 source .venv/bin/activate
-pip install -r ingestion/ghl/requirements.txt
+pip install -r 1-raw-landing/ghl/requirements.txt
 
 # Smoke test — exercises BQ client + state table, hits GHL read-only:
-python ingestion/ghl/extract.py --dry-run
+python 1-raw-landing/ghl/extract.py --dry-run
 
 # Real run:
-python ingestion/ghl/extract.py
+python 1-raw-landing/ghl/extract.py
 ```
 
 ### CI

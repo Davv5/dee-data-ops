@@ -8,7 +8,7 @@ Conventions live in `.claude/rules/metabase.md` — read that first.
 ## Directory layout
 
 ```
-ops/metabase/
+3-bi/metabase/
 ├── README.md              ← you are here
 ├── RECOVERY.md            ← restore-from-backup drill (populate post-v1)
 ├── terraform/             ← GCP infra as code
@@ -30,7 +30,7 @@ as David.
 ### 1. Provision infra
 
 ```bash
-cd ops/metabase/terraform
+cd 3-bi/metabase/terraform
 terraform init
 terraform plan -out=tfplan   # REVIEW before applying
 terraform apply tfplan
@@ -98,7 +98,7 @@ cp .env.metabase.example .env.metabase
 
 source .venv/bin/activate
 set -a && source .env.metabase && set +a
-python -m ops.metabase.authoring.infrastructure.bigquery_connection
+cd 3-bi && python -m metabase.authoring.infrastructure.bigquery_connection
 ```
 
 Metabase now sees `dee-data-ops-prod.marts.*` as a data source named
@@ -107,7 +107,7 @@ Metabase now sees `dee-data-ops-prod.marts.*` as a data source named
 ### 7. Ship the first dashboard
 
 ```bash
-python -m ops.metabase.authoring.dashboards.speed_to_lead
+cd 3-bi && python -m metabase.authoring.dashboards.speed_to_lead
 ```
 
 Prints the dashboard URL. Open it.
@@ -118,7 +118,7 @@ Every dashboard change is a PR editing the authoring script.
 
 ```bash
 git checkout -b feat/metabase-speed-to-lead-card-update
-# edit ops/metabase/authoring/dashboards/speed_to_lead.py
+# edit 3-bi/metabase/authoring/dashboards/speed_to_lead.py
 git add ...
 git commit -m "..."
 gh pr create ...
@@ -127,7 +127,7 @@ gh pr create ...
 After merge, re-run the script on prod:
 
 ```bash
-python -m ops.metabase.authoring.dashboards.speed_to_lead
+cd 3-bi && python -m metabase.authoring.dashboards.speed_to_lead
 ```
 
 ## Connecting Claude Code's MCP client

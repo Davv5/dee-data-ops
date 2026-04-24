@@ -41,7 +41,7 @@ The main session hands you:
 7. **DataOps hygiene check — non-negotiable.** Three deterministic checks; any failure is a hard "Request changes":
    - **WORKLOG entry present.** `git diff <base>..HEAD -- WORKLOG.md` must be non-empty. The entry must be a dated H2 (`## YYYY-MM-DD — …`) with a What/Decisions/Open threads structure per `.claude/rules/worklog.md`. A missing or placeholder entry is a blocker — future sessions lose context.
    - **Handover doc present.** Check for a matching `docs/_archive/Davv5-Track-*-<timestamp>.md` file created in this branch's commit history. If the track produced one (look for `session-continuity` language in the track file), verify it exists. If it doesn't, the executor skipped `/handover` — block.
-   - **Convention grounding.** For any new `.claude/rules/*.md`, `dbt/models/**`, or `.github/workflows/*.yml` in the diff, verify it cites a corpus source (inline `source:` note) OR invoke `ask-corpus` / `mcp__notebooklm-mcp__notebook_query` with a confirmatory question. If the file invents a convention the corpus contradicts, block.
+   - **Convention grounding.** For any new `.claude/rules/*.md`, `2-dbt/models/**`, or `.github/workflows/*.yml` in the diff, verify it cites a corpus source (inline `source:` note) OR invoke `ask-corpus` / `mcp__notebooklm-mcp__notebook_query` with a confirmatory question. If the file invents a convention the corpus contradicts, block.
 
 8. **Decision gate.** Classify the change set:
    - **Clean** — review passes, security passes, scope matches. Push + PR.

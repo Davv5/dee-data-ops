@@ -93,7 +93,7 @@ resource "google_secret_manager_secret" "bq_reader_key" {
 
 # The secret VERSION is NOT provisioned here. David generates the key with
 # `gcloud iam service-accounts keys create` and uploads it as a new version
-# (see ops/metabase/README.md). Rotating the key = new version + VM reboot.
+# (see 3-bi/metabase/README.md). Rotating the key = new version + VM reboot.
 
 # ──────────────────────────────────────────────────────────────────────────
 # Cloud SQL Postgres (Metabase's app-DB)
@@ -255,7 +255,7 @@ resource "google_compute_instance" "metabase" {
 
   metadata = {
     # COS reads this key and runs the container declared in it on boot.
-    # startup-script.sh lives at ops/metabase/runtime/startup-script.sh
+    # startup-script.sh lives at 3-bi/metabase/runtime/startup-script.sh
     # and is uploaded to GCS at apply time (see README).
     startup-script-url = "gs://${google_storage_bucket.metabase_ops.name}/startup-script.sh"
 

@@ -2,7 +2,7 @@
 # build-and-push.sh — Build the Calendly extractor image and push to Artifact Registry.
 #
 # Usage:
-#   bash ops/cloud-run/calendly-extractor/build-and-push.sh
+#   bash 1-raw-landing/deploy/calendly-extractor/build-and-push.sh
 #
 # Run from the repo root. Requires:
 #   - docker (local) or Cloud Build (CI)
@@ -10,7 +10,7 @@
 #   - git (for short SHA tag)
 #
 # Called by .github/workflows/cloud-run-deploy-calendly.yml on every merge to main
-# that touches ingestion/calendly/**. Can also be run manually for hotfixes.
+# that touches 1-raw-landing/calendly/**. Can also be run manually for hotfixes.
 
 set -euo pipefail
 
@@ -26,7 +26,7 @@ docker build \
   --platform linux/amd64 \
   -t "${REGISTRY}:${SHA}" \
   -t "${REGISTRY}:latest" \
-  -f ingestion/calendly/Dockerfile \
+  -f 1-raw-landing/calendly/Dockerfile \
   .
 
 echo "[build-and-push] Configuring Docker auth for Artifact Registry..."

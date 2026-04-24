@@ -1,7 +1,7 @@
 # Fanbasis Extractor
 
 Custom Python extractor for Fanbasis → BigQuery `raw_fanbasis.*`. Same shape as
-`ingestion/ghl/` — see that README for the design-choice rationale, corpus citations,
+`1-raw-landing/ghl/` — see that README for the design-choice rationale, corpus citations,
 and cursor-state pattern.
 
 ## What it pulls
@@ -29,11 +29,11 @@ coverage are unknown until Week 0. If the API proves unworkable:
 
 ## Running it
 
-Same as `ingestion/ghl/`:
+Same as `1-raw-landing/ghl/`:
 
 ```bash
-python ingestion/fanbasis/extract.py --dry-run
-python ingestion/fanbasis/extract.py
+python 1-raw-landing/fanbasis/extract.py --dry-run
+python 1-raw-landing/fanbasis/extract.py
 ```
 
 Required GitHub Actions secrets:

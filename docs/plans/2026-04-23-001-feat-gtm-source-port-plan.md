@@ -26,7 +26,7 @@ If you're opening this plan in a new Claude session, do these in order **before 
 
 **Target GCP project:** `project-41542e21-470f-4589-96d`. **NOT** `dee-data-ops-prod` (decommissioned in U14). Billing account for both is `0114FD-8EC797-A11084`.
 
-**GTM source repo (read-only reference):** `/Users/david/Documents/operating system/Projects/GTM lead warehouse`. Files there are specifications for U6/U7/U9/U11 — read, do not edit. Ported code lands in Merge's `ingestion/<source>/` or `dbt/models/warehouse/bridges/`.
+**GTM source repo (read-only reference):** `/Users/david/Documents/operating system/Projects/GTM lead warehouse`. Files there are specifications for U6/U7/U9/U11 — read, do not edit. Ported code lands in Merge's `1-raw-landing/<source>/` or `2-dbt/models/warehouse/bridges/`.
 
 **Corpus before conventions.** Before writing any new `.claude/rules/*.md` file, dbt macro, or architectural decision doc, query the notebook per `.claude/rules/using-the-notebook.md`. It's free.
 
@@ -69,7 +69,7 @@ This is the inverse of v1 of this plan. v1 assumed we'd port extractors to `dee-
 - R3. The locked Speed-to-Lead metric produces the same value (± 0 denominator, ± 1 numerator tolerance) after cutover, proven by a parity query against both projects.
 - R4. Fathom raw data + BQML classifier are accessible from Merge's dbt and visible on Metabase via at least one tile (call intelligence). Transcript landing issue patched.
 - R5. Stripe, Typeform, and Fathom raw data are migrated from single-blob `Raw.<source>_objects_raw` to Phase-2 per-object `raw_<source>.<source>__<obj>_raw` shape in-place.
-- R6. Identity-matching rules (email_canon, phone_last10, name+domain with confidence bands) from `sources/identity/identity_pipeline.py` exist as dbt bridges in `dbt/models/warehouse/bridges/`.
+- R6. Identity-matching rules (email_canon, phone_last10, name+domain with confidence bands) from `sources/identity/identity_pipeline.py` exist as dbt bridges in `2-dbt/models/warehouse/bridges/`.
 - R7. Fivetran Stripe + Typeform connectors disabled, all Fivetran-landed datasets deleted, Fivetran billing terminated.
 - R8. `dee-data-ops-prod` and `dee-data-ops` GCP projects decommissioned after 30 days of stable operation on the consolidated project.
 
@@ -80,7 +80,7 @@ This is the inverse of v1 of this plan. v1 assumed we'd port extractors to `dee-
 - Fanbasis is **not** fixed in this plan (broken on both sides; tracked separately).
 - `app.py` (GTM's 349-line webhook/admin server) is **not** ported unless a concrete webhook endpoint is proven to be in use.
 - GTM's Python orchestration `sources/identity/identity_pipeline.py` (1,306 lines) is **not** ported — only the matching rules become dbt.
-- GTM's own `dbt/` project (`gtm_lead_warehouse`) is **not** merged. Merge's `dee_data_ops` remains the single dbt project; the only change is where it points.
+- GTM's own `2-dbt/` project (`gtm_lead_warehouse`) is **not** merged. Merge's `dee_data_ops` remains the single dbt project; the only change is where it points.
 - GTM's legacy mixed-case datasets (`Raw`, `Core`, `Marts`, `STG`) are **not** wholesale renamed; we read from them during transition and retire them as Phase-2 per-object tables replace them.
 - GTM's `ops/cloud/jobs.yaml`, `.claude/`, `docs/`, `CLAUDE.md`, Looker Studio specs are **not** merged wholesale; referenced as needed.
 - GTM's GHL and Calendly extractors are **not** ported in this plan — they keep running from GTM's folder. Only extractors we touch in Phase 1–2 (Fathom, Stripe, Typeform) move to Merge.
@@ -99,13 +99,13 @@ This is the inverse of v1 of this plan. v1 assumed we'd port extractors to `dee-
 ### Relevant Code and Patterns
 
 **Merge-side (this repo):**
-- `dbt/profiles.yml` (not yet in repo — will be created/updated in U2)
-- `dbt/dbt_project.yml` — `dee_data_ops` project name; schema routing already expects `staging/warehouse/marts` layering that matches GTM's Phase-2 convention
-- `dbt/models/staging/{ghl,calendly,stripe,typeform,fanbasis}/` — existing staging assumes per-object shape; will rewire in U3
-- `dbt/models/warehouse/{bridges,dimensions,facts,volume_monitor}/` — existing; replays in U4a
-- `dbt/models/marts/` — existing; replays in U4a
-- `dbt/models/marts/rollups/speed_to_lead/` — locked metric's rollup layer; parity-gated
-- `ops/metabase/authoring/` — Metabase authoring code; tile definitions survive cutover, connection changes
+- `2-dbt/profiles.yml` (not yet in repo — will be created/updated in U2)
+- `2-dbt/dbt_project.yml` — `dee_data_ops` project name; schema routing already expects `staging/warehouse/marts` layering that matches GTM's Phase-2 convention
+- `2-dbt/models/staging/{ghl,calendly,stripe,typeform,fanbasis}/` — existing staging assumes per-object shape; will rewire in U3
+- `2-dbt/models/warehouse/{bridges,dimensions,facts,volume_monitor}/` — existing; replays in U4a
+- `2-dbt/models/marts/` — existing; replays in U4a
+- `2-dbt/models/marts/rollups/speed_to_lead/` — locked metric's rollup layer; parity-gated
+- `3-bi/metabase/authoring/` — Metabase authoring code; tile definitions survive cutover, connection changes
 
 **GTM-side (source project, still running):**
 - `project-41542e21-470f-4589-96d` — the new home
@@ -147,7 +147,7 @@ No `docs/solutions/` exists yet. Relevant existing state from `.claude/state/pro
 - **Staging shim for single-blob sources until Phase-2 lands.** For Stripe/Typeform/Fathom, a temporary `stg_<source>__<obj>` view decodes the JSON blob. Retired as soon as the per-object tables exist. Rationale: unblocks cutover without serializing on the Phase-2 refactor.
 - **Three HARD GATES:** (1) plumbing parity for the 15,283 Speed-to-Lead rows (U4a→U5), (2) Stripe revenue parity after Phase-2 (U8), (3) identity-spine parity before mart swap (U12). U4b (live-raw business parity) is a soft/soak gate feeding U14, not a PR gate. No PR merges on the three hard gates without David sign-off on the parity proof.
 - **`_gtm-import/` quarantine folder is dropped from this plan.** Original plan assumed David would drag files between repos; in the consolidation design, nothing gets copied — Merge's code stays in this repo and points at GTM's GCP project.
-- **Extractors migrate to Merge on first touch.** When a Fathom / Stripe / Typeform extractor gets modified in Phase 1–2 (U6/U7/U9), it moves into Merge's `ingestion/<source>/` folder as part of the same unit. Cloud Run Jobs for those sources are redeployed from Merge going forward. GHL and Calendly extractors stay in GTM's folder for now (not being touched; can migrate later if/when they need a code change). End state: one repo owns all live code; GTM's folder becomes a historical archive.
+- **Extractors migrate to Merge on first touch.** When a Fathom / Stripe / Typeform extractor gets modified in Phase 1–2 (U6/U7/U9), it moves into Merge's `1-raw-landing/<source>/` folder as part of the same unit. Cloud Run Jobs for those sources are redeployed from Merge going forward. GHL and Calendly extractors stay in GTM's folder for now (not being touched; can migrate later if/when they need a code change). End state: one repo owns all live code; GTM's folder becomes a historical archive.
 
 ---
 
@@ -175,7 +175,7 @@ No `docs/solutions/` exists yet. Relevant existing state from `.claude/state/pro
 ## Output Structure
 
 ```
-ingestion/
+1-raw-landing/
   fathom/                                # NEW — U6 (ported from GTM with transcript fix)
     __init__.py
     extract.py
@@ -203,11 +203,11 @@ enrichment/
     prompts/
     sql/
     README.md
-ops/cloud-run/
+1-raw-landing/deploy/
   fathom-job.yaml                        # NEW — U6 (redeployed from Merge)
   stripe-job.yaml                        # NEW — U7
   typeform-job.yaml                      # NEW — U9
-dbt/
+2-dbt/
   profiles.yml                           # MODIFIED — U2
   dbt_project.yml                        # unchanged
   models/
@@ -248,7 +248,7 @@ docs/
 .env.example                             # MODIFIED — U2
 .github/workflows/
   dbt-deploy.yml                         # MODIFIED — U2 (new project target)
-  cloud-run-deploy.yml                   # NEW — U6 (deploys ingestion/<source>/ to Cloud Run)
+  cloud-run-deploy.yml                   # NEW — U6 (deploys 1-raw-landing/<source>/ to Cloud Run)
 ```
 
 ---
@@ -336,10 +336,10 @@ docs/
 **Dependencies:** U1.
 
 **Files:**
-- Modify: `dbt/profiles.yml` (update `project:` field in dev/ci/prod targets)
+- Modify: `2-dbt/profiles.yml` (update `project:` field in dev/ci/prod targets)
 - Modify: `.env.example` (`GCP_PROJECT_ID_DEV`, `GCP_PROJECT_ID_PROD`)
 - Modify: `.github/workflows/dbt-deploy.yml` (change project target; update service-account secret reference)
-- Modify: `dbt/macros/generate_custom_schema.sql` if any project-name logic is hardcoded
+- Modify: `2-dbt/macros/generate_custom_schema.sql` if any project-name logic is hardcoded
 - Modify: `CLAUDE.md` (replace `dee-data-ops*` references with `project-41542e21-...`)
 - Modify: `.claude/state/project-state.md` (snapshot new home)
 
@@ -375,22 +375,22 @@ docs/
 **Dependencies:** U2.
 
 **Files:**
-- Modify: `dbt/models/staging/stripe/_stripe__sources.yml` (source table: `Raw.stripe_objects_raw`)
-- Modify: `dbt/models/staging/stripe/stg_stripe__charges.sql` (JSON decode from object_type='charge')
-- Modify: `dbt/models/staging/stripe/stg_stripe__customers.sql` (JSON decode from object_type='customer')
-- Modify: `dbt/models/staging/typeform/_typeform__sources.yml`
-- Modify: `dbt/models/staging/typeform/stg_typeform__responses.sql`
-- Create: `dbt/models/staging/fathom/_fathom__sources.yml`
-- Create: `dbt/models/staging/fathom/stg_fathom__calls.sql`
-- Create: `dbt/models/staging/fathom/_fathom__models.yml`
-- Modify: `dbt/models/staging/calendly/_calendly__sources.yml` (source table: `Raw.calendly_objects_raw`; Phase-2 `raw_calendly.*` tables are scaffolded but empty — confirmed in U1 preflight §7)
-- Modify: `dbt/models/staging/calendly/stg_calendly__scheduled_events.sql` (JSON decode from entity_type='scheduled_events')
-- Modify: `dbt/models/staging/calendly/stg_calendly__event_invitees.sql` (entity_type='event_invitees')
-- Modify: `dbt/models/staging/calendly/stg_calendly__event_types.sql` (entity_type='event_types')
-- Modify: `dbt/models/staging/ghl/_ghl__sources.yml` (per-table `identifier: ghl__<obj>_raw` overrides; `schema: raw_ghl` unchanged)
-- Modify: `dbt/models/staging/ghl/stg_ghl__*.sql` (source CTE only — alias `entity_id AS id` and `SAFE.TO_JSON_STRING(payload_json) AS payload`; body of each staging model unchanged below the CTE)
-- Test: `dbt/tests/staging_shim_row_count_sanity.sql` (each blob-shim decodes at least N rows per object/entity type)
-- Test: `dbt/tests/staging_ghl_column_rename_parity.sql` (renamed CTE emits the same id set as legacy dee-data-ops-prod staging, characterization)
+- Modify: `2-dbt/models/staging/stripe/_stripe__sources.yml` (source table: `Raw.stripe_objects_raw`)
+- Modify: `2-dbt/models/staging/stripe/stg_stripe__charges.sql` (JSON decode from object_type='charge')
+- Modify: `2-dbt/models/staging/stripe/stg_stripe__customers.sql` (JSON decode from object_type='customer')
+- Modify: `2-dbt/models/staging/typeform/_typeform__sources.yml`
+- Modify: `2-dbt/models/staging/typeform/stg_typeform__responses.sql`
+- Create: `2-dbt/models/staging/fathom/_fathom__sources.yml`
+- Create: `2-dbt/models/staging/fathom/stg_fathom__calls.sql`
+- Create: `2-dbt/models/staging/fathom/_fathom__models.yml`
+- Modify: `2-dbt/models/staging/calendly/_calendly__sources.yml` (source table: `Raw.calendly_objects_raw`; Phase-2 `raw_calendly.*` tables are scaffolded but empty — confirmed in U1 preflight §7)
+- Modify: `2-dbt/models/staging/calendly/stg_calendly__scheduled_events.sql` (JSON decode from entity_type='scheduled_events')
+- Modify: `2-dbt/models/staging/calendly/stg_calendly__event_invitees.sql` (entity_type='event_invitees')
+- Modify: `2-dbt/models/staging/calendly/stg_calendly__event_types.sql` (entity_type='event_types')
+- Modify: `2-dbt/models/staging/ghl/_ghl__sources.yml` (per-table `identifier: ghl__<obj>_raw` overrides; `schema: raw_ghl` unchanged)
+- Modify: `2-dbt/models/staging/ghl/stg_ghl__*.sql` (source CTE only — alias `entity_id AS id` and `SAFE.TO_JSON_STRING(payload_json) AS payload`; body of each staging model unchanged below the CTE)
+- Test: `2-dbt/tests/staging_shim_row_count_sanity.sql` (each blob-shim decodes at least N rows per object/entity type)
+- Test: `2-dbt/tests/staging_ghl_column_rename_parity.sql` (renamed CTE emits the same id set as legacy dee-data-ops-prod staging, characterization)
 
 **Approach:**
 - **Blob-shim pattern (Stripe / Typeform / Fathom / Calendly):** each shim is a CTE that reads `Raw.<source>_objects_raw`, filters on `object_type` or `entity_type`, and `JSON_EXTRACT_SCALAR`'s the fields needed downstream.
@@ -430,7 +430,7 @@ docs/
 
 **Files:**
 - Create: `docs/parity/cutover-speed-to-lead-plumbing-parity.sql`
-- Create: `dbt/tests/cutover_plumbing_parity_holds.sql`
+- Create: `2-dbt/tests/cutover_plumbing_parity_holds.sql`
 - Create: `ops/bq/snapshot_gtm_raw.sh` (one-shot `bq cp` script — snapshot dataset cleanup documented)
 
 **Approach:**
@@ -474,7 +474,7 @@ docs/
 
 **Files:**
 - Create: `docs/parity/live-raw-parity.sql`
-- Create: `dbt/tests/live_raw_parity_holds.sql`
+- Create: `2-dbt/tests/live_raw_parity_holds.sql`
 - Create: `ops/monitoring/live_raw_parity_daily.sql` (scheduled query publishing the delta)
 
 **Approach:**
@@ -504,8 +504,8 @@ docs/
 **Dependencies:** U4a (plumbing parity proven). U4b runs in parallel and does not gate U5.
 
 **Files:**
-- Modify: `ops/metabase/authoring/infrastructure/bigquery_connection.py` (project name, service-account key path)
-- Modify: `ops/metabase/authoring/sync.py` if it hardcodes the project
+- Modify: `3-bi/metabase/authoring/infrastructure/bigquery_connection.py` (project name, service-account key path)
+- Modify: `3-bi/metabase/authoring/sync.py` if it hardcodes the project
 - Create: `docs/runbooks/metabase-connection-cutover.md` (step-by-step for the repoint + rollback)
 
 **Approach:**
@@ -528,34 +528,34 @@ docs/
 
 - [ ] U6. **Fathom extractor port + transcript fix + BQML inference + first Metabase tile**
 
-**Goal:** Move the Fathom extractor from GTM's folder into Merge's `ingestion/fathom/`, fix the transcript landing issue as part of the port, and surface call intelligence on Metabase. This is also the first extractor ported — it establishes the `ingestion/<source>/` + `ops/cloud-run/<source>-job.yaml` + `.github/workflows/cloud-run-deploy.yml` pattern for U7/U9.
+**Goal:** Move the Fathom extractor from GTM's folder into Merge's `1-raw-landing/fathom/`, fix the transcript landing issue as part of the port, and surface call intelligence on Metabase. This is also the first extractor ported — it establishes the `1-raw-landing/<source>/` + `1-raw-landing/deploy/<source>-job.yaml` + `.github/workflows/cloud-run-deploy.yml` pattern for U7/U9.
 
 **Requirements:** R4
 
 **Dependencies:** U5 (cutover holds).
 
 **Files:**
-- Create: `ingestion/fathom/extract.py` (ported + fixed from GTM `ingest/sources/fathom/extract.py`)
-- Create: `ingestion/fathom/client.py` (ported from GTM)
-- Create: `ingestion/fathom/backfill.py` (ported from GTM)
-- Create: `ingestion/fathom/__init__.py`, `Dockerfile`, `requirements.txt`, `README.md`
+- Create: `1-raw-landing/fathom/extract.py` (ported + fixed from GTM `ingest/sources/fathom/extract.py`)
+- Create: `1-raw-landing/fathom/client.py` (ported from GTM)
+- Create: `1-raw-landing/fathom/backfill.py` (ported from GTM)
+- Create: `1-raw-landing/fathom/__init__.py`, `Dockerfile`, `requirements.txt`, `README.md`
 - Create: `enrichment/fathom/prompts/` (ported from GTM `enrichment/fathom/prompts/`)
 - Create: `enrichment/fathom/sql/` (ported from GTM)
 - Create: `enrichment/fathom/README.md`
-- Create: `ops/cloud-run/fathom-job.yaml` (job definition deployed from Merge)
+- Create: `1-raw-landing/deploy/fathom-job.yaml` (job definition deployed from Merge)
 - Create: `.github/workflows/cloud-run-deploy.yml` (new workflow; reusable for Stripe/Typeform in U7/U9)
-- Create: `dbt/analyses/bqml_fathom_classifier_predict.sql`
-- Modify: `dbt/models/staging/fathom/stg_fathom__calls.sql` (replace shim with real staging — still single-blob source until a separate Phase-2 unit for Fathom, unless scoped here)
-- Create: `dbt/models/warehouse/facts/fct_fathom_calls.sql`
-- Create: `dbt/models/marts/rollups/fathom/fth_call_outcome_30d.sql`
-- Modify: `ops/metabase/authoring/dashboards/speed_to_lead.py` (add a call-intelligence tile) OR create a new dashboard authoring file
-- Test: `ingestion/fathom/test_extract.py` (transcript fetch, characterization)
-- Test: `dbt/tests/fathom_transcript_coverage.sql` (≥ 80% of calls have a non-null transcript)
+- Create: `2-dbt/analyses/bqml_fathom_classifier_predict.sql`
+- Modify: `2-dbt/models/staging/fathom/stg_fathom__calls.sql` (replace shim with real staging — still single-blob source until a separate Phase-2 unit for Fathom, unless scoped here)
+- Create: `2-dbt/models/warehouse/facts/fct_fathom_calls.sql`
+- Create: `2-dbt/models/marts/rollups/fathom/fth_call_outcome_30d.sql`
+- Modify: `3-bi/metabase/authoring/dashboards/speed_to_lead.py` (add a call-intelligence tile) OR create a new dashboard authoring file
+- Test: `1-raw-landing/fathom/test_extract.py` (transcript fetch, characterization)
+- Test: `2-dbt/tests/fathom_transcript_coverage.sql` (≥ 80% of calls have a non-null transcript)
 - Archive (optional): touch a `DEPRECATED` marker in GTM's `ingest/sources/fathom/` so future sessions don't edit the wrong copy
 
 **Approach:**
 - **Diagnose first, port second.** `bq query` to find how many rows in `Raw.fathom_calls_raw` have transcript JSON populated vs empty. Expected: most are empty (David's stuck point). Likely root causes to investigate: (a) Fathom API requires a separate async call to fetch transcripts, (b) API quota throttle, (c) auth scope missing transcript permissions, (d) extractor only captures metadata.
-- **Port + fix in one PR.** Copy `ingest/sources/fathom/*` into `ingestion/fathom/`, adjust imports, apply the transcript fix. Port `enrichment/fathom/*` alongside.
+- **Port + fix in one PR.** Copy `ingest/sources/fathom/*` into `1-raw-landing/fathom/`, adjust imports, apply the transcript fix. Port `enrichment/fathom/*` alongside.
 - **Cutover sequence:** (1) deploy Merge-side Cloud Run Job writing to a sandbox dataset first (`raw_fathom_sandbox`) for 24h verification; (2) once transcript coverage verified ≥ 80%, flip the schedule — disable GTM's Cloud Run Job, enable Merge's pointed at the real `raw_fathom`; (3) leave GTM's extractor code in place (disabled) for 30 days as rollback.
 - **BQML inference cross-dataset.** `fct_fathom_calls` joins staging to `Core.bqml_fathom_sales_call_classifier` via `ML.PREDICT`. No retrain.
 - **First Metabase tile:** outcome distribution by SDR, last 30 days.
@@ -563,8 +563,8 @@ docs/
 **Execution note:** Characterization-first. Capture the current transcript-coverage percentage before changing anything; improvement is measured against that baseline. The port itself is also characterization-gated — the Merge-side extractor must produce the same row-count-per-run envelope as GTM's before the cutover flip.
 
 **Patterns to follow:**
-- Existing `ingestion/ghl/` folder layout
-- Existing `ops/cloud-run/` job pattern (verify what's there during U1 preflight)
+- Existing `1-raw-landing/ghl/` folder layout
+- Existing `1-raw-landing/deploy/` job pattern (verify what's there during U1 preflight)
 
 **Test scenarios:**
 - Happy path: after fix, ≥ 80% of new Fathom calls land with a non-null transcript.
@@ -581,28 +581,28 @@ docs/
 
 - [ ] U7. **Port Stripe extractor to Merge + Phase-2 per-object upgrade**
 
-**Goal:** Move the Stripe extractor from GTM's folder into Merge's `ingestion/stripe/` *and* upgrade it to land per-object `raw_stripe.stripe__<obj>_raw` tables instead of the single-blob `Raw.stripe_objects_raw`.
+**Goal:** Move the Stripe extractor from GTM's folder into Merge's `1-raw-landing/stripe/` *and* upgrade it to land per-object `raw_stripe.stripe__<obj>_raw` tables instead of the single-blob `Raw.stripe_objects_raw`.
 
 **Requirements:** R5
 
 **Dependencies:** U5, U6 (Cloud Run deploy pattern established).
 
 **Files:**
-- Create: `ingestion/stripe/extract.py` (ported + upgraded from GTM)
-- Create: `ingestion/stripe/client.py` (ported from GTM)
-- Create: `ingestion/stripe/objects.py` (new — declares the Stripe object types that each land in their own `stripe__<obj>_raw` table)
-- Create: `ingestion/stripe/backfill.py` (ported; also handles the one-shot migration from `Raw.stripe_objects_raw`)
-- Create: `ingestion/stripe/__init__.py`, `Dockerfile`, `requirements.txt`, `README.md`
-- Create: `ops/cloud-run/stripe-job.yaml`
+- Create: `1-raw-landing/stripe/extract.py` (ported + upgraded from GTM)
+- Create: `1-raw-landing/stripe/client.py` (ported from GTM)
+- Create: `1-raw-landing/stripe/objects.py` (new — declares the Stripe object types that each land in their own `stripe__<obj>_raw` table)
+- Create: `1-raw-landing/stripe/backfill.py` (ported; also handles the one-shot migration from `Raw.stripe_objects_raw`)
+- Create: `1-raw-landing/stripe/__init__.py`, `Dockerfile`, `requirements.txt`, `README.md`
+- Create: `1-raw-landing/deploy/stripe-job.yaml`
 - Create: `docs/runbooks/stripe-phase2-migration.md`
-- Test: `ingestion/stripe/test_extract.py`
-- Test: `dbt/tests/stripe_phase2_row_count_parity.sql`
+- Test: `1-raw-landing/stripe/test_extract.py`
+- Test: `2-dbt/tests/stripe_phase2_row_count_parity.sql`
 - Archive: `DEPRECATED` marker in GTM's `ingest/sources/stripe/`
 
 **Approach:**
-- Inventory Stripe object_types present in `Raw.stripe_objects_raw` — at minimum: `charge`, `checkout_session`, `checkout_session_line_item`, `customer`, `invoice`, `payment_intent`, `balance_transaction`. Record in `ingestion/stripe/objects.py`.
+- Inventory Stripe object_types present in `Raw.stripe_objects_raw` — at minimum: `charge`, `checkout_session`, `checkout_session_line_item`, `customer`, `invoice`, `payment_intent`, `balance_transaction`. Record in `1-raw-landing/stripe/objects.py`.
 - Merge-side extractor writes directly to `raw_stripe.stripe__<object>_raw` with date partition + `object_id` clustering (pattern from `raw_ghl.*`).
-- Backfill existing rows from `Raw.stripe_objects_raw` via a one-shot SQL transform in `ingestion/stripe/backfill.py` (also replayable if gaps surface).
+- Backfill existing rows from `Raw.stripe_objects_raw` via a one-shot SQL transform in `1-raw-landing/stripe/backfill.py` (also replayable if gaps surface).
 - **Dual-write window:** for 7 days, GTM's extractor (single-blob) and Merge's extractor (per-object) both run. Parity SQL compares row counts. At day 7, disable GTM's job.
 - Leave GTM's Stripe extractor code in place (disabled, with a `DEPRECATED` marker) for 30 days as rollback.
 
@@ -627,10 +627,10 @@ docs/
 **Dependencies:** U7.
 
 **Files:**
-- Modify: `dbt/models/staging/stripe/_stripe__sources.yml` (point at `raw_stripe.stripe__<obj>_raw`)
-- Modify: `dbt/models/staging/stripe/stg_stripe__*.sql` (drop JSON decode CTEs; pure column projection)
+- Modify: `2-dbt/models/staging/stripe/_stripe__sources.yml` (point at `raw_stripe.stripe__<obj>_raw`)
+- Modify: `2-dbt/models/staging/stripe/stg_stripe__*.sql` (drop JSON decode CTEs; pure column projection)
 - Create: `docs/parity/stripe-revenue-parity.sql`
-- Test: `dbt/tests/stripe_rewire_parity.sql`
+- Test: `2-dbt/tests/stripe_rewire_parity.sql`
 
 **Approach:**
 - Parity SQL compares `fct_revenue` and `revenue_detail` (sum of `amount_cents`, row count) before and after the staging swap.
@@ -649,17 +649,17 @@ docs/
 
 - [ ] U9. **Port Typeform extractor to Merge + Phase-2 per-object upgrade**
 
-**Goal:** Same as U7 but for Typeform — move into `ingestion/typeform/` and upgrade to per-object `raw_typeform.typeform__<obj>_raw` tables.
+**Goal:** Same as U7 but for Typeform — move into `1-raw-landing/typeform/` and upgrade to per-object `raw_typeform.typeform__<obj>_raw` tables.
 
 **Requirements:** R5
 
 **Dependencies:** U7 (pattern proven twice now, by U6 and U7).
 
 **Files:**
-- Create: `ingestion/typeform/extract.py`, `client.py`, `objects.py`, `backfill.py`, `__init__.py`, `Dockerfile`, `requirements.txt`, `README.md`
-- Create: `ops/cloud-run/typeform-job.yaml`
+- Create: `1-raw-landing/typeform/extract.py`, `client.py`, `objects.py`, `backfill.py`, `__init__.py`, `Dockerfile`, `requirements.txt`, `README.md`
+- Create: `1-raw-landing/deploy/typeform-job.yaml`
 - Create: `docs/runbooks/typeform-phase2-migration.md`
-- Test: `ingestion/typeform/test_extract.py`
+- Test: `1-raw-landing/typeform/test_extract.py`
 - Archive: `DEPRECATED` marker in GTM's `ingest/sources/typeform/`
 
 **Approach:** Mirror U7. Expected object_types: `form`, `response`, `response_answer`, `workspace`. Backfill from `Raw.typeform_objects_raw` via one-shot SQL. 7-day dual-write; then disable GTM's job.
@@ -682,10 +682,10 @@ docs/
 **Dependencies:** U9.
 
 **Files:**
-- Modify: `dbt/models/staging/typeform/_typeform__sources.yml`
-- Modify: `dbt/models/staging/typeform/stg_typeform__responses.sql`
-- Create: `dbt/models/staging/typeform/stg_typeform__response_answers.sql`
-- Create: `dbt/models/marts/rollups/typeform/tf_lead_magnet_30d.sql`
+- Modify: `2-dbt/models/staging/typeform/_typeform__sources.yml`
+- Modify: `2-dbt/models/staging/typeform/stg_typeform__responses.sql`
+- Create: `2-dbt/models/staging/typeform/stg_typeform__response_answers.sql`
+- Create: `2-dbt/models/marts/rollups/typeform/tf_lead_magnet_30d.sql`
 - Modify: Metabase authoring (add lead-magnet tile)
 
 **Test scenarios:**
@@ -706,15 +706,15 @@ docs/
 **Dependencies:** U5 (cutover stable) — identity rules don't depend on Phase-2 migrations.
 
 **Files:**
-- Create: `dbt/macros/email_canon.sql` (macro or UDF)
-- Create: `dbt/macros/phone_last10.sql`
-- Create: `dbt/models/warehouse/bridges/bridge_email_canon.sql`
-- Create: `dbt/models/warehouse/bridges/bridge_contact_closer.sql` (Fathom → GHL, confidence bands)
-- Create: `dbt/models/warehouse/bridges/bridge_contact_payment.sql` (Stripe/Fanbasis → GHL)
-- Modify: `dbt/models/warehouse/bridges/bridge_identity_contact_payment.sql` (existing — extend or replace with U11 logic)
-- Test: `dbt/tests/bridges_gmail_dots_collapse.sql`
-- Test: `dbt/tests/bridges_phone_variant_collapse.sql`
-- Test: `dbt/tests/bridges_confidence_banding.sql`
+- Create: `2-dbt/macros/email_canon.sql` (macro or UDF)
+- Create: `2-dbt/macros/phone_last10.sql`
+- Create: `2-dbt/models/warehouse/bridges/bridge_email_canon.sql`
+- Create: `2-dbt/models/warehouse/bridges/bridge_contact_closer.sql` (Fathom → GHL, confidence bands)
+- Create: `2-dbt/models/warehouse/bridges/bridge_contact_payment.sql` (Stripe/Fanbasis → GHL)
+- Modify: `2-dbt/models/warehouse/bridges/bridge_identity_contact_payment.sql` (existing — extend or replace with U11 logic)
+- Test: `2-dbt/tests/bridges_gmail_dots_collapse.sql`
+- Test: `2-dbt/tests/bridges_phone_variant_collapse.sql`
+- Test: `2-dbt/tests/bridges_confidence_banding.sql`
 
 **Approach:**
 - Read GTM's `sources/identity/identity_pipeline.py` as a spec. Translate each matching rule to a SQL CTE.
@@ -746,10 +746,10 @@ docs/
 
 **Files:**
 - Create: `docs/parity/identity-spine-parity.sql`
-- Modify: `dbt/models/marts/rollups/speed_to_lead/stl_headline_7d.sql`
-- Modify: `dbt/models/marts/rollups/speed_to_lead/stl_*.sql` (any that reference contact bridging)
-- Modify: `dbt/models/marts/lead_journey.sql`, `sales_activity_detail.sql`
-- Test: `dbt/tests/identity_spine_parity_holds.sql`
+- Modify: `2-dbt/models/marts/rollups/speed_to_lead/stl_headline_7d.sql`
+- Modify: `2-dbt/models/marts/rollups/speed_to_lead/stl_*.sql` (any that reference contact bridging)
+- Modify: `2-dbt/models/marts/lead_journey.sql`, `sales_activity_detail.sql`
+- Test: `2-dbt/tests/identity_spine_parity_holds.sql`
 
 **Approach:**
 - Parity query: headline metric with old bridge vs new bridge. 14-day window, `abs(a - b) < 0.1 pp`.

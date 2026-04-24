@@ -75,13 +75,13 @@ export GCP_PROJECT_ID_DEV="dee-data-ops"
 export BQ_KEYFILE_PATH="/path/to/dev-sa-keyfile.json"
 
 # Dry-run (no writes):
-python -m ingestion.calendly.extract --dry-run --since 2026-04-22T00:00:00Z
+python 1-raw-landing/calendly/extract.py --dry-run --since 2026-04-22T00:00:00Z
 
 # Full pull since a date:
-python -m ingestion.calendly.extract --since 2026-04-22T00:00:00Z
+python 1-raw-landing/calendly/extract.py --since 2026-04-22T00:00:00Z
 
 # Specific endpoint:
-python -m ingestion.calendly.extract --endpoints scheduled_events --since 2026-04-22T00:00:00Z
+python 1-raw-landing/calendly/extract.py --endpoints scheduled_events --since 2026-04-22T00:00:00Z
 ```
 
 ## Rate limits
@@ -90,7 +90,7 @@ Calendly's API does not publish a hard req/min limit. The extractor uses a
 token-bucket throttle at 60 req/min with exponential backoff on 429.
 
 If 429 responses appear in Cloud Run logs at 1-min cadence:
-1. Raise the Cloud Scheduler cadence to 2 min (edit `ops/cloud-run/calendly-extractor/terraform/main.tf`
+1. Raise the Cloud Scheduler cadence to 2 min (edit `1-raw-landing/deploy/calendly-extractor/terraform/main.tf`
    and re-apply).
 2. Note the change in the runbook.
 

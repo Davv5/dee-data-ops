@@ -8,7 +8,7 @@
 #   4. Bring up the metabase + caddy + cloud-sql-proxy stack
 #
 # This script is uploaded to gs://<ops-bucket>/startup-script.sh by the
-# operator after `terraform apply` (see ops/metabase/terraform/README.md).
+# operator after `terraform apply` (see 3-bi/metabase/terraform/README.md).
 # COS reads `startup-script-url` from VM metadata and runs it as root.
 
 set -euo pipefail

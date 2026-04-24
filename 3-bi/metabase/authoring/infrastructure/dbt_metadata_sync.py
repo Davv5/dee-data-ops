@@ -17,15 +17,15 @@ passed through to `dbtmetabase.DbtMetabase` as `metabase_api_key=`.
 Default sync scope is every dbt model whose schema starts with `marts` (the
 client-facing layer). Pass ``--select`` to narrow, e.g.::
 
-    python -m ops.metabase.authoring.infrastructure.dbt_metadata_sync \\
+    cd 3-bi && python -m metabase.authoring.infrastructure.dbt_metadata_sync \\
         --select 'stl_*'
 
 Run::
 
     source .venv/bin/activate
-    set -a && source ops/metabase/.env.metabase && set +a
-    cd dbt && dbt parse && cd ..   # if manifest.json is stale
-    python -m ops.metabase.authoring.infrastructure.dbt_metadata_sync
+    set -a && source 3-bi/metabase/.env.metabase && set +a
+    cd 2-dbt && dbt parse && cd ..   # if manifest.json is stale
+    cd 3-bi && python -m metabase.authoring.infrastructure.dbt_metadata_sync
 
 Re-running is a no-op for unchanged descriptions — `dbt-metabase` compares
 each field's current Metabase state to the dbt-derived desired state and
@@ -47,15 +47,14 @@ DB_NAME_IN_METABASE = "dee-data-ops-prod"
 DEFAULT_SCHEMA_INCLUDE = ["marts*"]
 
 # Repo root = parents[4] from this file:
-#   .../ops/metabase/authoring/infrastructure/dbt_metadata_sync.py
-#    0                                         1
+#   .../3-bi/metabase/authoring/infrastructure/dbt_metadata_sync.py
 #    parents[0] = infrastructure/
 #    parents[1] = authoring/
 #    parents[2] = metabase/
-#    parents[3] = ops/
+#    parents[3] = 3-bi/
 #    parents[4] = <repo root>
 REPO_ROOT = Path(__file__).resolve().parents[4]
-MANIFEST_PATH = REPO_ROOT / "dbt" / "target" / "manifest.json"
+MANIFEST_PATH = REPO_ROOT / "2-dbt" / "target" / "manifest.json"
 
 
 def _parse_args() -> argparse.Namespace:
@@ -113,8 +112,8 @@ def _require_manifest() -> Path:
         print(
             f"ERROR: dbt manifest not found at {MANIFEST_PATH}.\n"
             "Run one of the following first:\n"
-            "    cd dbt && dbt parse\n"
-            "    cd dbt && dbt compile\n"
+            "    cd 2-dbt && dbt parse\n"
+            "    cd 2-dbt && dbt compile\n"
             "Either command produces target/manifest.json.",
             file=sys.stderr,
         )
@@ -155,7 +154,7 @@ def main() -> None:
             f"ERROR: no Metabase database named {DB_NAME_IN_METABASE!r}. "
             "The BQ connection must be bootstrapped once via the Metabase "
             "GUI (Admin -> Databases) before metadata can be synced. See "
-            "ops/metabase/authoring/infrastructure/bigquery_connection.py "
+            "3-bi/metabase/authoring/infrastructure/bigquery_connection.py "
             "for the flag-level follow-up.",
             file=sys.stderr,
         )

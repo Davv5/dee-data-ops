@@ -10,7 +10,7 @@ See `.claude/rules/live-by-default.md` for the full policy and when to deviate.
 ## Pre-requisites
 
 - The underlying mart is built and deployed to `dee-data-ops-prod.marts.*`.
-- `ops/metabase/.env.metabase` is configured with `MB_URL` and API key.
+- `3-bi/metabase/.env.metabase` is configured with `MB_URL` and API key.
 - The virtual environment is active: `source .venv/bin/activate`.
 
 ---
@@ -31,7 +31,7 @@ authoring script (see step 3) — it does not qualify for the live default.
 Add a new file:
 
 ```
-ops/metabase/authoring/dashboards/<mart_name>.py
+3-bi/metabase/authoring/dashboards/<mart_name>.py
 ```
 
 Copy the structure of `speed_to_lead.py`. Key conventions:
@@ -112,7 +112,7 @@ dashboard, use `raw_calendly.<table>`.
 ### 6. Add the dashboard to `caching_config.py`
 
 Add an entry to `DASHBOARD_CACHE_TTL_SEC` in
-`ops/metabase/authoring/infrastructure/caching_config.py`:
+`3-bi/metabase/authoring/infrastructure/caching_config.py`:
 
 ```python
 DASHBOARD_CACHE_TTL_SEC: dict[str, int | None] = {
@@ -129,8 +129,8 @@ automatically gets `0`. Explicitly naming it makes intent legible.
 
 ```bash
 source .venv/bin/activate
-set -a && source ops/metabase/.env.metabase && set +a
-python -m ops.metabase.authoring.dashboards.<mart_name>
+set -a && source 3-bi/metabase/.env.metabase && set +a
+cd 3-bi && python -m metabase.authoring.dashboards.<mart_name>
 ```
 
 Confirm the output shows:
@@ -142,7 +142,7 @@ Confirm the output shows:
 ### 8. Run `caching_config.py` to set cache_ttl=0 on all STL cards
 
 ```bash
-python -m ops.metabase.authoring.infrastructure.caching_config
+cd 3-bi && python -m metabase.authoring.infrastructure.caching_config
 ```
 
 Confirm output shows `cache_ttl after: 0` for your dashboard. If it shows
@@ -182,5 +182,5 @@ No dbt changes needed — this is Metabase-layer only.
 
 - `.claude/rules/live-by-default.md` — full policy + when to deviate
 - `.claude/rules/metabase.md` — all five Metabase authoring conventions
-- `ops/metabase/authoring/dashboards/speed_to_lead.py` — canonical reference script
-- `ops/metabase/authoring/infrastructure/caching_config.py` — per-dashboard TTL dict
+- `3-bi/metabase/authoring/dashboards/speed_to_lead.py` — canonical reference script
+- `3-bi/metabase/authoring/infrastructure/caching_config.py` — per-dashboard TTL dict

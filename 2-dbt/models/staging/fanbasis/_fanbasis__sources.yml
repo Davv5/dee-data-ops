@@ -4,7 +4,7 @@ version: 2
 # PLACEHOLDER — pending Week-0 API docs + credentials from D-DEE.
 #
 # Fanbasis is the 5th data source in scope per client_v1_scope_speed_to_lead.md.
-# The custom extractor is stubbed in `ingestion/fanbasis/` but not yet wired up
+# The custom extractor is stubbed in `1-raw-landing/fanbasis/` but not yet wired up
 # because the API docs and credentials are still owed by the client (tracked in
 # CLAUDE.local.md → "Week-0 asks still owed by D-DEE").
 #
@@ -20,7 +20,7 @@ sources:
     description: >
       Placeholder — Fanbasis raw landing zone is not yet populated. Pending
       Week-0 API documentation and credentials from D-DEE; the custom
-      extractor in `ingestion/fanbasis/` is stubbed. Do not reference this
+      extractor in `1-raw-landing/fanbasis/` is stubbed. Do not reference this
       source from any model until the tables below are real.
     database: dee-data-ops
     schema: raw_fanbasis

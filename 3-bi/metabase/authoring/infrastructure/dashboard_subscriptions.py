@@ -42,8 +42,8 @@ not a sensible default; David supplies it.
 Run (after SMTP is configured)::
 
     source .venv/bin/activate
-    set -a && source ops/metabase/.env.metabase && set +a
-    python -m ops.metabase.authoring.infrastructure.dashboard_subscriptions
+    set -a && source 3-bi/metabase/.env.metabase && set +a
+    cd 3-bi && python -m metabase.authoring.infrastructure.dashboard_subscriptions
 
 Re-running is a no-op when state already matches.
 
@@ -159,7 +159,7 @@ def _recipients() -> list[dict]:
     if not raw:
         print(
             "ERROR: STL_WEEKLY_DIGEST_RECIPIENTS env var is unset.\n"
-            "Set it in ops/metabase/.env.metabase (comma-separated list of\n"
+            "Set it in 3-bi/metabase/.env.metabase (comma-separated list of\n"
             "email addresses), then re-run.\n"
             "Recipient list is NOT a sensible default -- David supplies it.",
             file=sys.stderr,
@@ -176,7 +176,7 @@ def _find_dashboard(mb: MetabaseClient, name: str) -> dict:
     if not matches:
         raise LookupError(
             f"No Metabase dashboard named {name!r}. Ship "
-            "ops/metabase/authoring/dashboards/speed_to_lead.py first."
+            "3-bi/metabase/authoring/dashboards/speed_to_lead.py first."
         )
     # Prefer the publicly-shared copy.
     public = [d for d in matches if d.get("public_uuid")]

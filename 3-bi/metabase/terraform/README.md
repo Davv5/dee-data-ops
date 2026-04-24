@@ -44,7 +44,7 @@ These must exist before `terraform apply`:
 ## Apply
 
 ```bash
-cd ops/metabase/terraform
+cd 3-bi/metabase/terraform
 terraform init
 terraform plan -out=tfplan
 terraform apply tfplan

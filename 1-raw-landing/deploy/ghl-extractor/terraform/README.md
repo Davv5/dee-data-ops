@@ -19,13 +19,13 @@ cron for GHL ingest. Part of Track W (Live-by-Default Scheduler Migration).
    ```
 4. The extractor image must be pushed to Artifact Registry before `apply`:
    ```bash
-   bash ops/cloud-run/ghl-extractor/build-and-push.sh
+   bash 1-raw-landing/deploy/ghl-extractor/build-and-push.sh
    ```
 
 ## First-time setup
 
 ```bash
-cd ops/cloud-run/ghl-extractor/terraform
+cd 1-raw-landing/deploy/ghl-extractor/terraform
 
 # Initialize providers
 terraform init
