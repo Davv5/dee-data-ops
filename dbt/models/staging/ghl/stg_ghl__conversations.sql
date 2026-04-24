@@ -1,11 +1,17 @@
 -- U3 column-rename (2026-04-23): see stg_ghl__contacts.sql header.
+-- U4a blob-shim swap (2026-04-24): per-object `raw_ghl.ghl__conversations_raw`
+-- holds only 101 rows (ghl-incremental-v2 frozen since 2026-04-19), while the
+-- legacy blob `Raw.ghl_objects_raw` holds 1,314 — the full parent universe
+-- the messages backfill enumerates. Reading from the blob closes the inner-
+-- join drop in fct_outreach. TODO: retire when per-object catches up.
 with source as (
 
     select
         entity_id                                                       as id,
-        _ingested_at,
-        to_json_string(payload_json)                               as payload
-    from {{ source('ghl', 'conversations') }}
+        ingested_at                                                     as _ingested_at,
+        to_json_string(payload_json)                                    as payload
+    from {{ source('ghl_blob', 'ghl_objects_raw') }}
+    where entity_type = 'conversations'
 
 ),
 

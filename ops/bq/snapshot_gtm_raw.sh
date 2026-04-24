@@ -78,12 +78,25 @@ for src in "${SOURCE_DATASETS[@]}"; do
   # (skipping VIEW / MATERIALIZED_VIEW / EXTERNAL).
   while IFS= read -r tbl; do
     [[ -z "${tbl}" ]] && continue
+    # Skip merge-statement scratch tables (created + dropped mid-MERGE by the
+    # backfill extractor). They carry no durable data and routinely disappear
+    # between `bq ls` and `bq cp` when ingestion is running concurrently.
+    if [[ "${tbl}" == _merge_stage_* || "${tbl}" == *_stage_* ]]; then
+      log "  skip ${src}.${tbl} (ephemeral merge-stage)"
+      continue
+    fi
     src_fqn="${PROJECT}:${src}.${tbl}"
     dst_fqn="${PROJECT}:${SNAPSHOT_DATASET}.${tbl}"
     log "  cp ${src_fqn} -> ${dst_fqn}"
-    bq --project_id="${PROJECT}" --location="${LOCATION}" cp \
-      --quiet -f --no_clobber=false \
-      "${src_fqn}" "${dst_fqn}" >>"$LOG_FILE" 2>&1
+    # Tolerate cp failures: a canonical table disappearing is unexpected, but
+    # scratch tables that survive the filter above can still race us. Log and
+    # continue so one transient miss doesn't kill the whole snapshot.
+    if ! bq --project_id="${PROJECT}" --location="${LOCATION}" cp \
+        --quiet -f --no_clobber=false \
+        "${src_fqn}" "${dst_fqn}" >>"$LOG_FILE" 2>&1; then
+      log "  WARN cp failed: ${src_fqn} (likely ephemeral / raced with concurrent writer)"
+      continue
+    fi
     total=$((total + 1))
   done < <(echo "${tables_json}" | python3 -c 'import json,sys
 rows = json.load(sys.stdin)
