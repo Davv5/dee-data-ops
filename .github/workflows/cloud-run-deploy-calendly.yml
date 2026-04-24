@@ -1,6 +1,6 @@
 # CD workflow: build + push + update Cloud Run Job for Calendly extractor.
 #
-# Fires on every merge to main that touches ingestion/calendly/** or the
+# Fires on every merge to main that touches 1-raw-landing/calendly/** or the
 # Terraform directory — this is the continuous-delivery loop that keeps the
 # Cloud Run Job running the current extractor image.
 #
@@ -22,8 +22,8 @@ on:
     branches:
       - main
     paths:
-      - 'ingestion/calendly/**'
-      - 'ops/cloud-run/calendly-extractor/**'
+      - '1-raw-landing/calendly/**'
+      - '1-raw-landing/deploy/calendly-extractor/**'
 
 permissions:
   contents: read
@@ -60,7 +60,7 @@ jobs:
             --platform linux/amd64 \
             -t "${{ env.REGISTRY }}:${SHA}" \
             -t "${{ env.REGISTRY }}:latest" \
-            -f ingestion/calendly/Dockerfile \
+            -f 1-raw-landing/calendly/Dockerfile \
             .
           echo "SHA=${SHA}" >> $GITHUB_ENV
 

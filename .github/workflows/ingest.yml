@@ -10,7 +10,7 @@
 #   Stored in GCP Secret Manager (project `dee-data-ops-prod`):
 #     ghl-api-key       — GHL v2 / LeadConnector Private Integration Token
 #     ghl-location-id   — GHL location (sub-account) ID
-#   Fetched at runtime by ingestion/ghl/extract.py via
+#   Fetched at runtime by 1-raw-landing/ghl/extract.py via
 #   google-cloud-secret-manager. The GitHub Actions SA
 #   (secrets.GCP_SA_KEY) must hold `roles/secretmanager.secretAccessor` on
 #   both secrets.
@@ -22,7 +22,7 @@
 # Rollback path: to revert GHL to GHA cron, restore the `schedule:` block
 # below and revert the `if:` guard on the Run extractor step. Also pause the
 # Cloud Scheduler jobs: `gcloud scheduler jobs pause ghl-hot --location=us-central1`
-# See ops/cloud-run/ghl-extractor/terraform/README.md for full rollback steps.
+# See 1-raw-landing/deploy/ghl-extractor/terraform/README.md for full rollback steps.
 
 name: Ingest
 
@@ -51,8 +51,8 @@ jobs:
 
     env:
       GCP_PROJECT_ID_DEV: dee-data-ops
-      # Signals to ingestion/*/extract.py that secrets should be fetched from
-      # Secret Manager (via _load_secret in ingestion/ghl/extract.py) rather
+      # Signals to 1-raw-landing/*/extract.py that secrets should be fetched from
+      # Secret Manager (via _load_secret in 1-raw-landing/ghl/extract.py) rather
       # than read from env vars. Unset in local dev so .env values apply.
       GCP_SECRET_MANAGER_PROJECT: dee-data-ops-prod
       FANBASIS_API_KEY: ${{ secrets.FANBASIS_API_KEY }}
@@ -65,10 +65,10 @@ jobs:
         with:
           python-version: '3.11'
           cache: pip
-          cache-dependency-path: ingestion/${{ matrix.source }}/requirements.txt
+          cache-dependency-path: 1-raw-landing/${{ matrix.source }}/requirements.txt
 
       - name: Install deps
-        run: pip install -r ingestion/${{ matrix.source }}/requirements.txt
+        run: pip install -r 1-raw-landing/${{ matrix.source }}/requirements.txt
 
       - name: Authenticate to GCP
         uses: google-github-actions/auth@v2
@@ -81,7 +81,7 @@ jobs:
         # Fanbasis only). GHL still runs when triggered by workflow_dispatch
         # (manual backfill / emergency path).
         if: matrix.source != 'ghl' || github.event_name == 'workflow_dispatch'
-        run: python ingestion/${{ matrix.source }}/extract.py
+        run: python 1-raw-landing/${{ matrix.source }}/extract.py
 
       - name: Slack notify on failure
         if: failure()

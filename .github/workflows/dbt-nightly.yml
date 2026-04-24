@@ -54,22 +54,22 @@ jobs:
       - name: dbt deps
         env:
           BQ_KEYFILE_PATH_PROD: ${{ steps.auth.outputs.credentials_file_path }}
-        run: cd dbt && dbt deps
+        run: cd 2-dbt && dbt deps
 
       - name: dbt source freshness (warn-only)
         env:
           BQ_KEYFILE_PATH_PROD: ${{ steps.auth.outputs.credentials_file_path }}
-        run: cd dbt && dbt source freshness --target prod || true
+        run: cd 2-dbt && dbt source freshness --target prod || true
 
       - name: dbt snapshot
         env:
           BQ_KEYFILE_PATH_PROD: ${{ steps.auth.outputs.credentials_file_path }}
-        run: cd dbt && dbt snapshot --target prod
+        run: cd 2-dbt && dbt snapshot --target prod
 
       - name: dbt build (full refresh)
         env:
           BQ_KEYFILE_PATH_PROD: ${{ steps.auth.outputs.credentials_file_path }}
-        run: cd dbt && dbt build --target prod
+        run: cd 2-dbt && dbt build --target prod
 
       # Volume-monitor soft-alert: runs volume_drift test with --warn-error so
       # warn-severity becomes a non-zero exit; continue-on-error keeps the
@@ -79,7 +79,7 @@ jobs:
         continue-on-error: true
         env:
           BQ_KEYFILE_PATH_PROD: ${{ steps.auth.outputs.credentials_file_path }}
-        run: cd dbt && dbt test --select volume_drift --target prod --warn-error
+        run: cd 2-dbt && dbt test --select volume_drift --target prod --warn-error
 
       - name: Slack notify on volume drift
         if: steps.volume_drift.outcome == 'failure'
