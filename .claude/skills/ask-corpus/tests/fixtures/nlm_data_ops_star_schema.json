@@ -1,0 +1,133 @@
+{
+  "value": {
+    "answer": "A **star schema** (also known as the Kimball approach or dimensional modeling) is a structural design used in the data warehouse layer to organize information specifically for analytics [1, 2]. Its visual layout resembles a star, featuring one centralized table that connects outward to several surrounding tables [3-5].\n\nIt is built using two primary components:\n\n*   **The Fact Table (The Center):** Sitting at the core of the star, the fact table represents a core **business action** or \"verb\", such as a sale, an invoice sent, or a transaction [6-8]. Fact tables are designed to strictly hold the **numeric metrics** you want to aggregate (like revenue, taxes, or quantity) and the keys (IDs) required to join to the surrounding dimension tables [8-10]. Fact tables should always be built at the **lowest possible granularity** to give you the most flexibility to roll up and summarize data later [4, 6, 11].\n*   **The Dimension Tables (The Points):** These tables surround the central fact table and provide the **descriptive context** around the business action [7, 8, 12]. Acting as the \"nouns and adjectives\" of the model, dimensions are typically wide, denormalized tables containing text-based attributes, booleans, strings, and dates, such as customer names, product categories, or locations [8, 13, 14]. \n\nIn a properly designed star schema, you **always join the central fact table directly to the dimension tables** [4, 5]. The methodology strictly warns that you should **never join one dimension directly to another dimension** (often called a snowflake schema), as this can create complicated many-to-many relationships and cause accidental data duplication or fan-outs [5, 15-17]. \n\nUltimately, by isolating the numerical metrics in the center and keeping the descriptions on the outside, the star schema creates a highly organized foundation that makes it incredibly easy for reporting tools to slice, dice, and summarize business data [5, 18, 19].",
+    "conversation_id": "7fa6ba4e-faad-4964-ad20-91252c05eec3",
+    "sources_used": [
+      "4b809c1c-5e2f-4a6b-9053-d5c2cfb76487",
+      "7f53227f-314a-4e9d-899a-7f82e2ff0415",
+      "287ef44b-5926-4ae6-b153-d79b27f034c0",
+      "2dca14a0-c603-4d53-8869-45650793fecc",
+      "51d12d5e-16ee-41fa-afbd-228b77a63474",
+      "192a27ce-a8e1-49c3-a2ea-0ad75e49d31a",
+      "b738b8f6-232c-42b4-9e4f-18a611e47e79"
+    ],
+    "citations": {
+      "1": "4b809c1c-5e2f-4a6b-9053-d5c2cfb76487",
+      "2": "7f53227f-314a-4e9d-899a-7f82e2ff0415",
+      "3": "287ef44b-5926-4ae6-b153-d79b27f034c0",
+      "4": "287ef44b-5926-4ae6-b153-d79b27f034c0",
+      "5": "2dca14a0-c603-4d53-8869-45650793fecc",
+      "6": "51d12d5e-16ee-41fa-afbd-228b77a63474",
+      "7": "287ef44b-5926-4ae6-b153-d79b27f034c0",
+      "8": "2dca14a0-c603-4d53-8869-45650793fecc",
+      "9": "51d12d5e-16ee-41fa-afbd-228b77a63474",
+      "10": "287ef44b-5926-4ae6-b153-d79b27f034c0",
+      "11": "51d12d5e-16ee-41fa-afbd-228b77a63474",
+      "12": "51d12d5e-16ee-41fa-afbd-228b77a63474",
+      "13": "287ef44b-5926-4ae6-b153-d79b27f034c0",
+      "14": "4b809c1c-5e2f-4a6b-9053-d5c2cfb76487",
+      "15": "287ef44b-5926-4ae6-b153-d79b27f034c0",
+      "16": "192a27ce-a8e1-49c3-a2ea-0ad75e49d31a",
+      "17": "192a27ce-a8e1-49c3-a2ea-0ad75e49d31a",
+      "18": "b738b8f6-232c-42b4-9e4f-18a611e47e79",
+      "19": "4b809c1c-5e2f-4a6b-9053-d5c2cfb76487"
+    },
+    "references": [
+      {
+        "source_id": "4b809c1c-5e2f-4a6b-9053-d5c2cfb76487",
+        "citation_number": 1,
+        "cited_text": "one of the most important topics for any data architecture is that of data modeling and whether you're in a modern stack or a more traditional one some of the more common approaches you'll hear about are Inman Kimball Data Vault and one big table and in this video today I want to talk more about denormalized modeling which is otherwise known as Kimball modeling or you might also hear star schema those are all interchangeable in this case so what we'll do is we're going to talk a little bit more about this approach talk about some of the high level Concepts and actually build out our own little mini version of a star schema in Snowflake so before we dive in let's just review again the high level flow of what would be a star schema modeling approach so we have our source systems often they are from different applications or different systems entirely they'll get put into an intermediate staging layer or perhaps a more long-term data Lake depending on your design and then modeled into a s"
+      },
+      {
+        "source_id": "7f53227f-314a-4e9d-899a-7f82e2ff0415",
+        "citation_number": 2,
+        "cited_text": "use is truly a single source of truth because it's representing each of these sources exactly the downside is there's a lot of joins involved which is not really ideal for column based modern data warehouses and you also have the potential for conflicting data marts depending on how they're designed and also you just don't get full access to everything from one place next we have what's called denormalized modeling and or you might just hear this referred to as dimensional modeling and that's made famous by ralph kimball and the main differentiator here is that this is where you'll see what's known as a star schema the idea here is rather than having individual normalized tables where everything is based on a single source table instead you have each of these as flattened denormalized models so there is some data redundancy within your warehouse but once you get to your analytics layer there's less joins required to get what you want and you can have it all pulled from one single sourc"
+      },
+      {
+        "source_id": "287ef44b-5926-4ae6-b153-d79b27f034c0",
+        "citation_number": 3,
+        "cited_text": "Do you want to just overwrite that value or do you track them as individual records and have dates around when they were active? That's what a slowly changing dimensions all about. There are strategies for handling that. That can get a little tricky and I don't want to get too far in the weeds on that, but those are slowly changing dimensions. And then here's a visual. I think sometimes visuals help. Think about a fact table as the core concept, the business action, and then the dimensions are connected to it through keys. So instead of storing all of the descriptive values in here, you only store the key and then when you want to get those values, you join to the dimensions. I think of data modeling a lot like organizing your room in a way. You know, you don't have to, but it's a lot easier when you have a structure and you have it organized. You know where things are."
+      },
+      {
+        "source_id": "287ef44b-5926-4ae6-b153-d79b27f034c0",
+        "citation_number": 4,
+        "cited_text": "You know how things are sorted and you can very easily grab things and put it together and you just keep it organized so you can use it more effectively as opposed to not having it at all. But the fact table is in the middle and then you connect to the dimensions and this visual here is why it's called a star schema. It kind of looks like a star. So, here's an example fact order transactions. We're we're looking at a really granular level in this case. This is where we're going to keep all of the transaction metrics and then the keys. And here are some of the dimensions around this example situation. So maybe we want to see transaction by product for the specific order itself. Who was a customer on it? What was the date? What employees were involved. So the fact table would have the metrics and the keys to each of these different dimensions."
+      },
+      {
+        "source_id": "2dca14a0-c603-4d53-8869-45650793fecc",
+        "citation_number": 5,
+        "cited_text": "Then you build your fact tables using the prefixed FCT underscore. This central node stores the core measurable actions of the business, the verbs like an invoice sent or a game played populated with specific numbers to aggregate like revenue and tax amounts. To give those metrics context, the central fact table holds surrogate keys. These keys extend outward to join directly with your descriptive dimension tables, creating the classic shape of a star schema. By isolating the metrics in the center and keeping the descriptions on the outside, you keep the math clean. And because you never join a fact table directly to another fact table, you eliminate the risk of accidental many to many relationships that cause data duplication. Even a perfectly designed star schema is useless. If the underlying records are flawed, if the source system spits out a duplicate transaction or forgets to assign a product ID, those errors will still ruin the final calculations."
+      },
+      {
+        "source_id": "51d12d5e-16ee-41fa-afbd-228b77a63474",
+        "citation_number": 6,
+        "cited_text": "get messy and it's going to be hard to manage long term I've seen it time and time again it's one of the first things I noticed when I join teams that are struggling so getting clear on the definitions and maybe more importantly staying consistent to sticking with those definitions even when it seems complicated number two is related to that first part which is not establishing the right granularity and this is really important especially when we're talking about fact tables so I know we're talking a lot of data modeling here but this is important and this is a big part of our work so when you are establishing that fact table what we're talking about here is the business action it's whatever the event or activity is that's occurring so really simple examples could be a sale or an invoice or a transaction these are things that happened these are events I think of facts as verbs these are events but like I said one of the problems is not establishing the lowest granularity and one of th"
+      },
+      {
+        "source_id": "287ef44b-5926-4ae6-b153-d79b27f034c0",
+        "citation_number": 7,
+        "cited_text": "So let's talk about this here when it comes to facts and dimensions. This is always a conversation that trips people up and there's always nuances to all of this so it's hard to make blanket statements but these are rules of thumb to think about. A fact table is really the core business action. So if you look at this here I think of it like a verb. What was the thing that happened in the business? It was a sale. It was a game was played. It was an invoice was sent. Those are things that happened. And so that's what a fact table represents. And then a dimension is more of the context around it. It's not the action. It's the information and description. around it. So, who was the customer? What was the product? What was the location? I think of these more like adjectives and nouns. They're describing the business action that took place. When you think about back to the pillars, the insights, the reporting ultimately, we're not just creating all of this stuff for the sake of it."
+      },
+      {
+        "source_id": "2dca14a0-c603-4d53-8869-45650793fecc",
+        "citation_number": 8,
+        "cited_text": "You then save this view using the prefix STG underscore so everyone knows immediately what level of the pipeline they are looking at. There is a strict rule in this phase. Absolutely no table joins. This layer exists to enforce the dry principle. Don't repeat yourself. If a column needs rounding or a new name, you make the fix exactly once in the staging view. Because every downstream query pulls from this staging model instead of the raw table, that single correction automatically flows through the pipeline, eliminating repeated logic errors. Now that the data is clean, it moves into the warehouse layer. This is the structural core of your pipeline where you finally apply business logic to those staging views and organize the records into a dimensional star schema. First, you build your dimension tables using the prefix dersore. These hold the descriptive context of your business, the nouns and adjectives like specific customers, employee names, or product categories."
+      },
+      {
+        "source_id": "51d12d5e-16ee-41fa-afbd-228b77a63474",
+        "citation_number": 9,
+        "cited_text": "s that leads to the blending of these Concepts is a lack of a clear definition of what is a fact and what is a dimension and unless you have that it's going to blend together because it's easier to just put things together and it seems to make sense so you just put it there and you roll with it but the problem is over time the more and more of these Concepts blend together it becomes really difficult to manage and then you have a model that's not really a model they're called facts they're called Dimensions but they're not really functioning that way so to help with that let's clarify the definitions and maybe you have slightly different views of this but this is how I look at it so when it comes to a fact table a fact is the business action it's really the core thing that you're trying to report on to model around what is the thing that as a business you care about and inside the fact table you're only going to have keys to Dimensions as well as numeric aggregable values so the metric"
+      },
+      {
+        "source_id": "287ef44b-5926-4ae6-b153-d79b27f034c0",
+        "citation_number": 10,
+        "cited_text": "We have something that we're reporting on. It's some sort of business situation that the business or stakeholders care about. And really getting to the root of what what the action is that we're measuring is part of this process. you have the business action for facts and within a fact table is where you're going to keep the measures or the metrics. So the the numbers, things that you're going to aggregate. So things like revenue or sales, taxes, quantity, things that you will likely summarize and want to group in different ways. Those are the the metrics or the measures here in a fact table along with the keys to the dimensions. So being able to join through an ID or a surrogate key to a dimension, all the surrounding information. And then I also throw in here just the idea of a junk dimension. Sometimes there are just oneoff descriptive values that don't require a full dimension. You don't care to track that whole concept by itself. It's not relevant to any other fact."
+      },
+      {
+        "source_id": "51d12d5e-16ee-41fa-afbd-228b77a63474",
+        "citation_number": 11,
+        "cited_text": "e main ways that this can manifest into a problem is that you accidentally can make your life more difficult or leave out data because you're not low enough for example let's say you make a fact table on orders so you have a fact order table but then in the future somebody wants to see individual line item information on the order so maybe there's order line items in that scenario the order line items is a lower granularity than the order because there's multiple of them within an order and then even lower than that you might even be able to go to transactions so maybe there's multiple transactions per line item now this isn't always the case and sometimes you can have both granularities but generally speaking the lower granularity you can do it's going to give you more options it's give you more flexibility because you can then roll things up for example you could take the sum of all the order line item metrics and it would equal out what you had in the full order metric and you can s"
+      },
+      {
+        "source_id": "51d12d5e-16ee-41fa-afbd-228b77a63474",
+        "citation_number": 12,
+        "cited_text": "s that you care about about numbers and keys and that's pretty much it meanwhile a dimension table is adding context around that Core Business action and in a dimension is where you're going to have descriptions booleans dates string values things like that things that are describing it they're not intended to hold the metric values like calculations that's what a fact table is for and a fact table isn't supposed to have descriptions on the metrics that's what the dimension table is for and it's very tempting to want to blend these Concepts together that's where you start to lean more towards this one big table idea but if you've seen in some of my other videos and what I recommend is if you want to do that which you eventually will with reporting is to handle that in a presentation layer to handle that in what I call the Marts layer but when it comes to data modeling separate those Concepts it gives you more flexibility and it give you more structure that otherwise things are going to"
+      },
+      {
+        "source_id": "287ef44b-5926-4ae6-b153-d79b27f034c0",
+        "citation_number": 13,
+        "cited_text": "It's just relevant to that table. You could throw that in this table as well. But the dimensions are the descriptions. We talked about product, about location, about customer, employee. These are adjectives or nouns that are relevant to the fact. So think about how you would have filters or columns on a report. These are likely dimensions, attributes, descriptions, booleans, things like that. We also have slowly changing dimensions. And so this is the concept where a value might actually change over time. And it's not changing every day. It's slowly changing. So an example could be let's say an employee location, a home base. Let's say they are based out of one office in let's just say Philadelphia, but then two years later they're moved to the office in Chicago. They're still the same person. but one of the values, one of the columns changed. How do you handle that?"
+      },
+      {
+        "source_id": "4b809c1c-5e2f-4a6b-9053-d5c2cfb76487",
+        "citation_number": 14,
+        "cited_text": "xt-based values dates it could be a numeric value if it's if it's a descriptive value maybe price could be considered a dimension characteristic it's up to you and your team there's a ton of documentation on that within here but these are the general guidelines attributes and descriptions you can have a slowly changing Dimension which would mean you have a description that slowly changes over time for example office location of an employee might change from one year to the next how do you handle that change how do you make sure you have both of them or do you override it what do you do and there's different strategies for handling that again all of which are discussed within the documentation and you can decide what works best for you so in our case case for example we have product an employee a customer and a location which will just say City and there's more information here in terms of what would be characterized as a dimension they're also usually wide and flat denormalized tables"
+      },
+      {
+        "source_id": "287ef44b-5926-4ae6-b153-d79b27f034c0",
+        "citation_number": 15,
+        "cited_text": "But the other thing here is just because you create one our schema one fact and dimension that's not the end of it it's just the beginning this is an everinccreasing web of tables and imagine we had another fact table for a different use case and we wanted to isolate the invoice payments fact as its own thing but you could still use the same dimensions just because you create a dimension for this fact table doesn't mean you can't use it again in fact it's very common it's called a conformed dimension so customers obviously will be used for many different things but you can isolate your logic and your management of customers entity through dim customers. DIM orders could have its own thing. And so both of these fact tables are using them, but then you may also have new completely separate dimensions for this one here. Generally speaking, you want to avoid joining facts directly to facts. Maybe a little bit more outside the the weeds of what we're talking about here."
+      },
+      {
+        "source_id": "192a27ce-a8e1-49c3-a2ea-0ad75e49d31a",
+        "citation_number": 16,
+        "cited_text": "lly another answer that I think is important to share because it will highlight the differences a lot of times between different database designs which can be really important to understand especially as an engineer when you're modeling things in this scenario again I'm just looking over here at the notes their question was wouldn't it make sense to create more of a snowflake schema where the dim product table would just join directly to a dim product type table rather than through the fact and the reasoning for that was because that's what the data itself is saying so shouldn't you just model it around that so like most things in data it's not illegal you can do it but in my opinion when I hear something like that seems to align more with how an application database might be designed rather than how a data model would be designed now you could be following a different data modeling approach for example more like the traditional inm approach i have another video on comparing and talkin"
+      },
+      {
+        "source_id": "192a27ce-a8e1-49c3-a2ea-0ad75e49d31a",
+        "citation_number": 17,
+        "cited_text": "g about that but in my opinion if you're going to go the fact and dimensions route it's important to maintain the concept and consistency of a star schema and to create that true star schema you pretty much always want to just join the fact directly to a dimension and not dimension two dimensions directly again there's always edge cases but you're going to get many to many relationships and things are going to blow up and you're going to get a lot of duplicates most of the time but really the main point I want to drive home really with this whole video is understanding the difference between how a database might be designed like the schemas and the tables in a database for an application so what's powering an application compared to how to design something for analytics because they are different for example if you're going to make an application database you're going to have individual tables like in that case a product type table a product table and everything is going to be really u"
+      },
+      {
+        "source_id": "b738b8f6-232c-42b4-9e4f-18a611e47e79",
+        "citation_number": 18,
+        "cited_text": "to this workflow because you know at least directionally and conceptually where things will go and if they don't exist already how you would approach it because you're following a particular process a particular modeling methodology let's say and then on the other end when it comes out let's say to the reporting tools it becomes a lot more dynamic in what you can do when done well creating new presentation tables or connecting and creating new reports based on that data actually becomes really easy because the model is solid you have good granularity you're able to easily grab all related information because of the relationships that are established so you're just picking and choosing things to display it's easy to slice and dice it in a way that makes sense for the business for all these different use cases so a quick story on this one of the first teams I was ever on we went through the process of turning a bunch of ad hoc store procedures custom queries to creating a brand new data"
+      },
+      {
+        "source_id": "4b809c1c-5e2f-4a6b-9053-d5c2cfb76487",
+        "citation_number": 19,
+        "cited_text": "power of the star schema and dimensional modeling comes into place because it allows you to see totals and Aggregates sliced and diced by whatever you want because you can easily join on those keys so you could see things like total orders by product by customer it doesn't matter because you can join them on the keys and just create groupings so let's create two the first one I'll do is a total order summary and this is going to join everything together to give us one cohesive view of all of our orders and let me just copy and paste the logic in here okay so what we've done here is pulling from the fact as the source and then joining in each of the dimensions to give it attributes and because these would ideally be really wide tables with a lot of different different attributes you can pick and choose what you want to bring in here but each of the joins are really simple they're just joining on the fact transactions ID onto the dimension ID over and over again and it's really simple a"
+      }
+    ]
+  }
+}

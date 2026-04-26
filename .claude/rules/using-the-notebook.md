@@ -15,9 +15,9 @@ This project is paired with multiple NotebookLM notebooks — portable craft kno
 
 To swap or add a notebook, edit `.claude/corpus.yaml`. No code change needed. No rule change needed. The `ask-corpus` skill reads the file at invocation time.
 
-## Query the notebook first
+## Query the corpus first — invoke the `ask-corpus` skill (v2)
 
-Before writing any of the following, invoke the `ask-corpus` skill (which routes via `corpus.yaml`):
+Before writing any of the following, invoke `ask-corpus` (the v2 planner / fan-out / fuse / rerank engine at `.claude/skills/ask-corpus/`):
 
 - A new `.claude/rules/*.md` file defining a convention
 - A dbt macro, model scaffold, or test pattern that encodes a design choice
@@ -25,6 +25,8 @@ Before writing any of the following, invoke the `ask-corpus` skill (which routes
 - A Metabase operational decision (backup, upgrade, dbt-metabase sync, BQ cost tuning)
 - An answer to the user's "why do we…" or "how should I…" question about data architecture or Metabase ops
 - An answer to "what did we decide about X for this client?" (engagement scope)
+
+The skill runs a planner → fan-out → fuse → rerank → cluster pipeline against the corpora declared in `corpus.yaml` and returns a structured `Report`. Its voice contract (`.claude/skills/ask-corpus/SKILL.md`) converts the Report into the cited user-facing answer with a `🟦 Sources:` badge, inline citations, and a structured warnings footer. **Do not call `mcp__notebooklm-mcp__notebook_query` or `cross_notebook_query` directly when this routing rule applies** — the skill owns the orchestrated path. Raw MCP stays available for ad-hoc one-off lookups outside this rule.
 
 Grounding answers in the corpus prevents invented conventions from drifting into the project.
 
@@ -66,7 +68,9 @@ Even when you have a reasoned answer from first principles, **query the notebook
 
 Without the double-check, the rule would have shipped missing the most actionable specifics. The reasoned answer wasn't wrong — it was incomplete in a way that would have cost the client clarity.
 
-**The default:** whenever you're about to write a `.claude/rules/*.md` file, commit text to a scope or design doc, or make an architectural recommendation to the user, run one more `notebook_query` first — even (especially) when you think you already know the answer. Speed of typing is not a reason to skip a free call.
+This incident is now codified as **LAW 3** in `ask-corpus` SKILL.md — "always double-check the corpus before locking advice into a rule." The whole engine exists to make that surfacing automatic.
+
+**The default:** whenever you're about to write a `.claude/rules/*.md` file, commit text to a scope or design doc, or make an architectural recommendation to the user, run `ask-corpus` first — even (especially) when you think you already know the answer. Speed of typing is not a reason to skip a free call.
 
 ## Cite the source inline
 
@@ -125,4 +129,4 @@ echo '{"tool_input":{"file_path":"<abs path to rule>"}}' | .claude/scripts/sync-
 
 ## Cost
 
-`notebook_query` and `cross_notebook_query` are free (no Perplexity / Pro quota). Use them liberally instead of guessing.
+`nlm` retrieval calls (which `ask-corpus` v2 wraps) are free — no Perplexity / Pro quota. Planner and reranker LLM calls are made by you (the host LLM); no extra API quota beyond your own conversation. Use the skill liberally instead of guessing.
