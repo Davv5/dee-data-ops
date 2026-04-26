@@ -11,6 +11,31 @@ Rolling log of what's been done on this project. Newest entries at the top. Tail
 
 ---
 
+## 2026-04-26 — ask-corpus v2 corpus research engine: Phase 2-4 landed on feature branch (planner / fan-out / fuse / rerank)
+
+**What happened**
+- Branch `Davv5/Understanding-NotebookLM` now carries the full v2 engine. Two prior commits on the branch (`ef6bcf9` Phase 1 skeleton — schema/env/retriever, and `ff2fea2` plan doc) plus today's `79697d5` (Phase 2-4 implementation + SKILL.md v2 + rule update). Branch pushed to origin; PR not yet opened.
+- Plan doc: `docs/plans/2026-04-26-001-feat-corpus-research-engine-plan.md`. 11 of 13 active units flipped to `[x]`. U9 + U10 deferred per scope-guardian review (Phase-2 entity supplemental + Phase-2b thin-scope retry — re-evaluate after first 10 production queries).
+- New Python modules under `.claude/skills/ask-corpus/scripts/corpus_lib/`: `planner.py`, `normalize.py`, `signals.py`, `dedupe.py`, `pipeline.py`, `fusion.py`, `rerank.py`. Entry point at `scripts/corpus_research.py` (argparse two-phase CLI; exit codes 0/2/3/4).
+- Test count grew 40 → 126 across this session (86 new). All green; one live-smoke skipped behind `CORPUS_LIVE_SMOKE=1` opt-in. New test files: `test_planner.py`, `test_dedupe.py`, `test_pipeline_smoke.py`, `test_fusion.py`, `test_rerank_prompt.py`, `test_corpus_research.py`, `test_finalize.py`.
+- SKILL.md fully rewritten as the v2 voice contract; v1 backed up as `SKILL-v1.md`. Sections: STEP 0 → CONTRACT → OUTPUT CONTRACT (badge + 3 LAWs) → PLAN GENERATION RULES → HANDSHAKE PROTOCOL → SYNTHESIS TEMPLATE → LAW ANCHORS → WHEN TO USE → COST NOTE.
+- Routing rule `using-the-notebook.md` updated to point at v2; v1 inline `bash+python` `corpus.yaml` resolution snippet removed (the engine resolves internally via `env.resolve_scopes`); mart-naming anchor cross-references LAW 3 in SKILL.md.
+
+**Decisions**
+- **Two-phase host-LLM JSON handshake (`--phase=retrieve` → host scores → `--phase=finalize`) is the v2 architecture**, not engine-internal rerank. Sidesteps "which API key" but is net-new design with no upstream battle-testing. Mitigations made explicit: mandatory `validate_rerank_scores`, self-contained rerank prompt with embedded output schema (survives context compaction between phases), `_local_fallback` preserves entity-miss penalty, `"rerank-fallback"` warning surfaces degraded runs.
+- **Quality-aware diversity guard, not pure-count.** A scope reserves slots only when its top item meets `DIVERSITY_RELEVANCE_THRESHOLD=0.30` AND `top/dominant_top >= QUALITY_PARITY_FLOOR=0.6`. Below the parity floor it competes on RRF merit alone. Stops the guard from injecting mediocre citations when a scope is nominally above threshold but materially weaker than the dominant scope for the question.
+- **Per-source-id collapse (max 1 candidate per source_id) implicit via `candidate_id == source_id`** — multiple SourceItems from the same source across streams collapse into one Candidate with summed RRF score and merged provenance. Documented in plan revision; matches schema docstring.
+- **Three LAWs at v2.0 launch, not five.** LAW 1 (no `Sources:` block) + LAW 2 (engine footer pass-through) + LAW 3 (always double-check the corpus, anchored to 2026-04-19 mart-naming incident). Em-dashes / `##` body headers / invented titles are template guidance in the SYNTHESIS TEMPLATE, not LAWs — promote to LAW only when an incident produces the failure mode.
+- **U6 landed out of plan order (after U7 + U8) to let `finalize` wire `rerank.apply_scores` immediately.** U11 finalization later refactored `_group_by_subquery` and `_warnings` from corpus_research.py into pipeline.py so the CLI stays a thin wrapper.
+- **No external LLM provider plumbing (`providers.py` shape from last30days). Deferred indefinitely.** v2 stays Phase-A-appropriate methodology investment — host LLM is both planner and reranker.
+
+**Open threads**
+- **PR for the feature branch not yet opened.** `Davv5/Understanding-NotebookLM` is ahead of main by three commits; reviewing/merging is up next when David approves the design.
+- **U13 — additional `nlm` fixtures** (metabase backup, engagement speed-to-lead) + 3-question smoke variants. Best done when David approves the design and is ready to spend the small amount of nlm calls to capture real fixtures.
+- **U15 self-recursion** — the worklog wrap-up is *this entry*. Project-state index regenerated alongside.
+- **Strategic Reset / Discovery Sprint still active** (2026-04-24 → ~2026-05-08). This corpus-engine work qualified as Phase A methodology investment per `feedback_maximum_safe_speed.md`: docs-only ceremony, reversible, sharpens every future rule and scaffolding decision. Gold-layer roadmap (`docs/discovery/gold-layer-roadmap.md`) still owed before U4a resumes.
+- **Empirical tuning of `DIVERSITY_RELEVANCE_THRESHOLD` (0.30) and `QUALITY_PARITY_FLOOR` (0.6)** — both ship as named constants flagged provisional. Acceptance criterion before locking: pick 3 questions with known-correct-scope answers, run the engine, confirm the diversity guard puts at least one citation from the correct scope in the top-5.
+
 ## 2026-04-24 — Strategic Reset: pause new build, run Data Discovery & Visibility Sprint
 
 **What happened**

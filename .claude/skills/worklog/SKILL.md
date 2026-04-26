@@ -20,6 +20,33 @@ Appends a dated WORKLOG.md entry + regenerates the project-state index + opens a
 
 ## Workflow
 
+### Step 0 — drift check (unmerged feature branches)
+
+Before drafting anything, scan local branches for unmerged feature work that should be PR'd before "session done" makes sense. Carry the findings into Step 5's report so the user sees them at end-of-session, not next-week-when-they-rediscover-the-stale-branch.
+
+```bash
+cd "$(git rev-parse --show-toplevel)"
+git fetch origin main --quiet 2>/dev/null || true
+echo "--- local branches ahead of origin/main, with PR state ---"
+for branch in $(git for-each-ref --format='%(refname:short)' refs/heads/); do
+  case "$branch" in main|master) continue ;; esac
+  ahead=$(git rev-list --count "origin/main..$branch" 2>/dev/null || echo 0)
+  [ "$ahead" -gt 0 ] || continue
+  pr_json=$(gh pr list --head "$branch" --state all --json number,state,url --limit 1 2>/dev/null || echo '[]')
+  pr_state=$(printf '%s' "$pr_json" | jq -r '.[0].state // "NONE"')
+  pr_url=$(printf '%s' "$pr_json" | jq -r '.[0].url // ""')
+  printf "  %-50s ahead=%-3s pr=%-7s %s\n" "$branch" "$ahead" "$pr_state" "$pr_url"
+done
+```
+
+Treat these as drift findings:
+
+- `pr=NONE` and ahead of main → unmerged work with no PR open. Mention in Step 5 as "REMAINING TO SHIP" so the user sees it.
+- `pr=OPEN` → PR exists, awaiting review/merge. Mention as "AWAITING MERGE" so the user remembers to chase it.
+- `pr=MERGED` and still ahead of main → branch wasn't deleted post-merge or was force-pushed; usually safe to ignore but worth surfacing once.
+
+Do NOT auto-open feat PRs from this skill — that's the user's call. The skill's job is to surface the gap, not paper over it.
+
 ### Step 1 — figure out what's new since the last WORKLOG entry
 
 ```bash
@@ -88,9 +115,11 @@ No functional/code changes."
 ### Step 5 — report
 
 Output to the user:
-- PR URL
-- The one-line summary of the WORKLOG entry you wrote
-- Anything you noticed that looks like an open thread they should act on
+- PR URL (the chore PR you just opened).
+- The one-line summary of the WORKLOG entry you wrote.
+- **REMAINING TO SHIP** — list every branch from Step 0 with `pr=NONE` and ahead of main. For each, name the branch, the topmost commit, and the explicit suggested next step ("open feat PR for `<branch>` against main"). This is the headline failure mode the skill exists to prevent: feeling "done" while a feature branch sits unmerged.
+- **AWAITING MERGE** — branches with `pr=OPEN` from Step 0. Name the PR URL so the user can chase reviewers.
+- Anything else that looks like an open thread they should act on.
 
 ## Guardrails
 
