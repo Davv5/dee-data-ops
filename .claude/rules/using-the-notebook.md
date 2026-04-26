@@ -4,77 +4,31 @@ paths: ["**/*"]
 
 # Using the Project Notebooks
 
-This project is paired with multiple NotebookLM notebooks — portable craft knowledge plus this engagement's history. The authoritative list of notebooks and their notebook_ids lives in **`.claude/corpus.yaml`**, not hardcoded in this rule or in the `ask-corpus` skill.
+This project is paired with NotebookLM notebooks for portable craft knowledge plus this engagement's history. The authoritative list of notebooks lives in **`.claude/corpus.yaml`** — not hardcoded here.
 
-## Corpora declared in `.claude/corpus.yaml`
+## What lives where
 
-- **`methodology.data_ops`** — Data Ops notebook. 50+ expert sources on dbt, modeling, CI/CD, modern data stack. Portable across clients.
-- **`methodology.metabase`** — Metabase Craft notebook. Self-hosted Metabase OSS: install/ops, BigQuery connection + cost gotchas, dbt-metabase integration, Metabot + MCP, AGPL. Portable across clients.
-- **`methodology.metabase_learn`** — Metabase Learn notebook. Full metabase.com/learn crawl: 133 articles + 16 official YouTube walkthroughs. How-to/authoring/SQL/visualization — the *end-user analyst* side of Metabase. Portable across clients.
-- **`engagement`** — D-DEE Engagement Memory notebook. This engagement's scope docs, oracle metrics, decisions. Disposable when the engagement ends.
+- **`.claude/corpus.yaml`** — notebook IDs, names, purposes. Edit this to swap or add a notebook. No code change needed.
+- **`.claude/skills/ask-corpus/SKILL.md`** — the v2 voice contract: trigger list, scope routing table, plan generation rules, handshake protocol, synthesis template, the three LAWs, and a worked example.
+- **This file** — when to invoke the skill at the project level, the cite-source norm, the auto-sync hook, the boundary with raw MCP / Perplexity, and how to add a new notebook.
 
-To swap or add a notebook, edit `.claude/corpus.yaml`. No code change needed. No rule change needed. The `ask-corpus` skill reads the file at invocation time.
+## Invoke `ask-corpus` for grounded design / convention / history
 
-## Query the corpus first — invoke the `ask-corpus` skill (v2)
+Whenever you would otherwise reason from first principles to write a `.claude/rules/*.md` convention, scaffold a dbt model or macro, author a CI/CD workflow, decide a Metabase ops question, answer a "why do we…" / "how should I…" question, or recall "what did we decide about X for this client?" — invoke `ask-corpus` first. The full trigger list and scope routing table live in `SKILL.md`.
 
-Before writing any of the following, invoke `ask-corpus` (the v2 planner / fan-out / fuse / rerank engine at `.claude/skills/ask-corpus/`):
+**LAW 3:** always double-check the corpus before locking advice into a rule, model, scope doc, or client-facing deliverable — even when first-principles reasoning gives you a directionally-correct answer. The corpus often sharpens directionally-right answers with specific patterns that would otherwise be missed (anchor: 2026-04-19 mart-naming incident).
 
-- A new `.claude/rules/*.md` file defining a convention
-- A dbt macro, model scaffold, or test pattern that encodes a design choice
-- A CI/CD workflow file (GitHub Actions, deploy scripts)
-- A Metabase operational decision (backup, upgrade, dbt-metabase sync, BQ cost tuning)
-- An answer to the user's "why do we…" or "how should I…" question about data architecture or Metabase ops
-- An answer to "what did we decide about X for this client?" (engagement scope)
+**Do not call `mcp__notebooklm-mcp__notebook_query` or `cross_notebook_query` directly when this rule applies** — the skill owns the orchestrated path.
 
-The skill runs a planner → fan-out → fuse → rerank → cluster pipeline against the corpora declared in `corpus.yaml` and returns a structured `Report`. Its voice contract (`.claude/skills/ask-corpus/SKILL.md`) converts the Report into the cited user-facing answer with a `🟦 Sources:` badge, inline citations, and a structured warnings footer. **Do not call `mcp__notebooklm-mcp__notebook_query` or `cross_notebook_query` directly when this routing rule applies** — the skill owns the orchestrated path. Raw MCP stays available for ad-hoc one-off lookups outside this rule.
+## Engine vs raw MCP vs Perplexity
 
-Grounding answers in the corpus prevents invented conventions from drifting into the project.
-
-## Which scope to use
-
-Pick the `scope` that matches the question. When in doubt, leave scope unset — the default (`methodology`) cross-queries all craft notebooks.
-
-| scope value                   | covers                                                                                                |
-| ----------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `methodology.data_ops`        | dbt conventions, modeling, warehouse design, CI/CD, MDS starter guides                                |
-| `methodology.metabase`        | Metabase **ops / integration / licensing**: install, Cloud SQL backup, upgrade, dbt-metabase, BQ cost, AGPL, Metabot |
-| `methodology.metabase_learn`  | Metabase **how-to / authoring / SQL**: how to build a dashboard or question, which chart to pick, drill-through, SQL tutorials, BI-tool transition guides |
-| `methodology` *(default)*     | Cross-query all craft notebooks when you aren't sure which has the answer                             |
-| `engagement`                  | D-DEE history: scope decisions, oracle numbers, prior client conversations                            |
-
-Rule of thumb:
-
-- Writing a portable `.claude/rules/*.md`? Use `methodology` (default) so a Metabase rule stays cross-checked against Data Ops conventions and vice versa.
-- Writing an *operational* Metabase file (install doc, connector config, dbt-metabase YAML, Cloud SQL backup plan)? Use `methodology.metabase`.
-- Writing an *authoring* Metabase decision (dashboard tile, visualization choice, filter wiring, SQL question pattern)? Use `methodology.metabase_learn`.
-- Unsure which Metabase notebook applies? Use `methodology` — it cross-queries both plus Data Ops for free.
-- Writing a D-DEE-only mart, oracle reconciliation, or client-facing deliverable? Use `engagement` to ground it in what was already decided.
-- Cost is zero; over-querying is fine.
-
-## Always double-check before finalizing
-
-Even when you have a reasoned answer from first principles, **query the notebook again before locking advice into a rule, model, scope doc, or client-facing deliverable.** The corpus frequently sharpens directionally-right answers with specific patterns that would otherwise be missed.
-
-**Example — the mart-naming rule in this repo (2026-04-19):**
-
-1. User asked whether to build one unified dashboard or many per audience.
-2. Claude answered from first-principles reasoning: multiple dashboards, one shared mart layer underneath. Directionally correct.
-3. User asked Claude to double-check with the corpus.
-4. The corpus confirmed the direction **and added three specifics Claude had not emphasized:**
-   - Separate by *schema*, not just by dashboard — so audience-level permissions are enforced at the warehouse
-   - Drop `fct_` / `dim_` prefixes in the marts layer — business-friendly names beat Kimball technical names for client-facing tables
-   - Fewer, wider marts over many narrow ones — explicit warning against 1:1 mart-per-report
-5. Those three findings became Rules 1, 2, and 5 in `.claude/rules/mart-naming.md`.
-
-Without the double-check, the rule would have shipped missing the most actionable specifics. The reasoned answer wasn't wrong — it was incomplete in a way that would have cost the client clarity.
-
-This incident is now codified as **LAW 3** in `ask-corpus` SKILL.md — "always double-check the corpus before locking advice into a rule." The whole engine exists to make that surfacing automatic.
-
-**The default:** whenever you're about to write a `.claude/rules/*.md` file, commit text to a scope or design doc, or make an architectural recommendation to the user, run `ask-corpus` first — even (especially) when you think you already know the answer. Speed of typing is not a reason to skip a free call.
+- **`ask-corpus` engine (default for in-corpus questions).** Grounded design, conventions, history. Returns a structured Report with badge, inline citations, warnings footer.
+- **Raw `mcp__notebooklm-mcp__notebook_query` (rare).** One-off ad-hoc lookups inside a single notebook when the engine is overkill — e.g., quickly fetching a known source title to add as a citation, or peeking at what a notebook contains. Don't use it for design decisions; that's what the engine exists for.
+- **Perplexity (`pplx_smart_query`, etc.).** Current-state external information that isn't in the corpus — vendor docs released yesterday, breaking changes in a tool we use, industry comparisons. Quota-limited; default `intent='quick'` (free Sonar). Never substitute for `ask-corpus` on questions the corpus already covers.
 
 ## Cite the source inline
 
-When a rule or model is informed by the corpus, embed the source title in the file so the convention stays traceable. Also tag which notebook the source came from when the distinction matters:
+When a rule or model is informed by the corpus, embed the source title in the file so the convention stays traceable. Tag which notebook the source came from when the distinction matters:
 
 ```markdown
 - Staging models are 1:1 with source tables and materialized as views
@@ -86,38 +40,22 @@ When a rule or model is informed by the corpus, embed the source title in the fi
 
 ## Adding a new methodology notebook
 
-When a new craft area becomes relevant (e.g., "dlthub" for ingestion, "great-expectations" for DQ), add a new entry to the `methodology:` list in `.claude/corpus.yaml`:
+When a new craft area becomes relevant (e.g., "dlthub" for ingestion, "great-expectations" for DQ), add an entry to `methodology:` in `.claude/corpus.yaml`:
 
 ```yaml
 methodology:
-  - key: data_ops
-    notebook_id: 7c7cd5d4-22df-4ef0-8b74-ed87e0ca4e6a
-    name: Data Ops
-    purpose: |
-      …
-  - key: metabase
-    notebook_id: ce484bbc-546b-4fe4-a7db-bc01b847dbe5
-    name: Metabase Craft
-    purpose: |
-      …
-  - key: <new_key>                # keep keys snake_case, short, stable
+  - key: <new_key>                # snake_case, short, stable
     notebook_id: <new-uuid>
     name: <Human-Readable Name>
     purpose: |
       One-paragraph description of what's in the notebook and when to query it.
 ```
 
-Then document the new key + scope in this rule's "Which scope to use" table. The `ask-corpus` skill requires no change — it picks up the new entry automatically.
-
-## When NOT to query the notebook
-
-- Pure code-mechanic questions (what columns does this model have?) — read the code
-- Questions already answered by existing `.claude/rules/*.md` — those are already grounded
-- Topics unrelated to data engineering / dbt / MDS / Metabase / this engagement — out of scope
+Then update the scope routing table in `.claude/skills/ask-corpus/SKILL.md`. The skill picks up the new entry automatically.
 
 ## Keep the corpus in sync
 
-This is **automatic** via a `PostToolUse` hook in `.claude/settings.json`. Whenever a file under `.claude/rules/*.md` is created or edited with the `Write` or `Edit` tool, the hook runs `.claude/scripts/sync-rule-to-notebook.sh`, which upserts the file into the Data Ops notebook as a text source titled `.claude/rules/<filename>.md`. No manual `source_add` call is needed.
+Automatic via a `PostToolUse` hook in `.claude/settings.json`. Whenever a file under `.claude/rules/*.md` is created or edited with the `Write` or `Edit` tool, the hook runs `.claude/scripts/sync-rule-to-notebook.sh`, which upserts the file into the Data Ops notebook as a text source titled `.claude/rules/<filename>.md`. No manual `source_add` call is needed.
 
 Sync log: `/tmp/dataops-sync-rule.log`. If a sync fails, check that log; the hook is async and does not block the turn.
 
@@ -129,4 +67,4 @@ echo '{"tool_input":{"file_path":"<abs path to rule>"}}' | .claude/scripts/sync-
 
 ## Cost
 
-`nlm` retrieval calls (which `ask-corpus` v2 wraps) are free — no Perplexity / Pro quota. Planner and reranker LLM calls are made by you (the host LLM); no extra API quota beyond your own conversation. Use the skill liberally instead of guessing.
+`nlm` retrieval is free (no Perplexity / Pro quota). Planner and reranker LLM calls are made by you (the host LLM); no extra API quota beyond your own conversation. Default to using the skill instead of guessing.
