@@ -15,7 +15,7 @@ _Last regenerated: 2026-04-24 (Strategic Reset — Discovery Sprint begins)_
 - **Foundation is intact (do not rebuild):** BigQuery + dbt + 13 staging models end-to-end + `(id, _ingested_at, payload)` raw-landing discipline. U1 preflight, U2 profile retarget, U3 staging shims all stay shipped.
 - **GCP consolidation plan PAUSED at U3-complete.** `docs/plans/2026-04-23-001-feat-gtm-source-port-plan.md` resumes (with U5+ warehouse scope rewritten against the Grok roadmap) after the sprint. U4a plumbing parity contract stays valid.
 - **Closed workstream (unchanged):** Speed-to-Lead star-schema refactor shipped 2026-04-23. `speed_to_lead_detail` wide mart feeds 15/15 Metabase cards; dashboard live. Speed-to-Lead is now one of several business areas being (re)scoped.
-- **Next concrete step:** Discovery Sprint day-1 tasks — source inventory + business-area map (see Strategic Reset Plan §7–10 day focus).
+- **Next concrete step:** finish the decision-facing discovery docs: business-area map, coverage matrix, and Gold-layer roadmap. Source inventory, staging-model inventory, gap analysis, and insights summary already exist under `docs/discovery/`.
 - **Headline metric (locked 2026-04-19):** unchanged. Stays as the reproduction target for U4a when cutover resumes.
 
 ## Active plan
@@ -32,7 +32,7 @@ _Last regenerated: 2026-04-24 (Strategic Reset — Discovery Sprint begins)_
 
 ## Open threads
 
-- **Sprint deliverables** — `docs/discovery/{source-inventory,business-area-map,coverage-matrix,gold-layer-roadmap}.md` owed by ~2026-05-08.
+- **Sprint discovery packet** — landed: `docs/discovery/{source-inventory,staging-models,gap-analysis,insights-summary}.md`; still owed by ~2026-05-08: `docs/discovery/{business-area-map,coverage-matrix,gold-layer-roadmap}.md`.
 - **U4a paused** — resumes when Gold-layer roadmap exists. David's sign-off on U3 staging shape still standing as the precondition to resume.
 - **`merge-dbt-ci@` SA + keyfile** — paused per Strategic Reset; needed before CI can run dbt builds in prod post-resume.
 - **`bq-ingest` service repair** — paused per Strategic Reset; GTM-repo work; prerequisite for U4b when cutover resumes.
@@ -41,14 +41,14 @@ _Last regenerated: 2026-04-24 (Strategic Reset — Discovery Sprint begins)_
 - **GHL `messages` / `users` / `tasks`** — 0 rows upstream on both per-object and blob paths; upstream extractor fix out of sprint + cutover scope.
 - **Fathom transcript landing** — 0% coverage across 1,157 calls; paused per Strategic Reset; fix scheduled for U6 post-resume.
 - **Stripe ~50-day staleness** — pre-existing GTM bug; moot until Gold roadmap decides how much historical Stripe matters (live payments = Fanbasis).
-- **Fanbasis** — broken on both sides; elevated priority because it's the live revenue source; scoping picks up in Discovery Sprint §business-area-map.
+- **Fanbasis** — raw appears to be landing fresh, but Merge-side dbt is not wired: `_fanbasis__sources.yml` is still a placeholder and there are no `stg_fanbasis__*.sql` models. Elevated priority because it is the live revenue source.
 - **Week-0 client asks** — unchanged (Fanbasis docs, SLA thresholds, access verification).
 
 ## Where to look (retrieval map)
 
 - **Active plan:** `docs/plans/2026-04-24-strategic-reset.md`
 - **Paused plan:** `docs/plans/2026-04-23-001-feat-gtm-source-port-plan.md`
-- **Sprint artifacts (in progress):** `docs/discovery/` (directory created when first artifact lands)
+- **Sprint artifacts:** `docs/discovery/` — source inventory, staging inventory, gap analysis, and insights summary landed; business-area map, coverage matrix, and Gold roadmap pending.
 - **Memories (auto-loaded):** `project_gcp_consolidation_decision.md`, `feedback_preserve_working_infra.md`, `feedback_ship_over_ceremony.md`, `project_stripe_historical_only.md` via `MEMORY.md`
 - **Engagement context / locked metric:** `CLAUDE.local.md` (gitignored overlay)
 - **Portable conventions:** `CLAUDE.md` + `dbt_style_guide.md` + `.claude/rules/*.md`

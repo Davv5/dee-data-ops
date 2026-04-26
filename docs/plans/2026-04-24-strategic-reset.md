@@ -29,7 +29,7 @@ The five bullets from the Grok discussion, with a one-line "what this means in p
 1. **Pause new feature development for 1–2 weeks.**
    *In practice:* no dbt model PRs, no Metabase/Evidence.dev work, no source extractor fixes, no warehouse refactors. Only docs and bookkeeping land.
 2. **Run a Data Discovery & Visibility Sprint.**
-   *In practice:* five parallel workstreams (below) producing four artifacts under `docs/discovery/`.
+   *In practice:* five parallel workstreams (below) producing a discovery packet under `docs/discovery/`. The packet started with the four planned decision artifacts and now also includes model/gap/insight views that make the source reality easier to use.
 3. **Get full clarity on what data actually exists across all sources.**
    *In practice:* per-source inventory — table / row count / freshness / owner / breakage — across GHL, Stripe, Typeform, Calendly, Fathom, Fanbasis.
 4. **Map all important business areas (not just Speed-to-Lead).**
@@ -41,7 +41,9 @@ The five bullets from the Grok discussion, with a one-line "what this means in p
 
 ## 7–10 day focus
 
-Five workstreams, runnable in parallel. Each produces a single document under `docs/discovery/`.
+Five workstreams, runnable in parallel. The decision artifacts remain the
+business-area map, coverage matrix, and Gold-layer roadmap; supporting source,
+model, gap, and insight views live beside them under `docs/discovery/`.
 
 ### 1. Source inventory (days 1–3)
 
@@ -58,7 +60,7 @@ Sources to cover:
 - **Fathom** — `Raw.fathom_calls_raw` (1,157 calls, 0% transcript coverage).
 - **Fanbasis** — live payment processor; current state of extractor and landing.
 
-Seed: `docs/preflight/gtm-gcp-inventory.md` (U1 preflight) — extend, don't recreate.
+Seed: `docs/_archive/gtm-gcp-inventory.md` (U1 preflight) — extend, don't recreate.
 
 ### 2. Business-area map (days 2–5)
 
@@ -108,8 +110,10 @@ Highlights which areas are ready to build against today vs. which need an extrac
 Walk Grok through artifacts 1–3. Grok ranks business areas by **value × feasibility**. Output is an ordered list of marts to build:
 
 ```
-Rank | Mart name | Business area | Rationale | Data deps | Blockers
+Rank | Mart name | Grain | PK | Purpose (1 line) | Business area | Rationale | Data deps | Blockers
 ```
+
+Each mart entry declares **grain + PK + 1-line purpose** upfront — per Joshua Kim, "[AE] The Order in which I Model Data" (Step 2: confirming fact-table grain is the most load-bearing decision; codified in `.claude/rules/data-modeling-process.md`). This bakes the grain decision into the artifact format so it can't be deferred to implementation.
 
 This ordered list replaces the U5+ scope of `2026-04-23-001-feat-gtm-source-port-plan.md`.
 
@@ -147,9 +151,24 @@ This ordered list replaces the U5+ scope of `2026-04-23-001-feat-gtm-source-port
 
 All resume once the Gold-layer roadmap is in place. The Sprint reshapes what U5+ looks like; U4a's contract (reproducing the 15,283-row fact) stays valid.
 
+## Current Artifact Shape
+
+The sprint packet has expanded beyond the original four files. Treat the files
+below as complementary views, not competing plans:
+
+| File | Status | Purpose |
+|---|---|---|
+| `docs/discovery/source-inventory.md` | Landed | Source-centric snapshot of raw landing, freshness, and extractor status. |
+| `docs/discovery/staging-models.md` | Landed | Model-centric inventory of the 13 staging models and caveats. |
+| `docs/discovery/gap-analysis.md` | Landed | Delta view: what exists, what is missing, what each gap blocks. |
+| `docs/discovery/insights-summary.md` | Landed | Executive summary across the source, model, and gap views. |
+| `docs/discovery/business-area-map.md` | Pending | Business areas, stakeholders, decisions, dependencies, and current state. |
+| `docs/discovery/coverage-matrix.md` | Pending | Business areas × source coverage matrix. |
+| `docs/discovery/gold-layer-roadmap.md` | Pending | Prioritized Phase B mart list with grain, PK, blockers, and unlock criteria. |
+
 ## Exit criteria
 
-The sprint ends when all four are true:
+The sprint ends when all four decision gates are true:
 
 1. `docs/discovery/source-inventory.md` exists and covers all six sources.
 2. `docs/discovery/business-area-map.md` exists and enumerates every business area D-DEE cares about, each with stakeholder + decision + data deps + current state.

@@ -11,6 +11,28 @@ Rolling log of what's been done on this project. Newest entries at the top. Tail
 
 ---
 
+## 2026-04-24 — Strategic Reset: pause new build, run Data Discovery & Visibility Sprint
+
+**What happened**
+- Strategic discussion with Grok concluded: foundation (BigQuery + dbt + 13 staging models + raw-landing discipline) is sound; project is NOT restarting (would have been restart #3).
+- Real problem diagnosed as visibility + business prioritization, not technical debt. Solution is a 1–2 week Discovery Sprint, not another rebuild.
+- New top-level plan published at `docs/plans/2026-04-24-strategic-reset.md` — five parallel workstreams (source inventory, business-area map, coverage matrix, Grok roadmap review, sprint retro + re-plan) producing four artifacts under `docs/discovery/`.
+- `docs/plans/2026-04-23-001-feat-gtm-source-port-plan.md` moved to PAUSED — U4a sign-off deferred until Gold-layer roadmap exists. Plan file itself untouched (historical artifact); status flipped via `.claude/state/project-state.md`.
+- `.claude/state/project-state.md` rewritten to put Strategic Reset at the top; stamp now reads "_Last regenerated: 2026-04-24 (Strategic Reset — Discovery Sprint begins)_".
+
+**Decisions**
+- **Do not restart.** Keep the technical foundation. Any instinct to rebuild staging / warehouse / marts during the sprint is out of scope. U1 / U2 / U3 stay shipped.
+- **Pause GCP cutover at U3-complete.** U4a plumbing parity, U4b live-raw parity, U5 warehouse rebuild, U6 Fathom transcripts, U7 / U8 Stripe + Fanbasis, U9 Typeform `form_id`, U12 identity spine, U14 decommission — all paused. Resume after Grok-prioritized Gold-layer roadmap exists.
+- **Widen scope beyond Speed-to-Lead.** Discovery covers every business area D-DEE operates — lead acquisition, appointment setting, closing, revenue attribution, churn, pipeline velocity, funnel ROI, refunds/chargebacks, DQ — not just the v1 metric.
+- **Grok is the external pairing partner for prioritization.** After inventory + business-area map + crosswalk land, walk Grok through them; Grok ranks by value × feasibility; output is the ordered mart list that supersedes U5+ of the cutover plan.
+- **Docs-only during sprint.** No dbt / warehouse / mart PRs unless the deliverable is docs. Daily one-line WORKLOG entries.
+
+**Open threads**
+- Sprint deliverables (`docs/discovery/source-inventory.md`, `business-area-map.md`, `coverage-matrix.md`, `gold-layer-roadmap.md`) owed by ~2026-05-08.
+- Superseding build plan (`docs/plans/2026-05-xx-gold-layer-rebuild.md`) owed at sprint close.
+- All paused GCP-cutover threads (`merge-dbt-ci@` SA, `bq-ingest` repair, `form_id` gap, GHL conversations undercount, GHL empty objects, Fathom transcripts, Stripe staleness, Fanbasis) resume after the roadmap is in place.
+- Week-0 client asks (Fanbasis docs, SLA thresholds, access verification) still outstanding.
+
 ## 2026-04-23 (later) — U3 staging shims: Stripe/Typeform/Fathom/Calendly blob-decode + GHL column rename
 
 **What happened**
