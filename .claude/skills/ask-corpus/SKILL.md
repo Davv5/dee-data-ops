@@ -29,6 +29,31 @@ The engine lives at `.claude/skills/ask-corpus/scripts/corpus_research.py`. It r
 
 ---
 
+## SCOPE ROUTING — pick the right corpus(es)
+
+`.claude/corpus.yaml` declares four notebooks. Pick the `--scope` (and per-subquery `scopes`) that matches the question. When in doubt, leave `--scope` unset — the default is `methodology`, which cross-queries all craft notebooks.
+
+| scope value                   | covers                                                                                                |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `methodology.data_ops`        | dbt conventions, modeling, warehouse design, CI/CD, MDS starter guides                                |
+| `methodology.metabase`        | Metabase **ops / integration / licensing**: install, Cloud SQL backup, upgrade, dbt-metabase, BQ cost, AGPL, Metabot |
+| `methodology.metabase_learn`  | Metabase **how-to / authoring / SQL**: how to build a dashboard or question, which chart to pick, drill-through, SQL tutorials, BI-tool transition guides |
+| `methodology` *(default)*     | Cross-query all craft notebooks when you aren't sure which has the answer                             |
+| `engagement`                  | D-DEE history: scope decisions, oracle numbers, prior client conversations                            |
+
+Rules of thumb:
+
+- Writing a portable `.claude/rules/*.md`? Use `methodology` (default) so a Metabase rule stays cross-checked against Data Ops conventions and vice versa.
+- Writing an *operational* Metabase file (install doc, connector config, dbt-metabase YAML, Cloud SQL backup plan)? Use `methodology.metabase`.
+- Writing an *authoring* Metabase decision (dashboard tile, visualization choice, filter wiring, SQL question pattern)? Use `methodology.metabase_learn`.
+- Unsure which Metabase notebook applies? Use `methodology` — it cross-queries both plus Data Ops for free.
+- Writing a D-DEE-only mart, oracle reconciliation, or client-facing deliverable? Use `engagement` to ground it in what was already decided.
+- Cost is zero; over-querying is fine.
+
+When you add a new methodology notebook, update `.claude/corpus.yaml` first, then add a row to this table.
+
+---
+
 ## OUTPUT CONTRACT — Badge + LAWs
 
 Every synthesized answer **must** start with this badge line on its own line, before any prose:
@@ -194,6 +219,90 @@ KEY PATTERNS from the corpus:
 - No em-dashes used as parenthetical punctuation; use sentence breaks instead.
 - No invented title above the badge — the badge is the title.
 - Inline citations only; never an end-of-answer "Sources:" block (LAW 1).
+
+### Worked example — end-to-end handshake
+
+Concrete walkthrough so the abstract protocol above is unambiguous.
+
+User question: *"How should I prioritize which marts to build first when I have a mix of Speed-to-Lead, churn, and revenue-attribution candidates?"*
+
+**Step 1 — Author the plan.** Write to `/tmp/plan.json`:
+
+```json
+{
+  "intent": "design",
+  "scope_weights": { "methodology.data_ops": 1.0, "engagement": 0.8 },
+  "subqueries": [
+    {
+      "label": "prioritization-frameworks",
+      "search_query": "mart prioritization value feasibility ranking",
+      "ranking_query": "How do experienced data teams pick which marts to build first?",
+      "scopes": ["methodology.data_ops"],
+      "weight": 1.0
+    },
+    {
+      "label": "first-mart-pattern",
+      "search_query": "first mart star schema starting point grain",
+      "ranking_query": "What makes a defensible first mart in a new warehouse?",
+      "scopes": ["methodology.data_ops"],
+      "weight": 1.0
+    },
+    {
+      "label": "engagement-priors",
+      "search_query": "Speed-to-Lead mart decisions priorities D-DEE",
+      "ranking_query": "What has D-DEE already decided about mart priorities?",
+      "scopes": ["engagement"],
+      "weight": 0.8
+    }
+  ],
+  "notes": ["Mart roadmap deliverable; LAW 3 applies"]
+}
+```
+
+**Step 2 — Phase 1 retrieve.**
+
+```bash
+.claude/skills/ask-corpus/.venv/bin/python \
+  .claude/skills/ask-corpus/scripts/corpus_research.py \
+  --phase=retrieve \
+  --question "How should I prioritize which marts to build first..." \
+  --plan /tmp/plan.json
+```
+
+stdout (one JSON line):
+
+```json
+{"shortlist": "/tmp/.../shortlist.json", "rerank_prompt": "/tmp/.../rerank_prompt.md"}
+```
+
+**Step 3 — Score the rerank prompt.** Read `rerank_prompt.md` (self-contained — embedded scale, embedded snippets). Output scores JSON:
+
+```json
+{
+  "scores": [
+    {"candidate_id": "abc-1", "relevance": 88, "reason": "directly addresses value × feasibility framing"},
+    {"candidate_id": "def-2", "relevance": 71, "reason": "covers grain selection, peripheral to ranking"}
+  ]
+}
+```
+
+Write to `/tmp/scores.json`.
+
+**Step 4 — Phase 2 finalize.**
+
+```bash
+.claude/skills/ask-corpus/.venv/bin/python \
+  .claude/skills/ask-corpus/scripts/corpus_research.py \
+  --phase=finalize \
+  --shortlist /tmp/.../shortlist.json \
+  --rerank-scores /tmp/scores.json
+```
+
+stdout: `{"report": "/tmp/.../report.json"}`
+
+**Step 5 — Read `report.json` and synthesize per the SYNTHESIS TEMPLATE.** Output starts with the badge, has bold lead-ins per claim, inline `(source: "...", scope)` citations, KEY PATTERNS section, engine footer copied verbatim, and an optional invitation. No `Sources:` block at the end (LAW 1).
+
+If you skipped the plan or rerank-scores, the engine emits `plan-fallback` or `rerank-fallback` warnings — surface them in the synthesis under the engine footer.
 
 ### Synthesizing warnings
 
