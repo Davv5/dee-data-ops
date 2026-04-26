@@ -382,7 +382,7 @@ Goal: prove the subprocess + JSON handshake plumbing before adding sophisticatio
 
 Goal: from skeleton to "the rerank fence and primary-entity grounding work end-to-end."
 
-- [ ] **U4. `planner.py` — sanitizer + deterministic fallback + capabilities + INTENT_DEFAULT_SCOPES**
+- [x] **U4. `planner.py` — sanitizer + deterministic fallback + capabilities + INTENT_DEFAULT_SCOPES** *(landed 2026-04-26; 23 planner tests; 63/63 cumulative pass)*
 
   **Goal:** accept either a host-LLM-supplied plan JSON or fall back to deterministic plan generation. Validate, normalize, ensure every scope is reachable.
 
@@ -416,7 +416,7 @@ Goal: from skeleton to "the rerank fence and primary-entity grounding work end-t
   **Verification:**
   - `pytest .claude/skills/ask-corpus/tests/test_planner.py -q` passes.
 
-- [ ] **U5. `pipeline.py` first cut — fan-out + per-stream normalize/signals/dedupe + traces**
+- [x] **U5. `pipeline.py` first cut — fan-out + per-stream normalize/signals/dedupe + traces** *(landed 2026-04-26; 6 dedupe + 5 pipeline-smoke tests; 74/74 cumulative pass)*
 
   **Goal:** the orchestrator runs end-to-end against real `nlm` and produces a flat candidate list. No fusion or rerank yet — those come in U7/U8.
 
@@ -456,7 +456,7 @@ Goal: from skeleton to "the rerank fence and primary-entity grounding work end-t
   - `pytest .claude/skills/ask-corpus/tests/test_pipeline_smoke.py -q` passes.
   - Stderr trace shows `[Planner] ... source=deterministic` and `[Retriever] scope=methodology.data_ops n=N took=Xms` lines.
 
-- [ ] **U6. `entry point` — `corpus_research.py` argparse + two phases**
+- [x] **U6. `entry point` — `corpus_research.py` argparse + two phases** *(landed 2026-04-26; 7 CLI tests covering retrieve→finalize round-trip, exit codes 0/2/4, fallback warning emission; landed out of order after U7+U8 to allow finalize phase to wire rerank.apply_scores; 116/116 cumulative pass)*
 
   **Goal:** wire the CLI surface that the host LLM calls with `--phase=retrieve` and `--phase=finalize`.
 
@@ -484,7 +484,7 @@ Goal: from skeleton to "the rerank fence and primary-entity grounding work end-t
   **Verification:**
   - Manual smoke (after U7/U8 land too): full two-phase round-trip against the live Data Ops notebook returns a Report.
 
-- [ ] **U7. `fusion.py` — weighted RRF + diversity caps**
+- [x] **U7. `fusion.py` — weighted RRF + diversity caps** *(landed 2026-04-26; 9 fusion tests; per-source-id collapse via `candidate_id == source_id`; quality-aware diversity guard validated; 83/83 cumulative pass)*
 
   **Goal:** merge per-(subquery, scope) streams into one ranked candidate pool with diversity guards.
 
@@ -516,7 +516,7 @@ Goal: from skeleton to "the rerank fence and primary-entity grounding work end-t
   **Verification:**
   - `pytest .claude/skills/ask-corpus/tests/test_fusion.py -q` passes.
 
-- [ ] **U8. `rerank.py` — LLM rerank prompt + apply_scores + local fallback**
+- [x] **U8. `rerank.py` — LLM rerank prompt + apply_scores + local fallback** *(landed 2026-04-26; 26 rerank tests; self-contained prompt with embedded schema, fence-escape, mock-LLM round-trip, fallback preserves entity-miss penalty; 109/109 cumulative pass)*
 
   **Goal:** produce a rerank prompt the host LLM can score, apply returned scores, demote off-target candidates.
 
@@ -629,7 +629,7 @@ Goal: produce the structured Report shape. Phase-2 entity supplemental and Phase
   **Verification:**
   - Smoke run with a question deliberately phrased to be too narrow (e.g., "Metabase Cloud SQL automated backup retention default for the dbt-metabase plugin in 2026") shows retry running and adding items.
 
-- [ ] **U11. Report finalization + `_warnings` (subquery grouping, no separate cluster module)**
+- [x] **U11. Report finalization + `_warnings` (subquery grouping, no separate cluster module)** *(landed 2026-04-26; 10 finalize tests; group_by_subquery + warnings_for moved into pipeline.py; CLI now consumes them; multi-label cluster assignment uses best native_rank; 126/126 cumulative pass)*
 
   **Goal:** the final shape — candidates grouped by their originating subquery, structured warnings, the `Report` object the host LLM consumes for synthesis.
 
@@ -670,7 +670,7 @@ Goal: produce the structured Report shape. Phase-2 entity supplemental and Phase
 
 Goal: the SKILL.md the host LLM reads, which is what makes the engine actually usable.
 
-- [ ] **U12. SKILL.md v2 — voice contract + LAWs + handshake protocol**
+- [x] **U12. SKILL.md v2 — voice contract + LAWs + handshake protocol** *(landed 2026-04-26; v1 backed up to SKILL-v1.md; new SKILL.md covers STEP 0 / CONTRACT / OUTPUT CONTRACT badge+3 LAWs / PLAN GENERATION RULES / HANDSHAKE PROTOCOL / SYNTHESIS TEMPLATE / LAW ANCHORS / WHEN TO USE / COST NOTE; mart-naming anchor preserved as LAW 3)*
 
   **Goal:** rewrite `.claude/skills/ask-corpus/SKILL.md` as a contract that:
     - Tells the host LLM how to generate a plan JSON (rules adapted from last30days's planner prompt rules)
@@ -751,7 +751,7 @@ Goal: the SKILL.md the host LLM reads, which is what makes the engine actually u
 
 Goal: the rest of the repo knows v2 exists; v1 stops being the path.
 
-- [ ] **U14. Update `using-the-notebook.md` rule to reference v2 + remove v1 inline snippet**
+- [x] **U14. Update `using-the-notebook.md` rule to reference v2 + remove v1 inline snippet** *(landed 2026-04-26; rule now points at v2 engine, drops the inline bash+python snippet, mart-naming anchor cross-references LAW 3 in SKILL.md, cost note updated to clarify nlm/host-LLM call mix)*
 
   **Goal:** the canonical routing rule reflects v2's contract.
 
