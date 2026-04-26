@@ -240,6 +240,135 @@ left join users as riders
 
 ```
 
+## SQL writing discipline (Kim's process maxims)
+
+These maxims complement the SQL style rules above with the *order of decisions* and *anti-patterns to watch for* when writing a model. Sourced from [Joshua Kim, "[AE] The Order in which I Model Data" — Medium, April 2026](https://joshua-data.medium.com/my-analytics-engineering-process-en-435445038897). The full process arc lives in `.claude/rules/data-modeling-process.md` (auto-loads on `2-dbt/models/**`).
+
+### Decide output type and partition first
+
+Before writing the SELECT, name:
+
+- The materialization (view / table / incremental / ephemeral) — usually inherited from the directory default in `dbt_project.yml`, but if you override, document why
+- The partition column (BigQuery `partition_by` config) for any table > 1M rows or with a date dimension
+- The unique key (for incremental models)
+
+If you can't name these in one sentence each, you don't yet know what the model is. Stop and revisit grain.
+
+### Preprocessing belongs in the FIRST CTE
+
+The first CTE (typically `source`) is the home for all defensive cleanup: `TRIM`, `LOWER`, `NULLIF('', value)`, `REGEXP_REPLACE`, `COALESCE`, `CAST`. Get the data into a sane shape immediately so every downstream CTE can assume clean inputs.
+
+```sql
+with
+
+source as (
+    select
+        nullif(trim(lower(email)), '') as email,
+        coalesce(country, 'unknown') as country,
+        cast(amount as numeric) as amount,
+        cast(created_at as timestamp) as created_at
+    from {{ source('raw_x', 'orders') }}
+),
+
+-- downstream CTEs assume clean inputs from here on
+…
+```
+
+### `CAST` in SELECT, `SAFE_CAST` only in WHERE
+
+Use `CAST` (loud failure) in SELECT clauses; reserve `SAFE_CAST` (silent NULL) for WHERE / filter conditions. A bad row should surface immediately and force a fix upstream — not propagate as NULL into the marts.
+
+```sql
+-- BAD: silent NULL propagation into downstream models
+select safe_cast(amount as numeric) as amount from source
+
+-- GOOD: loud failure, fix the data upstream
+select cast(amount as numeric) as amount from source
+
+-- ALSO GOOD: safe_cast in a filter (a NULL just means "row doesn't match")
+select * from source where safe_cast(event_ts as timestamp) >= '2026-01-01'
+```
+
+(Cross-references: `.claude/rules/staging.md` "What goes in a staging view" / "CAST vs SAFE_CAST".)
+
+### Unify column naming at the top CTE
+
+Every source emits the same logical concept under different column names (`user_id`, `user`, `user_idx`). Collapse them in the first CTE so every downstream CTE refers to one canonical name. The further down the chain, the cleaner the SQL.
+
+```sql
+with
+
+source as (
+    select
+        user_idx as user_id,        -- source A's name
+        product_id,
+        purchase_amount as amount   -- source A's name; matches the canonical name
+    from {{ source('raw_a', 'transactions') }}
+),
+…
+```
+
+### Variableize constants and business rules
+
+Magic strings and dates that encode business rules belong in `set` statements at the top of the file or as Jinja variables in `dbt_project.yml`. Don't sprinkle `'2025-01-01'` or `'qualified_lead'` across multiple CTEs.
+
+```sql
+{% set go_live_date = '2025-01-01' %}
+{% set qualified_status_codes = ['confirmed', 'shipped', 'delivered'] %}
+
+with
+
+source as (
+    select * from {{ ref('stg_orders') }}
+    where status in {{ qualified_status_codes | join("','") | wrap_in_quotes }}
+      and order_date >= '{{ go_live_date }}'
+),
+…
+```
+
+### `FULL OUTER UNION ALL BY NAME` for column-mismatched UNIONs (BigQuery)
+
+When two sources contribute to the same UNION but have non-overlapping columns, use BigQuery's `FULL OUTER UNION ALL BY NAME` — columns line up by name, missing columns become NULL automatically. Far more readable than `cast(null as string) as country` per side.
+
+```sql
+-- old way: tedious, error-prone
+select id, name, country from source_a
+union all
+select id, name, cast(null as string) as country from source_b
+
+-- BigQuery: cleaner, harder to misalign
+(select id, name, country from source_a)
+full outer union all by name
+(select id, name from source_b)
+```
+
+> Verify the UNION result column order + types match what downstream expects; the implicit NULL fill makes mistakes silent.
+
+### WHERE conditions disappear top-to-bottom
+
+In a well-designed CTE chain, `WHERE` filters cluster at the top — usually in the source CTE or the first transform. Each subsequent CTE narrows by aggregation, projection, or join — but if you find yourself adding a `WHERE` in CTE #4, that's a signal you missed a filter at the top OR you joined too early and are filtering after the fan-out.
+
+A `WHERE` in a lower CTE that filters out rows the join just produced is the common bug: the join shouldn't have produced those rows in the first place.
+
+### Verify row count after every join
+
+`COUNT(1)` before and after each join while developing. If row count changes unexpectedly, the join key isn't unique on the right-hand side and you have a fan-out. Catching this once saves an evening of head-scratching when the headline metric drifts.
+
+```sql
+-- during development, run as ad-hoc queries:
+select count(1) from {{ ref('fct_orders') }};                                   -- 100k
+select count(1) from {{ ref('fct_orders') }} f
+  left join {{ ref('dim_product') }} d on f.product_id = d.product_id;          -- 250k → fan-out!
+```
+
+The fix is upstream (verify dim PK uniqueness; collapse SCD Type 2 history before the join — see `warehouse.md` "Fact × Dim join — verify uniqueness before joining").
+
+### `QUALIFY ROW_NUMBER() = 1` is a symptom
+
+Every time you reach for `QUALIFY ROW_NUMBER() OVER (PARTITION BY x ORDER BY y) = 1` to dedupe, ask: why isn't `x` the PK upstream? If the upstream's grain is correct, you don't need this. Once is fine; twice is a pattern; three times is debt that compounds — every change to upstream now has to consider the dedupe behavior in N downstream models.
+
+(Cross-references: `.claude/rules/data-modeling-process.md` macro #2; `.claude/rules/staging.md` lessons-learned.)
+
 ## YAML style guide
 
 - Indents should be two spaces

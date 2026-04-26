@@ -4,7 +4,7 @@ paths: ["3-bi/metabase/**"]
 
 # Metabase conventions
 
-Load when working on anything under `3-bi/metabase/**`. Metabase is D-DEE's dashboard layer — self-hosted OSS on GCP, reading `dee-data-ops-prod.marts.*`.
+Load when working on anything under `3-bi/metabase/**`. Metabase is D-DEE's legacy dashboard layer — self-hosted OSS on GCP, currently reading `dee-data-ops-prod.marts.*` until the BI/runtime cutover moves it to the consolidated project.
 
 Two corpus sources ground these conventions — cite them when extending:
 - *Metabase official docs* (https://www.metabase.com/docs/latest/)
