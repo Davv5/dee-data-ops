@@ -94,10 +94,11 @@ with a one-line rationale. Override in calling code: `upsert_card(..., cache_ttl
 
 ## Related rules
 
-- `.claude/rules/metabase.md` — full Metabase authoring conventions (5 rules + Lessons Learned)
 - `.claude/rules/mart-naming.md` — dashboard-facing naming conventions
 - `.claude/rules/ingest.md` — NRT ingestion patterns (Cloud Run Jobs + Scheduler)
 - `.claude/rules/dbt-marts-rollups.md` — incremental strategy details
+
+> **Note (2026-04-26):** the Metabase section below documents conventions for the retired Metabase runtime. Metabase is no longer running for D-DEE; current BI direction is dabi (see `docs/plans/2026-04-24-001-feat-pivot-to-generative-bi-plan.md`). The Metabase rule has been archived to `docs/_archive/metabase.md`. The Metabase content here remains as historical reference until live-by-default is rewritten for the dabi-era cadence.
 
 ## Lessons learned
 

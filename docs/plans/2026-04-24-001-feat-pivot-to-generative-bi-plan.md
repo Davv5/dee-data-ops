@@ -1,10 +1,16 @@
 ---
 title: Pivot D-DEE BI from Metabase to dabi (Kim-style generative BI)
 type: feat
-status: active
+status: parked
+parked_on: 2026-04-26
+reactivation_gate: |
+  Reactivate ONLY when BOTH of:
+  1. Strategic Reset Sprint exits (`docs/plans/2026-05-xx-gold-layer-rebuild.md` published).
+  2. Gold-layer roadmap names a dashboard or surface that requires the new BI direction.
+  Until both hold, do not propose dabi work or cite this plan as authoritative for current build. The BI direction itself (dabi per Kim recipe) is reaffirmed (2026-04-26); only the build is gated.
 date: 2026-04-24
 origin: conversation 2026-04-24 (this session) + docs/plans/2026-04-23-001-feat-gtm-source-port-plan.md (the Port plan, paused) + Joshua Kim's Medium piece
-supersedes: U5 of the Port plan ("Repoint Metabase at project-41542e21-..."); the "v2 deliverable: Evidence.dev cutover" line in CLAUDE.local.md; the `project_evidence_dev_transition.md` memory
+supersedes: U5 of the Port plan ("Repoint Metabase at project-41542e21-..."); the "v2 deliverable: Evidence.dev cutover" line in CLAUDE.local.md; the `project_evidence_dev_transition.md` memory (since replaced by `project_bi_direction_dabi.md` on 2026-04-26)
 related: docs/plans/2026-04-24-002-feat-generative-bi-platform-plan.md (Plan B — the dabi build); docs/plans/2026-04-24-strategic-reset.md (active Discovery Sprint); docs/plans/2026-04-23-001-feat-gtm-source-port-plan.md (Port plan, paused at U3-complete)
 ---
 
