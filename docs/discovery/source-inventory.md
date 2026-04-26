@@ -1,6 +1,6 @@
 # Source Inventory — Data Discovery Sprint (2026-04-24)
 
-**Sprint artifact 1 of 4.** Seeds from `docs/preflight/gtm-gcp-inventory.md` §7 / §8 / §10 / §11.
+**Sprint artifact 1.** Seeds from `docs/_archive/gtm-gcp-inventory.md` §7 / §8 / §10 / §11.
 
 All row counts and freshness snapshots are from the 2026-04-23 U1 preflight against `project-41542e21-470f-4589-96d`. They are not re-queried for this document — if anything looks suspect, re-run the SQL in §7 of the preflight.
 
@@ -80,7 +80,7 @@ All row counts and freshness snapshots are from the 2026-04-23 U1 preflight agai
 
 ### 3. Fanbasis — 🟡 Partial (live raw, unmodelled, stale config)
 
-**Status:** Contradicts the old project-state ("broken on both sides"). Raw data IS landing; the Merge dbt layer has never been wired to it.
+**Status:** Discovery corrected earlier project-state language that called Fanbasis "broken on both sides." Raw data IS landing; the Merge dbt layer has never been wired to it.
 
 **Raw tables:**
 
