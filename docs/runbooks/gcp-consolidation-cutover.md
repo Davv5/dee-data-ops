@@ -2,6 +2,13 @@
 
 _Step-by-step for Phase 1 (U1–U5) of `docs/plans/2026-04-23-001-feat-gtm-source-port-plan.md`. Owns: David. Written 2026-04-23, updated as steps complete._
 
+**Current status:** this cutover is paused at U3-complete while the
+Strategic Reset / Discovery Sprint runs. dbt has already been retargeted to
+`project-41542e21-470f-4589-96d`; legacy `dee-data-ops*` references remain in
+runtime ingest / BI surfaces until later cutover units explicitly move them.
+Use `.claude/state/project-state.md` for the live status before executing any
+step here.
+
 **Target project:** `project-41542e21-470f-4589-96d` (GTM's GCP, billed to `0114FD-8EC797-A11084`).
 **Retiring projects:** `dee-data-ops-prod`, `dee-data-ops` (decommissioned in U14 after 30-day soak).
 
@@ -9,7 +16,7 @@ _Step-by-step for Phase 1 (U1–U5) of `docs/plans/2026-04-23-001-feat-gtm-sourc
 
 ## Preflight (U1) — checklist
 
-- [x] **Cloud Run Jobs inventoried** — 26 jobs, all `us-central1`. See `docs/preflight/gtm-gcp-inventory.md` §3.
+- [x] **Cloud Run Jobs inventoried** — 26 jobs, all `us-central1`. See `docs/_archive/gtm-gcp-inventory.md` §3.
 - [x] **Cloud Run Services inventoried** — `bq-ingest` (active ingest router), `gtm-warehouse-mcp-phase0`. See §4.
 - [x] **Cloud Scheduler jobs inventoried** — 19 jobs all `us-central1`. 4 have non-OK status codes. See §5.
 - [x] **Secret Manager inventoried** — 10 secrets. No service-account keyfile for Merge CI yet. See §6.
@@ -18,7 +25,7 @@ _Step-by-step for Phase 1 (U1–U5) of `docs/plans/2026-04-23-001-feat-gtm-sourc
 - [x] **Merge staging schema compatibility assessed** (static review — dbt compile deferred to U2). GHL: column renames needed (`id`→`entity_id`, `payload`→`payload_json`) + table-name `identifier:` overrides. Calendly: shim needed (Phase-2 empty). Stripe/Typeform/Fathom: shims already scoped for U3. See §11.
 - [x] **IAM posture drafted for Merge CI** — new SA `merge-dbt-ci@...` suggested; role list in §12.
 - [x] **Fathom transcript baseline captured** — 0% coverage of 1,157 calls. U6 starting baseline. See §9.
-- [ ] **David reviewed inventory + signed off on GHL-staleness path, SA provisioning, and Calendly-shim addition.** *(Awaiting.)*
+- [x] **David reviewed inventory + signed off on staging-shim direction.** U2 and U3 landed; remaining GHL/Fanbasis/source-health decisions moved into the Discovery Sprint.
 
 **Exit condition for U1:** all checkboxes above. Then U2 proceeds.
 
@@ -26,13 +33,13 @@ _Step-by-step for Phase 1 (U1–U5) of `docs/plans/2026-04-23-001-feat-gtm-sourc
 
 ## U2 — Retarget Merge's dbt profile / env / CI
 
-_(Not started. Will be fleshed out when U1 sign-off lands.)_
+_(Complete. See WORKLOG entry "2026-04-23 (late) — U2 dbt profile retarget". Remaining service-account provisioning is tracked separately in project-state.)_
 
 Outline:
 
 1. Create service account `merge-dbt-ci@project-41542e21-470f-4589-96d.iam.gserviceaccount.com` with roles from preflight §12.
 2. Generate keyfile; store as a new Secret Manager entry (`merge-dbt-ci-key`) in `project-41542e21-...`; also store as the GitHub repo secret `GCP_SA_KEY_PROD` (currently unset — this simultaneously unblocks the existing CI/CD `dbt-deploy.yml` gap flagged in project-state).
-3. Update `dbt/profiles.yml`:
+3. Update `2-dbt/profiles.yml`:
    - `dev.project` → `project-41542e21-470f-4589-96d` (default via `GCP_PROJECT_ID_DEV` env var).
    - `ci.project` → same.
    - `prod.project` → same.
@@ -49,7 +56,7 @@ Outline:
 
 ## U3 — Staging shims (Stripe / Typeform / Fathom, plus Calendly and column-rename work for GHL)
 
-_(Not started.)_
+_(Complete. See WORKLOG entry "2026-04-23 (later) — U3 staging shims". The plan's GHL/Calendly assumptions were corrected by the shipped staging shape and the Discovery Sprint gap docs.)_
 
 Scope addition from U1 preflight: **also shim Calendly** (Phase-2 empty) and **rewrite GHL staging sources** (column renames). The plan's original U3 scope covered Stripe/Typeform/Fathom only — the Calendly + GHL work is added here, not deferred, to keep U4 parity tractable.
 
@@ -91,6 +98,6 @@ _(Not started. Favor the "add new BQ database entry + clone dashboard" path over
 ## Links
 
 - Active plan: `docs/plans/2026-04-23-001-feat-gtm-source-port-plan.md`
-- U1 data snapshot: `docs/preflight/gtm-gcp-inventory.md`
+- U1 data snapshot: `docs/_archive/gtm-gcp-inventory.md`
 - Project state: `.claude/state/project-state.md`
 - Memory: `project_gcp_consolidation_decision.md`

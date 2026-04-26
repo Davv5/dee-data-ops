@@ -1,10 +1,10 @@
 ---
-paths: ["ingestion/**", "ingest/**", "sources/**"]
+paths: ["1-raw-landing/**", "ingest/**", "sources/**"]
 ---
 
 # Ingestion conventions
 
-Load when working on any file under `ingestion/` (current target shape for custom Python extractors). `ingest/` and `sources/` are accepted aliases for portability across sibling projects.
+Load when working on any file under `1-raw-landing/` (current target shape for custom Python extractors). `ingest/` and `sources/` are accepted aliases for portability across sibling projects.
 
 ## The ingestion contract
 
@@ -38,7 +38,7 @@ Fivetran-managed sources follow the **same raw-dataset contract** (`raw_<source>
 ## Directory shape (Python extractors)
 
 ```
-ingestion/
+1-raw-landing/
 ├── common/
 │   ├── README.md               # the contract above
 │   ├── bq.py                   # shared BigQuery client, retry logic, insert helpers
@@ -55,15 +55,18 @@ ingestion/
     └── requirements.txt
 ```
 
-One source = one `ingestion/<source>/` directory. Do not split a single source across multiple packages.
+One source = one `1-raw-landing/<source>/` directory. Do not split a single source across multiple packages.
 
 ## Per-source extractor skeleton
 
 ```python
-# ingestion/<source>/extract.py
-from ingestion.common.checkpoint import read_checkpoint, write_checkpoint
-from ingestion.common.runs import log_run_start, log_run_end
-from ingestion.common.bq import insert_raw
+# 1-raw-landing/<source>/extract.py
+# Run from the 1-raw-landing/ directory so `common` resolves as a local package
+# (invalid parent-dir name "1-raw-landing" isn't a Python identifier, so the
+# imports below are relative to the package root, not the repo root).
+from common.checkpoint import read_checkpoint, write_checkpoint
+from common.runs import log_run_start, log_run_end
+from common.bq import insert_raw
 
 def main(since: str | None = None) -> None:
     run_id = log_run_start(source="<source>", object="<object>")
@@ -101,7 +104,7 @@ def main(since: str | None = None) -> None:
 
 Custom extractors whose freshness SLA is **sub-5-minute AND dashboard-load-bearing**
 may run on Cloud Run Jobs + Cloud Scheduler instead of GitHub Actions cron.
-As of 2026-04-22 this applies ONLY to `ingestion/ghl/` hot endpoints
+As of 2026-04-22 this applies ONLY to `1-raw-landing/ghl/` hot endpoints
 (conversations, messages) at 1-min cadence, with cold endpoints
 (contacts, opportunities, users, pipelines) at 15-min cadence.
 
@@ -116,7 +119,7 @@ Exception criteria (ALL must hold):
 - Concurrency guard exists (BQ advisory lock in `raw_ghl._job_locks`, no file locks —
   Cloud Run Jobs are stateless; file locks don't survive container boundaries)
 - Terraform-managed (not clicked in the GCP console); state lives under
-  `ops/cloud-run/<source>/terraform/`
+  `1-raw-landing/deploy/<source>/terraform/`
 
 **Why we deviate:** the headline STL metric is a 5-minute SLA measurement. A dashboard
 that shows this metric on 5-minute-stale data is structurally incapable of catching a
@@ -132,10 +135,10 @@ then switch new scheduler to prod) eliminates cursor-state corruption risk.
 
 ## Do not
 
-- Run `python ingestion/<source>/extract.py` from your local shell against production BigQuery. Production ingest runs via GitHub Actions only. Local runs MUST target a dev BigQuery project.
+- Run `python 1-raw-landing/<source>/extract.py` from your local shell against production BigQuery. Production ingest runs via GitHub Actions only. Local runs MUST target a dev BigQuery project.
 - Mutate `raw_*` tables by hand — if a correction is needed, write a targeted backfill and run it through the workflow.
 - Join across sources at the ingest layer. That belongs in warehouse bridges.
-- Split a single source across multiple directories. One source = one `ingestion/<source>/` dir.
+- Split a single source across multiple directories. One source = one `1-raw-landing/<source>/` dir.
 - Add credentials or service-account JSON to the repo. If a secret leaks into a commit, treat it as compromised and rotate immediately.
 
 ## Lessons learned

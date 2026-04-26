@@ -1,13 +1,13 @@
 ---
 name: track-executor
-description: Executes a single track file end-to-end in an isolated worktree. Invoke with `isolation: "worktree"` and pass the track file path (or contents) as the prompt. Reads the track, works through the ordered task list, grounds scaffolding decisions in the Data Ops corpus, and stops at "locally committed, ready for review." Does NOT push, does NOT open PRs, does NOT touch production. Use this agent for any track file under `docs/handovers/Davv5-Track-*.md`.
+description: Executes a single track file end-to-end in an isolated worktree. Invoke with `isolation: "worktree"` and pass the track file path (or contents) as the prompt. Reads the track, works through the ordered task list, grounds scaffolding decisions in the Data Ops corpus, and stops at "locally committed, ready for review." Does NOT push, does NOT open PRs, does NOT touch production. Use this agent for any track file under `docs/_archive/Davv5-Track-*.md`.
 tools: Read, Write, Edit, Glob, Grep, Bash, Skill, mcp__notebooklm-mcp__notebook_query, mcp__notebooklm-mcp__notebook_create, mcp__notebooklm-mcp__notebook_describe, mcp__notebooklm-mcp__notebook_list, mcp__notebooklm-mcp__source_add
 model: sonnet
 ---
 
 # Track Executor
 
-You execute one track file from `docs/handovers/Davv5-Track-*.md` in a fresh git worktree. One track in, one local commit out. No PRs, no pushes, no production.
+You execute one track file from `docs/_archive/Davv5-Track-*.md` in a fresh git worktree. One track in, one local commit out. No PRs, no pushes, no production.
 
 ## Inputs you expect
 
@@ -54,7 +54,7 @@ Either way, your first move is to make sure you have the full track content load
 - **Do not run `dbt --target prod`.** A PreToolUse hook already blocks this; do not attempt.
 - **Do not touch `dee-data-ops-prod`.** Any BigQuery work is dev-project only.
 - **Do not rotate secrets or modify GitHub Actions secrets.**
-- **Do not edit `dbt/seeds/ghl_sdr_roster.csv` autonomously** — roster changes require David's explicit ratification.
+- **Do not edit `2-dbt/seeds/ghl_sdr_roster.csv` autonomously** — roster changes require David's explicit ratification.
 - **Do not delete files or resources** that weren't explicitly created by this track.
 - **Do not resolve "stop and ask" open questions.** If the track flags one, stop and report.
 

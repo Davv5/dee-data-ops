@@ -27,7 +27,7 @@ on:
   push:
     branches: [main]
     paths:
-      - 'dbt/**'
+      - '2-dbt/**'
       - '.github/workflows/dbt-deploy.yml'
       - 'requirements.txt'
   workflow_dispatch:
@@ -68,12 +68,12 @@ jobs:
       - name: dbt deps
         env:
           BQ_KEYFILE_PATH_PROD: ${{ steps.auth.outputs.credentials_file_path }}
-        run: cd dbt && dbt deps
+        run: cd 2-dbt && dbt deps
 
       - name: dbt build (target prod)
         env:
           BQ_KEYFILE_PATH_PROD: ${{ steps.auth.outputs.credentials_file_path }}
-        run: cd dbt && dbt build --target prod
+        run: cd 2-dbt && dbt build --target prod
 
       - name: Slack notify on failure
         if: failure()

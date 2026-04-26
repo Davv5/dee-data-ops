@@ -31,7 +31,7 @@ repos:
     rev: 2.3.5
     hooks:
       - id: sqlfluff-lint
-        files: ^dbt/models/.*\.sql$
+        files: ^2-dbt/models/.*\.sql$
         additional_dependencies:
           - dbt-bigquery==1.7.7
           - sqlfluff-templater-dbt==2.3.5
@@ -55,8 +55,8 @@ repos:
       # staging model means the logic belongs in warehouse/ or marts/.
       # Scoped to .sql only — YAML descriptions may mention "join" in prose.
       - id: no-joins-in-staging
-        name: Forbid `join` in dbt/models/staging/**/*.sql
-        entry: bash -c 'if grep -RniE "\b(inner|left|right|full|cross)?[[:space:]]*join[[:space:]]" --include="*.sql" dbt/models/staging/ 2>/dev/null; then echo "BLOCKED: no join in staging — move to warehouse/ or marts/."; exit 1; fi'
+        name: Forbid `join` in 2-dbt/models/staging/**/*.sql
+        entry: bash -c 'if grep -RniE "\b(inner|left|right|full|cross)?[[:space:]]*join[[:space:]]" --include="*.sql" 2-dbt/models/staging/ 2>/dev/null; then echo "BLOCKED: no join in staging — move to warehouse/ or marts/."; exit 1; fi'
         language: system
         pass_filenames: false
 
@@ -64,7 +64,7 @@ repos:
       # raw_*.  Warehouse and marts must ref() staging views.
       - id: no-raw-refs-outside-staging
         name: Forbid source() or raw_* refs outside staging
-        entry: bash -c 'if grep -RnE "source\(|raw_[a-z_]+\." dbt/models/warehouse/ dbt/models/marts/ 2>/dev/null; then echo "BLOCKED: warehouse/ and marts/ must ref() staging, never source() raw."; exit 1; fi'
+        entry: bash -c 'if grep -RnE "source\(|raw_[a-z_]+\." 2-dbt/models/warehouse/ 2-dbt/models/marts/ 2>/dev/null; then echo "BLOCKED: warehouse/ and marts/ must ref() staging, never source() raw."; exit 1; fi'
         language: system
         pass_filenames: false
 
@@ -72,6 +72,6 @@ repos:
       # dbt code. Those tables are going away in Phase 3.
       - id: no-legacy-table-refs
         name: Forbid legacy Raw.ghl_objects_raw / STG.stg_ghl_* refs
-        entry: bash -c 'if grep -RnE "Raw\.ghl_objects_raw|STG\.stg_ghl_" dbt/ 2>/dev/null; then echo "BLOCKED: legacy pre-v2 table references are not permitted in dbt/."; exit 1; fi'
+        entry: bash -c 'if grep -RnE "Raw\.ghl_objects_raw|STG\.stg_ghl_" 2-dbt/ 2>/dev/null; then echo "BLOCKED: legacy pre-v2 table references are not permitted in 2-dbt/."; exit 1; fi'
         language: system
         pass_filenames: false

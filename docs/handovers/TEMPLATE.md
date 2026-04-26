@@ -1,56 +1,29 @@
-# Session Handover — <one-line summary>
+# Session Handover Template
 
-**Branch:** `<branch-name>`
-**Timestamp:** `YYYY-MM-DD_HH-mm` (local)
-**Author:** <human or agent name>
-**PR:** <link, or "not yet opened">
+## Branch
 
----
+`<branch-name>`
 
-## Session goal
+## Timestamp
 
-One or two sentences: what this session set out to do.
+`YYYY-MM-DD_HH-mm`
 
-## Changed files
+## Changed Files
 
-Exact paths, grouped by area. One line per file.
+- `<path>` — `<what changed and why>`
 
-```
-path/to/file.sql          — created / edited / deleted — <3-6 word note>
-.claude/rules/staging.md  — edited — tightened SCD lesson
-```
+## Commands / Run IDs
 
-## Commands run / run IDs
+- `<command or run id>` — `<result>`
 
-Concrete commands and their identifiers. Include:
+## Decisions
 
-- `dbt build` invocations and `run_results.json` run IDs where relevant
-- GitHub Actions workflow run URLs (`gh run view <id> --web`)
-- Any long-running jobs (backfills, Fivetran syncs) with their start/end timestamps
+- `<decision>` — `<rationale>`
 
-## Decisions made
+## Unresolved Risks
 
-One bullet per decision, with a one-line *why*.
+- `<risk>` — `<owner or next check>`
 
-- Decided X because Y
-- Deferred Z to next session because it depends on <blocker>
+## First Task For Next Session
 
-## Unresolved risks
-
-What is known to be uncertain, broken, or gated on external input.
-
-- [ ] Risk 1 — owner / waiting-on
-- [ ] Risk 2 — owner / waiting-on
-
-## First task for next session
-
-**One actionable item.** The first thing the next session (or next operator) should do on wake-up. Not a list — one item. If there are multiple competing next-steps, pick one and note the alternatives under "Unresolved risks."
-
-Example: `Run dbt build --target ci on feat/foo and confirm the relationships test on fct_payments.contact_sk is green.`
-
-## Context links
-
-- Scope doc / design doc
-- Related PRs / issues
-- Worklog entry (if one was appended)
-- NotebookLM corpus queries referenced
+`<single actionable next task>`

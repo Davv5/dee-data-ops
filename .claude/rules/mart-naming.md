@@ -1,5 +1,5 @@
 ---
-paths: ["dbt/models/marts/**"]
+paths: ["2-dbt/models/marts/**"]
 ---
 
 # Mart Naming Conventions
@@ -64,6 +64,21 @@ This rule does **not** apply to staging or warehouse. In those layers:
 
 The prefix switch is exactly what makes the mart layer recognizable as "the part the business touches."
 
+## Rule 7 — AI-readable mart catalog descriptions
+
+`_marts__docs.md` and per-mart `description:` blocks in `_marts__models.yml` are read by humans AND by AI agents (NL2SQL skills, the `ask-corpus` skill, dashboard-authoring agents). Optimize for both:
+
+- **Lead with grain + PK in one line.** "One row per booking × touch-event. PK: `booking_id`, `touch_id`."
+- **One line of purpose.** "Powers the Speed-to-Lead headline + SDR leaderboard."
+- **Concise per-column descriptions.** A few words; long descriptions hurt NL2SQL search precision in the corpus.
+- **Avoid restating the obvious.** "The contact ID" adds nothing; "Canonical contact ID, joined back to GHL via `dim_contact.contact_id`" is useful.
+
+(source: `data-modeling-process.md` Step 6; `warehouse.md` AI-readability subsection; "[AE] The Order in which I Model Data" — Joshua Kim, Medium)
+
+## Related rules
+
+For the full thought process behind grain selection, fewer-wider-marts, and the upstream-DQ-test posture, read `.claude/rules/data-modeling-process.md` (it loads on the same `2-dbt/models/**` paths). This rule covers WHAT to name marts; the process rule covers HOW to think before you write them.
+
 ## Lessons Learned
 
 - **Fact-first-then-wide-mart refactors are safe when the parity test is the gate.**
@@ -76,4 +91,4 @@ The prefix switch is exactly what makes the mart layer recognizable as "the part
   with the parity test green, then deprecate in F3 (this track).
   (source: *"3 Data Modeling Mistakes That Can Derail a Team"* + *"Data Modeling in
   the Modern Data Stack"*, Data Ops notebook; Track F plan files in
-  `docs/handovers/Davv5-Track-F[123]-*.md`.)
+  `docs/_archive/Davv5-Track-F[123]-*.md`.)

@@ -6,8 +6,8 @@
 
 Evidence is pulled from two oracle validation seeds landed by Track B:
 
-- `dbt/seeds/validation/oracle_sdr_leaderboard_20260319.csv` — 5 SDRs + TOTAL
-- `dbt/seeds/validation/oracle_closer_leaderboard_20260319.csv` — 7 closers + TOTAL
+- `2-dbt/seeds/validation/oracle_sdr_leaderboard_20260319.csv` — 5 SDRs + TOTAL
+- `2-dbt/seeds/validation/oracle_closer_leaderboard_20260319.csv` — 7 closers + TOTAL
 
 ## Proposed changes (16 current roster rows)
 
@@ -41,6 +41,6 @@ Evidence is pulled from two oracle validation seeds landed by Track B:
 
 1. Review the evidence column for each row
 2. Decide per-row: accept, reject, or mark UNKNOWN for follow-up
-3. Manually edit `dbt/seeds/ghl_sdr_roster.csv` to reflect approved changes
+3. Manually edit `2-dbt/seeds/ghl_sdr_roster.csv` to reflect approved changes
 4. Optionally add a `role_source` column (values: `oracle_leaderboard`, `david_confirmed`, `unknown`) to encode provenance for future audits
 5. Open a separate PR with the roster edits (distinct from this Track B PR)

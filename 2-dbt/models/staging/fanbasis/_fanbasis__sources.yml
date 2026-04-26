@@ -1,0 +1,42 @@
+version: 2
+
+# Fanbasis is the live revenue source for D-DEE. Discovery Sprint findings
+# showed raw rows landing in the consolidated project, but Merge-side dbt has
+# not been wired to model them yet. This source declaration documents the
+# observed raw table so the gap is explicit; no `stg_fanbasis__*.sql` models
+# exist today.
+
+sources:
+  - name: raw_fanbasis
+    description: >
+      Raw landing zone for Fanbasis. Post-U2 (2026-04-23) discovery found
+      fresh revenue rows in the consolidated project's `Raw` dataset, while
+      this repo still has no Fanbasis staging model.
+
+      Important distinction: `1-raw-landing/fanbasis/extract.py` remains a
+      stub in this repo, so the observed `Raw.fanbasis_transactions_txn_raw`
+      table is likely written by the GTM-side pipeline or another upstream
+      writer. Before building marts, audit the payload shape and confirm the
+      authoritative extractor path.
+    schema: Raw
+    config:
+      loaded_at_field: ingested_at
+      freshness:
+        warn_after: {count: 30, period: hour}
+        error_after: {count: 72, period: hour}
+    tables:
+      - name: fanbasis_transactions_txn_raw
+        description: >
+          Observed Fanbasis transaction landing table in the consolidated
+          project. Discovery snapshot: 455 rows, fresh daily around 07:27 UTC.
+          No staging model reads this table yet; `stg_fanbasis__transactions`
+          is the expected first dbt-side unblocker.
+        columns:
+          - name: entity_id
+            description: Fanbasis transaction id when present in the upstream landing table.
+          - name: ingested_at
+            description: Wall-clock UTC time this row was written into BigQuery.
+            tests:
+              - not_null
+          - name: payload_json
+            description: JSON column containing the Fanbasis transaction payload.

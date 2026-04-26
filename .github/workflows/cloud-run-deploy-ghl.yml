@@ -1,6 +1,6 @@
 # CD workflow: build + push + update Cloud Run Jobs for GHL extractor.
 #
-# Fires on every merge to main that touches ingestion/ghl/** — this is the
+# Fires on every merge to main that touches 1-raw-landing/ghl/** — this is the
 # continuous-delivery loop that keeps the Cloud Run Jobs running the current
 # extractor image.
 #
@@ -19,8 +19,8 @@ on:
     branches:
       - main
     paths:
-      - 'ingestion/ghl/**'
-      - 'ops/cloud-run/ghl-extractor/**'
+      - '1-raw-landing/ghl/**'
+      - '1-raw-landing/deploy/ghl-extractor/**'
 
 permissions:
   contents: read
@@ -57,7 +57,7 @@ jobs:
             --platform linux/amd64 \
             -t "${{ env.REGISTRY }}:${SHA}" \
             -t "${{ env.REGISTRY }}:latest" \
-            -f ingestion/ghl/Dockerfile \
+            -f 1-raw-landing/ghl/Dockerfile \
             .
           echo "SHA=${SHA}" >> $GITHUB_ENV
 

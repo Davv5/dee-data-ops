@@ -8,18 +8,18 @@ A template for data engineering projects using **dbt**, structured for AI-assist
 
 ## Current State
 
-**This template is pre-scaffolding.** The sections below describe conventions, file layouts, and setup steps for the *intended* end-state. Most of the `dbt/` project, `scripts/`, and `.env*` files referenced throughout **do not exist on disk yet** — they get created when you run Initial Setup for a specific client. Treat the Project Structure section as a target, not a map of what's there right now.
+**This template has been built out for the D-DEE engagement.** Top-level folders are ordered to mirror the medallion pipeline diagram: raw landing → transform → BI.
 
-Existing today:
-- `CLAUDE.md` (this file), `dbt_style_guide.md`, `WORKLOG.md`, `client_v1_scope_speed_to_lead.md` at the repo root
-- `reference/starter-guides/` — local copies of the MDS / dbt / GitHub / Snowflake / Modern Data starter guides (also indexed in the notebook corpus)
-- `reference/github-templates/` — PR template, CI workflow, deploy workflow (reference copies, not yet wired into a live `.github/` directory)
-- `.claude/rules/` with `using-the-notebook.md`, `mart-naming.md`, `worklog.md`
-- `.claude/skills/` with `ask-corpus`, `skill-creator`
-- `.claude/scripts/sync-rule-to-notebook.sh` — helper invoked by the PostToolUse hook to upsert rule files into the NotebookLM corpus
-- `.claude/settings.json` — hooks (SessionStart worklog-tail, PostToolUse rule-sync) + NotebookLM MCP allowlist
+Existing today (pipeline-shaped):
+- `1-raw-landing/` — custom Python extractors (`calendly/`, `ghl/`, `fanbasis/`) + their Cloud Run deploy configs under `deploy/<source>-extractor/`
+- `2-dbt/` — dbt project with `models/{staging,warehouse,marts}/`, plus seeds, macros, tests, snapshots
+- `3-bi/metabase/` — self-hosted Metabase (`authoring/`, `runtime/`, `terraform/`)
+- `docs/` — `plans/`, `discovery/`, `runbooks/`, `conventions/`, `proposals/`, `_archive/`
+- `.claude/` — rules, skills, agents, commands, scripts, state; corpus config; settings
+- `.github/workflows/` — CI (dbt + ingest + deploy workflows)
+- Root: `CLAUDE.md`, `CLAUDE.local.md`, `README.md`, `WORKLOG.md`
 
-Everything else in Project Structure below is planned.
+The Project Structure section below is the canonical template shape (a target for a brand-new project). This specific repo has extended it into the pipeline-ordered form above.
 
 ## Corpus config
 
@@ -31,13 +31,13 @@ This project is paired with a NotebookLM notebook containing ~50 expert sources 
 
 - **Notebook:** [Data Ops on NotebookLM](https://notebooklm.google.com/notebook/7c7cd5d4-22df-4ef0-8b74-ed87e0ca4e6a)
 - **ID:** `7c7cd5d4-22df-4ef0-8b74-ed87e0ca4e6a`
-- **What's in it:** the Data By Design free course, ~35 Modern Data Community videos (star schema, SCDs, medallion, 3-environment design, CI/CD, deployment, dbt + Claude Code), plus the 10 MDS Components / dbt / GitHub / Snowflake / Modern Data Starter Guides, this `CLAUDE.md`, `dbt_style_guide.md`, and the GitHub workflow + PR templates.
+- **What's in it:** the Data By Design free course, ~35 Modern Data Community videos (star schema, SCDs, medallion, 3-environment design, CI/CD, deployment, dbt + Claude Code), plus the 10 MDS Components / dbt / GitHub / Snowflake / Modern Data Starter Guides, this `CLAUDE.md`, `docs/conventions/dbt_style_guide.md`, and the GitHub workflow + PR templates.
 
 ### How to use it
 
 When writing a rule, scaffolding a dbt model, or answering a "why/how" question about data architecture, **query the notebook first**. The repo-local skill at `.claude/skills/ask-corpus/SKILL.md` wraps `mcp__notebooklm-mcp__notebook_query` and returns source-linked answers. Cite the source title inline in the file you're writing so every convention is traceable back to an expert source.
 
-For SQL style, naming conventions, CTE patterns, and model-level configuration specifically, consult **`dbt_style_guide.md`** at the repo root — that's the canonical in-repo style reference, and it's also indexed in the notebook.
+For SQL style, naming conventions, CTE patterns, and model-level configuration specifically, consult **`docs/conventions/dbt_style_guide.md`** — that's the canonical in-repo style reference, and it's also indexed in the notebook.
 
 The `notebook_query` call is free (no Pro-search quota) — use it liberally instead of inventing conventions.
 
@@ -77,13 +77,13 @@ cp .env.example .env
 Edit `.env` with your connection details. Set the schema to a personal dev schema (e.g., `dev_jdoe`) so your work is isolated.
 
 ### 3. Configure profiles.yml
-Edit `dbt/profiles.yml` with your warehouse connection settings. The template uses environment variables so credentials stay in `.env` (which is gitignored).
+Edit `2-dbt/profiles.yml` with your warehouse connection settings. The template uses environment variables so credentials stay in `.env` (which is gitignored).
 
 ### 4. Source environment and verify
 ```bash
 source .venv/bin/activate
 set -a && source .env && set +a   # loads .env vars into your shell
-cd dbt && dbt debug                # should show "All checks passed!"
+cd 2-dbt && dbt debug              # should show "All checks passed!"
 ```
 
 ### 5. Install dbt packages
@@ -99,7 +99,7 @@ Before executing any dbt command, you MUST verify that the environment is ready:
 3. Check that dbt is installed: `which dbt`. If not found, install it: `pip install dbt-snowflake` (or the appropriate adapter from `requirements.txt` if it exists)
 4. Check that `.env` exists. If not, warn the user to create one from `.env.example`
 5. Source the environment: `set -a && source .env && set +a`
-6. Run commands from the `dbt/` directory
+6. Run commands from the `2-dbt/` directory
 
 Never skip these checks. Never create dbt directories manually — always use `dbt init` or the dbt CLI.
 
@@ -123,7 +123,7 @@ When in doubt: if David asked for it, do it. If David didn't ask and you're cons
 
 ## dbt Commands
 
-Run from the `dbt/` directory with the virtual environment activated and `.env` sourced:
+Run from the `2-dbt/` directory with the virtual environment activated and `.env` sourced:
 ```bash
 dbt build --target dev -s <selection> # build + test
 dbt test --select <selection>         # test only
@@ -134,28 +134,33 @@ dbt docs generate                     # generate documentation
 
 Legend: **(exists)** = on disk today, **(planned)** = created during Initial Setup or first client build.
 
+Pipeline-shaped layout (this repo):
+
 ```
-.claude/                                  (exists)
-  rules/                                  (exists)
-    using-the-notebook.md                 (exists)
-    mart-naming.md                        (exists)
-  skills/                                 (exists)
-    ask-corpus/                           (exists)
-    skill-creator/                        (exists)
-  settings.json                           (planned — hooks, e.g., block --target prod)
-dbt/                                      (planned)
+1-raw-landing/                            # Raw Landing (pipeline stage 1)
+  <source>/                               # one dir per source: extract.py + Dockerfile + requirements.txt
+  deploy/                                 # Cloud Run + terraform for each extractor
+    <source>-extractor/
+2-dbt/                                    # Staging + Warehouse + Marts (pipeline stage 2)
   models/
     staging/          # Views, 1:1 with source tables (stg_<source>__<table>.sql)
     warehouse/        # Kimball star schema (dim_ and fct_ tables)
       dimensions/
       facts/
-    marts/            # Wide, denormalized — business-friendly names, no fct_/dim_ prefixes (see .claude/rules/mart-naming.md)
-  macros/             # Includes generate_custom_schema for env-based routing
+    marts/            # Wide, denormalized — business-friendly names (see .claude/rules/mart-naming.md)
+  macros/             # Includes generate_schema_name for env-based routing
   profiles.yml        # Dev/prod/ci targets, driven by env vars
-  .github/workflows/  # CI on PR, prod deploy on merge
-scripts/                                  (planned — project scripts as needed)
-.env                                      (planned — your credentials, gitignored)
-.env.example                              (planned — template for .env)
+3-bi/                                     # BI Tools (pipeline stage 3)
+  metabase/
+    authoring/        # dashboards-as-code (REST API scripts)
+    runtime/          # Docker compose + Caddy + startup script
+    terraform/        # GCP infra for Metabase
+
+.github/workflows/                        # CI on PR, prod deploy on merge
+docs/                                     # plans, discovery, runbooks, conventions, _archive
+.claude/                                  # rules, skills, agents, commands, scripts, state
+.env                                      # your credentials, gitignored
+.env.example                              # template for .env
 ```
 
 ## Claude Code Rules
@@ -172,7 +177,7 @@ Add a `.md` file to `.claude/rules/` with this format:
 
 ```markdown
 ---
-paths: ["dbt/models/staging/**"]
+paths: ["2-dbt/models/staging/**"]
 ---
 
 # Staging Conventions
@@ -203,8 +208,8 @@ The `.claude/settings.json` file contains hooks that **enforce** guardrails dete
 
 ## Next Steps
 
-1. Update `profiles.yml` and `.env` for your warehouse
-2. Add your first source in `dbt/models/staging/<source_name>/`
+1. Update `2-dbt/profiles.yml` and `.env` for your warehouse
+2. Add your first source in `2-dbt/models/staging/<source_name>/`
 3. Build staging models, then layer up into warehouse dimensions/facts, then marts
 4. Create `.claude/rules/` files for your team's conventions as they emerge
 

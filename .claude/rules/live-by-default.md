@@ -1,9 +1,9 @@
 ---
 paths:
-  - "dbt/models/marts/rollups/**"
-  - "ops/metabase/authoring/dashboards/**"
-  - "ops/metabase/authoring/sync.py"
-  - "ops/metabase/authoring/infrastructure/caching_config.py"
+  - "2-dbt/models/marts/rollups/**"
+  - "3-bi/metabase/authoring/dashboards/**"
+  - "3-bi/metabase/authoring/sync.py"
+  - "3-bi/metabase/authoring/infrastructure/caching_config.py"
 ---
 
 # Live-by-default conventions

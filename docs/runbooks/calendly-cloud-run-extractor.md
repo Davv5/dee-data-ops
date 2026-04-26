@@ -16,7 +16,7 @@ Mirrors the GHL runbook (`docs/runbooks/ghl-cloud-run-extractor.md`).
 | BQ lock table            | `dee-data-ops.raw_calendly._job_locks`  | — |
 | Secret Manager secret    | `calendly-api-token` | `dee-data-ops-prod` |
 
-**Terraform:** `ops/cloud-run/calendly-extractor/terraform/`
+**Terraform:** `1-raw-landing/deploy/calendly-extractor/terraform/`
 
 ## Pause / Resume the scheduler
 
@@ -192,7 +192,7 @@ pausing it (until ~2026-05-22). Keep it as an emergency rollback path.
 
 ## Token rotation
 
-See `ingestion/calendly/README.md#token-rotation` for the step-by-step procedure.
+See `1-raw-landing/calendly/README.md#token-rotation` for the step-by-step procedure.
 No code change or Terraform apply required — the extractor resolves `latest` on each cold start.
 
 ## Rate limits

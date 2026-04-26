@@ -5,8 +5,8 @@
       "Bash(gh pr:*)",
       "Bash(git push:*)",
       "Bash(gcloud secrets versions access:*)",
-      "Bash(python3 -m ops.metabase.authoring:*)",
-      "Bash(python -m ops.metabase.authoring:*)"
+      "Bash(python3 -m metabase.authoring:*)",
+      "Bash(python -m metabase.authoring:*)"
     ]
   },
   "hooks": {

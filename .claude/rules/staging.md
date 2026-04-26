@@ -1,10 +1,10 @@
 ---
-paths: ["dbt/models/staging/**"]
+paths: ["2-dbt/models/staging/**"]
 ---
 
 # Staging conventions
 
-Load this rule when working on any file under `dbt/models/staging/`. Detailed style reference: `dbt_style_guide.md`.
+Load this rule when working on any file under `2-dbt/models/staging/`. Detailed style reference: `docs/conventions/dbt_style_guide.md`.
 
 ## Structure
 
@@ -25,11 +25,32 @@ Load this rule when working on any file under `dbt/models/staging/`. Detailed st
 ## What goes in a staging view
 
 - Renaming columns to business terminology
-- Casting types (`safe_cast`, `cast`)
+- Casting types (`cast` in SELECT, `safe_cast` only in WHERE / filter contexts — see CAST vs SAFE_CAST below)
 - Rounding decimals, currency conversions where needed
 - JSON flattening (`json_value`, `json_extract_array`, `unnest`)
 - Simple `case when` transforms
 - Filtering out test/bad rows (filtered in the `where` clause of the `final` CTE)
+
+### CAST vs SAFE_CAST
+
+Use `CAST` in SELECT clauses and `SAFE_CAST` only inside WHERE / filter conditions.
+
+- **`CAST` in SELECT** — fails loudly if a row has an unparseable value. That failure is a feature: the bad row surfaces immediately, you fix it upstream, downstream stays clean.
+- **`SAFE_CAST` in SELECT** — silently returns NULL on parse failure. The bad row propagates as NULL all the way to the mart, where someone notices a metric is wrong months later.
+- **`SAFE_CAST` in WHERE** — fine. You're filtering, not transforming; a NULL on a filter side just means "this row doesn't match," which is the right semantics.
+
+```sql
+-- BAD: silent NULL propagation
+select safe_cast(amount as numeric) as amount from source
+
+-- GOOD: loud failure on bad data
+select cast(amount as numeric) as amount from source
+
+-- ALSO GOOD: safe_cast in a filter
+select * from source where safe_cast(event_ts as timestamp) >= '2026-01-01'
+```
+
+(source: `data-modeling-process.md` Step 5; `dbt_style_guide.md` SQL section; "[AE] The Order in which I Model Data" — Joshua Kim, Medium)
 
 ## What does NOT go in a staging view
 
@@ -48,7 +69,7 @@ Each `staging/<source>/` directory must include:
 Example:
 
 ```yaml
-# dbt/models/staging/ghl/_ghl__models.yml
+# 2-dbt/models/staging/ghl/_ghl__models.yml
 version: 2
 models:
   - name: stg_ghl__contacts
@@ -90,7 +111,8 @@ select * from final
 
 *(Populate as staging-layer issues arise. Example entries:)*
 
-- When JSON flattening GHL contacts, always `safe_cast` timestamps — the source returns both epoch-ms and ISO-8601 strings depending on call. Without `safe_cast` one form silently fails.
+- When JSON flattening GHL contacts, the timestamp field returns both epoch-ms and ISO-8601 strings depending on call. The CAST-in-SELECT rule above means cast in SELECT and let one form fail loudly; do NOT silently coerce both with `safe_cast` — that hides the underlying schema inconsistency that should be fixed in the extractor.
 - Calendly `invitee_email` can be null; do not rely on it as a non-null PK source. Use `invitee_uuid`.
-- **No `join` keyword in any file under `dbt/models/staging/**`.** Sub-selects and `unnest` are fine; any row-combining logic must live in `warehouse/` or `marts/`. Enforced by the `no-joins-in-staging` pre-commit hook.
+- **No `join` keyword in any file under `2-dbt/models/staging/**`.** Sub-selects and `unnest` are fine; any row-combining logic must live in `warehouse/` or `marts/`. Enforced by the `no-joins-in-staging` pre-commit hook.
 - **No hard-coded `entity_type` filters that assume a legacy single-table GHL raw layout.** Per-entity raw tables (`raw_ghl.ghl__<entity>_raw`) do not carry an `entity_type` column — any `WHERE entity_type = '...'` filter will silently return zero rows.
+- **`QUALIFY ROW_NUMBER() OVER (...) = 1` in staging is a code smell, not a fix.** It usually means the upstream raw table has a true grain different from what staging assumes. Push the dedupe upstream (extractor) or surface the grain mismatch as a known issue rather than papering over it. (source: `data-modeling-process.md` macro #2; "[AE] The Order in which I Model Data" — Joshua Kim, Medium "last tip")
