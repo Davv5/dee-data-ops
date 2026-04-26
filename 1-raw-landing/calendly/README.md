@@ -22,7 +22,10 @@ Mirrors the GHL extractor pattern (Track W, 2026-04-22):
 
 Uses Calendly v2 API with a **personal access token** (PAT) or OAuth2 Bearer token.
 
-Token is stored in GCP Secret Manager as `calendly-api-token` in the `dee-data-ops-prod` project.
+Token is currently documented in GCP Secret Manager as `calendly-api-token` in
+the legacy `dee-data-ops-prod` project. During the one-GCP transition, confirm
+the active secret project from the cutover runbook before rotating or granting
+access.
 
 **Manual steps (David):**
 1. Generate a PAT in the Calendly dashboard: Settings → Integrations → API & Webhooks → Personal Access Tokens
@@ -71,7 +74,7 @@ and requires prod credentials.
 
 ```bash
 export CALENDLY_API_TOKEN="your-token-here"
-export GCP_PROJECT_ID_DEV="dee-data-ops"
+export GCP_PROJECT_ID_DEV="project-41542e21-470f-4589-96d"
 export BQ_KEYFILE_PATH="/path/to/dev-sa-keyfile.json"
 
 # Dry-run (no writes):

@@ -9,7 +9,10 @@ See `.claude/rules/live-by-default.md` for the full policy and when to deviate.
 
 ## Pre-requisites
 
-- The underlying mart is built and deployed to `dee-data-ops-prod.marts.*`.
+- The underlying mart is built and deployed to the Metabase-connected prod
+  project. As of the GCP consolidation transition, the legacy Metabase runtime
+  still points at `dee-data-ops-prod.marts.*`; dbt's consolidated target is
+  `project-41542e21-470f-4589-96d`.
 - `3-bi/metabase/.env.metabase` is configured with `MB_URL` and API key.
 - The virtual environment is active: `source .venv/bin/activate`.
 

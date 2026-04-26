@@ -133,7 +133,7 @@ the window open for the next run to retry.
 
 | var | where | purpose |
 |---|---|---|
-| `GCP_PROJECT_ID_DEV` | `.env` + CI workflow env | target BQ project (`dee-data-ops`) |
+| `GCP_PROJECT_ID_DEV` | `.env` + CI workflow env | target BQ project; use `project-41542e21-470f-4589-96d` for the consolidated path unless a legacy runtime runbook explicitly overrides it |
 | `GHL_API_KEY` | `.env` (local) / GH Actions secret | Private Integration Token |
 | `GHL_LOCATION_ID` | `.env` (local) / GH Actions secret | sub-account ID the token is scoped to |
 | `BQ_KEYFILE_PATH` | `.env` (local only) | path to dev SA JSON keyfile |

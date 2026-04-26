@@ -1,7 +1,10 @@
 # Metabase — self-host on GCP
 
-D-DEE's dashboard layer. Self-hosted Metabase OSS on `dee-data-ops-prod`,
-reading `marts.*`, owned by Precision Scaling, templated for future clients.
+D-DEE's legacy dashboard layer. Self-hosted Metabase OSS currently runs against
+`dee-data-ops-prod` and reads `marts.*`. The repo is mid-transition toward
+`project-41542e21-470f-4589-96d` as the consolidated GCP home, so treat
+project-specific names in this folder as runtime state to migrate deliberately,
+not as the future target architecture.
 
 Conventions live in `.claude/rules/metabase.md` — read that first.
 

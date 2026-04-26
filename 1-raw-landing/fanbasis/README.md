@@ -4,6 +4,18 @@ Custom Python extractor for Fanbasis → BigQuery `raw_fanbasis.*`. Same shape a
 `1-raw-landing/ghl/` — see that README for the design-choice rationale, corpus citations,
 and cursor-state pattern.
 
+## Current status
+
+This extractor is still a repo-local skeleton: BigQuery loading/state helpers
+exist, but `fetch_endpoint()` returns no rows until the Fanbasis API contract is
+implemented. Discovery Sprint findings show Fanbasis transaction rows landing in
+`project-41542e21-470f-4589-96d.Raw.fanbasis_transactions_txn_raw`; that table
+appears to come from an upstream/GTM-side path, not this script.
+
+Before extending this extractor, confirm whether the GTM-side writer is the
+authoritative path or whether this repo should own Fanbasis ingestion going
+forward.
+
 ## What it pulls
 
 Three v1 endpoints (scope §4):
@@ -12,7 +24,10 @@ Three v1 endpoints (scope §4):
 - `subscriptions`
 - `payments`
 
-Lands in `raw_fanbasis.<endpoint>` (WRITE_APPEND) with a `_ingested_at` UTC column.
+Intended repo-local landing target: `raw_fanbasis.<endpoint>` (WRITE_APPEND)
+with a `_ingested_at` UTC column. This does not match the currently observed
+GTM-side table shape under `Raw.fanbasis_transactions_txn_raw`; reconcile that
+before building production dbt models.
 
 ## CSV-export fallback (scope Risk #5)
 

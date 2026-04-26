@@ -21,6 +21,21 @@ Top-level folders are ordered left-to-right along the medallion pipeline:
 | `.claude/`       | —                          | Agent scaffolding: rules, skills, agents, commands, scripts, state, corpus config. |
 | `.github/workflows/` | —                      | CI (PR build + docs + deploy), scheduled ingest, nightly refresh. |
 
+## Current GCP Map
+
+The project is mid-cutover to one GCP home. Treat
+`project-41542e21-470f-4589-96d` as the active consolidated target for dbt,
+CI, docs, and the Gold-layer rebuild. Legacy `dee-data-ops` and
+`dee-data-ops-prod` references still exist where runtime infrastructure has not
+yet been moved or where a document is preserving historical context.
+
+| Area | Current target | Notes |
+|---|---|---|
+| dbt dev / ci / prod | `project-41542e21-470f-4589-96d` | See `2-dbt/profiles.yml` and `2-dbt/macros/generate_schema_name.sql`. |
+| dbt PR CI | `project-41542e21-470f-4589-96d` | Per-PR datasets are named `ci_pr_<number>`. |
+| Discovery Sprint / Gold roadmap | `project-41542e21-470f-4589-96d` | Source inventory snapshots were taken against the consolidated project. |
+| Legacy ingest / BI runtime | `dee-data-ops`, `dee-data-ops-prod` | Transitional only. Do not assume these names are the final architecture. Check the relevant runbook before changing workflow values. |
+
 ## Entry points
 
 - **Current state snapshot:** [`.claude/state/project-state.md`](.claude/state/project-state.md) — 40–60 line index of what's true right now
