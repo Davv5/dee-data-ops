@@ -16,7 +16,7 @@ Top-level folders are ordered left-to-right along the medallion pipeline:
 |------------------|----------------------------|---------------|
 | `1-raw-landing/` | Raw Landing                | Custom Python extractors (GHL, Calendly, Fanbasis) + their Cloud Run deploy configs under `deploy/`. |
 | `2-dbt/`         | Staging + Warehouse + Marts | The dbt project. Models split into `staging/`, `warehouse/{dimensions,facts,bridges}/`, and `marts/`. Plus seeds, macros, tests, snapshots. |
-| `3-bi/metabase/` | BI Tools                   | Self-hosted Metabase OSS — `authoring/` (dashboards as code), `runtime/` (Docker on GCE), `terraform/` (GCP infra). |
+| `3-bi/metabase/` | BI Tools (retired)         | Historical reference. Self-hosted Metabase OSS ran D-DEE through 2026-04; runtime is now torn down. Code preserved as a migration source for the new BI direction (dabi, see `docs/plans/2026-04-24-001-feat-pivot-to-generative-bi-plan.md`). |
 | `docs/`          | —                          | Plans, discovery artifacts, runbooks, conventions, proposals. `_archive/` holds retired docs. |
 | `.claude/`       | —                          | Agent scaffolding: rules, skills, agents, commands, scripts, state, corpus config. |
 | `.github/workflows/` | —                      | CI (PR build + docs + deploy), scheduled ingest, nightly refresh. |
