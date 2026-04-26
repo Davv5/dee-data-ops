@@ -125,7 +125,9 @@ def _load_secret(env_name: str) -> str:
         client = secretmanager.SecretManagerServiceClient()
         name = f"projects/{sm_project}/secrets/{secret_id}/versions/latest"
         response = client.access_secret_version(request={"name": name})
-        value = response.payload.data.decode("utf-8")
+        # Strip because `echo "<value>" | gcloud secrets versions add --data-file=-`
+        # can embed a trailing newline; API auth headers reject that byte.
+        value = response.payload.data.decode("utf-8").strip()
         _secret_cache[env_name] = value
         return value
 

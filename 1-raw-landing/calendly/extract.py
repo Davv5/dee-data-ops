@@ -289,7 +289,15 @@ def _get(
             }))
             time.sleep(max(retry_after, 1))
             continue
-        r.raise_for_status()
+        if not r.ok:
+            print(json.dumps({
+                "error": "calendly_api_error",
+                "path": path,
+                "params": params,
+                "status": r.status_code,
+                "body": r.text[:500],
+            }))
+            r.raise_for_status()
         return r.json()
     raise RuntimeError("unreachable")
 
@@ -338,14 +346,27 @@ def _fetch_scheduled_events(since: Optional[datetime]) -> list[dict[str, Any]]:
         "status": "active",
     }
 
+    next_url: Optional[str] = None
     while True:
-        data = _get("/scheduled_events", params)
+        if next_url:
+            _throttle()
+            r = requests.get(next_url, headers=_auth_headers(), timeout=30)
+            if not r.ok:
+                print(json.dumps({
+                    "error": "calendly_api_error",
+                    "url": next_url,
+                    "status": r.status_code,
+                    "body": r.text[:500],
+                }))
+                r.raise_for_status()
+            data = r.json()
+        else:
+            data = _get("/scheduled_events", params)
         collection = data.get("collection") or []
         rows.extend(collection)
-        next_page = (data.get("pagination") or {}).get("next_page_token")
-        if not next_page or not collection:
+        next_url = (data.get("pagination") or {}).get("next_page")
+        if not next_url or not collection:
             break
-        params = {"page_token": next_page, "count": 100}
 
     return rows
 
@@ -371,17 +392,29 @@ def _fetch_invitees(since: Optional[datetime]) -> list[dict[str, Any]]:
             continue
 
         params: dict[str, Any] = {"count": 100}
+        next_url: Optional[str] = None
         while True:
-            data = _get(f"/scheduled_events/{event_uuid}/invitees", params)
+            if next_url:
+                _throttle()
+                r = requests.get(next_url, headers=_auth_headers(), timeout=30)
+                if not r.ok:
+                    print(json.dumps({
+                        "error": "calendly_api_error",
+                        "url": next_url,
+                        "status": r.status_code,
+                        "body": r.text[:500],
+                    }))
+                    r.raise_for_status()
+                data = r.json()
+            else:
+                data = _get(f"/scheduled_events/{event_uuid}/invitees", params)
             collection = data.get("collection") or []
-            # Annotate each invitee row with its parent event_uri for traceability
             for invitee in collection:
                 invitee["_event_uri"] = event_uri
             rows.extend(collection)
-            next_page = (data.get("pagination") or {}).get("next_page_token")
-            if not next_page or not collection:
+            next_url = (data.get("pagination") or {}).get("next_page")
+            if not next_url or not collection:
                 break
-            params = {"page_token": next_page, "count": 100}
 
     return rows
 
@@ -402,14 +435,27 @@ def _fetch_invitee_no_shows(since: Optional[datetime]) -> list[dict[str, Any]]:
     if since is not None:
         params["created_at_gt"] = since.strftime("%Y-%m-%dT%H:%M:%S.000000Z")
 
+    next_url: Optional[str] = None
     while True:
-        data = _get("/invitee_no_shows", params)
+        if next_url:
+            _throttle()
+            r = requests.get(next_url, headers=_auth_headers(), timeout=30)
+            if not r.ok:
+                print(json.dumps({
+                    "error": "calendly_api_error",
+                    "url": next_url,
+                    "status": r.status_code,
+                    "body": r.text[:500],
+                }))
+                r.raise_for_status()
+            data = r.json()
+        else:
+            data = _get("/invitee_no_shows", params)
         collection = data.get("collection") or []
         rows.extend(collection)
-        next_page = (data.get("pagination") or {}).get("next_page_token")
-        if not next_page or not collection:
+        next_url = (data.get("pagination") or {}).get("next_page")
+        if not next_url or not collection:
             break
-        params = {"page_token": next_page, "count": 100}
 
     return rows
 
