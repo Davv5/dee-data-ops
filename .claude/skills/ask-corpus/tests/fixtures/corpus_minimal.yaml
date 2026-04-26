@@ -1,0 +1,19 @@
+methodology:
+  - key: data_ops
+    notebook_id: 7c7cd5d4-22df-4ef0-8b74-ed87e0ca4e6a
+    name: Data Ops
+    purpose: |
+      Test fixture.
+  - key: metabase
+    notebook_id: ce484bbc-546b-4fe4-a7db-bc01b847dbe5
+    name: Metabase Craft
+    weight: 1.5
+    size_hint: 30
+    purpose: |
+      Test fixture with optional weight + size_hint additive keys.
+
+engagement:
+  notebook_id: 741d85c6-39a7-4612-af7c-cca65043cf19
+  name: D-DEE Engagement Memory
+  purpose: |
+    Test fixture engagement.
