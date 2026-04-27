@@ -40,7 +40,7 @@ Required sections in `project-state.md`, in order:
 3. **Open threads** — what's pending / blocked / waiting on the client.
 4. **Where to look** — retrieval map: file paths and grep patterns the agent reaches for on demand.
 
-Keep the index 40–60 lines. Drop anything that stopped being true.
+Keep the index 40–60 lines (excluding the `_meta` section described below). Drop anything that stopped being true.
 
 ## When DOES WORKLOG fire?
 

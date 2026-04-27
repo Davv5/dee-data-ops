@@ -89,7 +89,7 @@ Required sections in order:
 3. **Open threads** — what's pending / blocked / waiting on the client.
 4. **Where to look** — retrieval map: file paths and grep patterns.
 
-End the file with a `## _meta` section:
+End the file with a `## _meta` section. If it doesn't exist yet, append it; otherwise update the existing block in place rather than creating a second one.
 
 ```markdown
 ## _meta
@@ -108,19 +108,34 @@ Drop content from the index that stopped being true. Do not grow it past 60 line
 
 ```bash
 DATE=$(date +%Y-%m-%d)
-git checkout -b "chore/state-$DATE" main
+
+# Branch from origin/main (not local main — local main may be checked out
+# in a sibling worktree, which makes `git checkout -b ... main` fail).
+git fetch origin main --quiet
+git checkout -b "chore/state-$DATE" origin/main
+
+# Always stage the project-state regen.
 git add .claude/state/project-state.md
-# Only add WORKLOG.md if Step 2 decided to append:
-[ -n "$WORKLOG_APPENDED" ] && git add WORKLOG.md
+
+# Stage WORKLOG.md only if Step 2 actually modified it. The check is the
+# real signal (file diff vs HEAD), not a manually-set sentinel variable.
+if ! git diff --quiet -- WORKLOG.md; then
+  git add WORKLOG.md
+  WORKLOG_NOTE="Also appends a WORKLOG entry for content not captured by other destinations."
+else
+  WORKLOG_NOTE="No WORKLOG entry — all session output captured by other destinations (see project-state _meta skip-reason)."
+fi
+
 git commit -m "chore: project-state for $DATE"
 git push -u origin "chore/state-$DATE"
+
+# Compute the body in bash before passing to gh — avoids the
+# escaped-dollar-in-double-quotes pitfall.
+PR_BODY="Routine bookkeeping. Regenerates .claude/state/project-state.md to match current repo state. $WORKLOG_NOTE No functional/code changes."
+
 gh pr create --base main --head "chore/state-$DATE" \
   --title "chore: project-state for $DATE" \
-  --body "Routine bookkeeping. Regenerates .claude/state/project-state.md \
-to match current repo state. \
-\${WORKLOG_APPENDED:+Also appends a WORKLOG entry for content not captured \
-by other destinations.} \
-No functional/code changes."
+  --body "$PR_BODY"
 ```
 
 Naming change from earlier versions: branches are `chore/state-<date>` (not `chore/worklog-<date>`) since project-state regen is the always-on action and WORKLOG is now optional.
