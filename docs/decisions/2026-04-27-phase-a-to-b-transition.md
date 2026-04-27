@@ -5,7 +5,7 @@
 
 ## Context
 
-Phase A (Steering / Discovery Sprint) ran 2026-04-24 → 2026-04-27. The sprint's exit gate per `docs/methodology.md` § "The phase gate" required:
+Phase A (Steering / Discovery Sprint) ran 2026-04-24 → 2026-04-27. The sprint's exit gate per `docs/plans/2026-04-24-strategic-reset.md` § "Exit criteria" required:
 
 1. `docs/discovery/source-inventory.md` — landed prior
 2. `docs/discovery/business-area-map.md` — landed prior
@@ -34,12 +34,12 @@ In parallel, the agent-kit project (in `/Users/david/Documents/agent-kit`, GitHu
 - Stripe-based revenue modeling is historical-only; the `revenue_detail` mart pivots to Fanbasis-primary (rank 3 on the roadmap).
 
 **Reactivation gate (if circumstances change):**
-A new declared Strategic Reset would re-enter Phase A. Triggers per `docs/methodology.md`: locked metric proves uncalibrated, oracle numbers diverge from roadmap-derived counts, or scope drift outpaces what the current roadmap supports.
+A new declared Strategic Reset would re-enter Phase A. Triggers (inlined here since the prior `docs/methodology.md` was removed as a drift-magnet in PR #77): locked metric proves uncalibrated, oracle numbers diverge from roadmap-derived counts, or scope drift outpaces what the current roadmap supports. The reset must be explicit (declared in WORKLOG.md or a new ADR), not a quiet drift back into docs-only mode.
 
 ## Related
 
 - Roadmap: `docs/discovery/gold-layer-roadmap.md`
 - Validation: `/Users/david/Documents/agent-kit/docs/validation/2026-04-27-d-dee-validation.md`
 - Strategic Reset plan (closed): `docs/plans/2026-04-24-strategic-reset.md`
-- Methodology: `docs/methodology.md` § "Operating Principles"
-- Memory: `project_phase_a_active.md` (now stale — Phase A closed)
+- KISS-sweep that retired `docs/methodology.md`: PR #77
+- Memory: `project_phase_a_active.md` (now stale — Phase A closed; orchestrator-side memory hygiene)
