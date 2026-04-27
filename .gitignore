@@ -37,13 +37,19 @@ logs/
 #   bash /Users/david/Documents/agent-kit/scripts/import-agent-kit.sh --symlink "$(pwd)"
 # Symlinks point to absolute paths under ~/Documents/agent-kit, so they're
 # inherently per-machine and should never be committed.
+#
+# IMPORTANT: ask-corpus and worklog are NOT in this list — they are tracked
+# engagement assets (corpus engine v2 from PR #74 lives at
+# .claude/skills/ask-corpus/; worklog has 1 tracked file too). The kit's
+# import-agent-kit.sh skips them on --symlink mode (skip existing) so they
+# stay intact. If you ever run `import-agent-kit.sh --force`, those tracked
+# directories WILL be destroyed — do not pass --force in this engagement.
 .agents/
 .claude/agents/
 .claude/skills/altimate-data-parity
 .claude/skills/altimate-dbt-unit-tests
 .claude/skills/altimate-schema-migration
 .claude/skills/altimate-sql-review
-.claude/skills/ask-corpus
 .claude/skills/business-area-template
 .claude/skills/coverage-matrix-build
 .claude/skills/engagement-init
@@ -53,5 +59,4 @@ logs/
 .claude/skills/source-inventory-build
 .claude/skills/staging-scaffold
 .claude/skills/warehouse-fct-scaffold
-.claude/skills/worklog
 .claude/corpus.yaml.example
