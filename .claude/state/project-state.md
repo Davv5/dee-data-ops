@@ -52,7 +52,8 @@ _Last regenerated: 2026-04-26 (corpus engine v2 landed on feature branch + workl
 
 - **Corpus engine v2 (just landed):** `.claude/skills/ask-corpus/scripts/` (engine) + `.claude/skills/ask-corpus/SKILL.md` (voice contract) + `.claude/skills/ask-corpus/SKILL-v1.md` (backup)
 - **Fast operating loop:** `docs/runbooks/operator-fast-loop.md`
-- **Shared portable kit:** `/Users/david/Documents/agent-kit`
+- **Shared portable kit:** `/Users/david/Documents/agent-kit` (installed globally via `~/.claude/agents/data-engineer.md` symlink + 16 `~/.claude/skills/<kit-name>` symlinks; project-imported via `import-agent-kit.sh --symlink`)
+- **Data-engineer agent + LAW skills:** `~/.claude/agents/data-engineer.md` owns engagement lifecycle; specialist seams via `altimate-{sql-review,data-parity,schema-migration,dbt-unit-tests}` skills. Discoverability rule: `.claude/rules/use-data-engineer-agent.md`. Hooks: PreToolUse(Write|Edit) → `pre-sql-altimate-review.sh`; PostToolUse(Write|Edit) → `post-sql-qa-baseline.sh`.
 - **Orca cleanup protocol:** `docs/runbooks/orca-worktree-power-user-workflow.md`
 - **Active sprint plan:** `docs/plans/2026-04-24-strategic-reset.md`
 - **Corpus engine plan:** `docs/plans/2026-04-26-001-feat-corpus-research-engine-plan.md`
