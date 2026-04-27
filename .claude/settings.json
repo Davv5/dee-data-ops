@@ -19,6 +19,16 @@
             "command": "cmd=$(jq -r '.tool_input.command // empty'); if [ -z \"${GITHUB_ACTIONS:-}\" ] && printf '%s' \"$cmd\" | grep -qE 'dbt[[:space:]][^|;&]*--target[[:space:]]+prod'; then printf 'BLOCKED: --target prod from local shell. Use GitHub Actions.\\n' >&2; exit 2; fi"
           }
         ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"/Users/david/Documents/agent-kit/hooks/pre-sql-altimate-review.sh\"",
+            "timeout": 60
+          }
+        ]
       }
     ],
     "PostToolUse": [
@@ -28,6 +38,12 @@
           {
             "type": "command",
             "command": "\"/Users/david/Documents/data ops/.claude/scripts/sync-rule-to-notebook.sh\"",
+            "timeout": 30,
+            "async": true
+          },
+          {
+            "type": "command",
+            "command": "\"/Users/david/Documents/agent-kit/hooks/post-sql-qa-baseline.sh\"",
             "timeout": 30,
             "async": true
           }

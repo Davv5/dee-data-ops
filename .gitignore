@@ -32,3 +32,26 @@ logs/
 # Claude Code agent worktrees (ephemeral, per-track)
 .claude/worktrees/
 .gstack/
+
+# Agent-kit install artifacts (per-machine symlinks; install via:
+#   bash /Users/david/Documents/agent-kit/scripts/import-agent-kit.sh --symlink "$(pwd)"
+# Symlinks point to absolute paths under ~/Documents/agent-kit, so they're
+# inherently per-machine and should never be committed.
+.agents/
+.claude/agents/
+.claude/skills/altimate-data-parity
+.claude/skills/altimate-dbt-unit-tests
+.claude/skills/altimate-schema-migration
+.claude/skills/altimate-sql-review
+.claude/skills/ask-corpus
+.claude/skills/business-area-template
+.claude/skills/coverage-matrix-build
+.claude/skills/engagement-init
+.claude/skills/mart-collapse
+.claude/skills/mart-roadmap-rank
+.claude/skills/operator-fast-loop
+.claude/skills/source-inventory-build
+.claude/skills/staging-scaffold
+.claude/skills/warehouse-fct-scaffold
+.claude/skills/worklog
+.claude/corpus.yaml.example
