@@ -11,6 +11,47 @@ Rolling log of what's been done on this project. Newest entries at the top. Tail
 
 ---
 
+## 2026-04-27 — Gold-layer roadmap landed; Phase A deliverable complete
+
+**What happened**
+- Diagnosed input quality before running the rank skill: `source-inventory.md`, `business-area-map.md`, and `coverage-matrix.md` were ~80% populated but missing two pre-conditions — committed mart architecture and per-question owner. Confirmed both inputs were already strong (per-source recommendations, blocker-class taxonomy, playbook-chapter tags) before adding the missing pieces.
+- `coverage-matrix.md` extended with a "Mart architecture commitment" section locking **one wide mart per playbook chapter** (six chapters → six marts); grain split only when justified. Cites `mart-naming.md` Rule 2.
+- `business-area-map.md` extended with an `Owner` column. After one round-trip with David clarifying his intent, owners are roles inferred from the playbook chapter (SDR Manager, Sales Manager, Marketing Lead, Finance Lead, Sales Operations, D-DEE Leadership, David / Operations) — not named individuals (team too large), and not `client-decision` placeholders (decisions are already encoded in the questions). The earlier misinterpretation produced a "Big decision #6" framed as a Week-0 ask, since removed.
+- `mart-roadmap-rank` skill executed. `docs/discovery/gold-layer-roadmap.md` landed with 7 ranked marts: `speed_to_lead_detail` (Tier A, shipped — extend in place), `funnel_booking_detail` (Tier B, single blocker: GHL trusted-copy), `attribution_detail` / `revenue_event_detail` / `closer_call_outcome` / `customer_lifecycle_detail` / `call_intelligence_detail` (Tier C, multi-blocker).
+- David reviewed and approved: "i reviewed it all and its a lot more clear."
+
+**Decisions**
+- **One wide mart per playbook chapter** (committed in `coverage-matrix.md`). Multiple business questions slice the same wide mart in BI rather than getting their own. Grain split only when a genuinely different grain emerges (Funnel splits into `speed_to_lead_detail` at booking-touch grain + `funnel_booking_detail` at booking grain).
+- **Owners are inferred roles, not named individuals.** Why: D-DEE team is large; role-level routing is the actionable unit; named individuals sit behind the role and are not tracked in this artifact. Schema-per-audience (`mart-naming.md` Rule 5) becomes the natural future split when audiences diverge — not now.
+- **Highest-leverage staging unlock named:** retarget `_fanbasis__sources.yml` to `project-41542e21-...` and add `stg_fanbasis__transactions`. Single ~2hr change moves three Tier-C marts (`attribution_detail`, `revenue_event_detail`, `closer_call_outcome`) toward buildable.
+- **Phase A complete ~11 days ahead of 2026-05-08 target.** Phase B reactivation gated on David's review of the roadmap, now received.
+
+**Open threads**
+- **First Phase 2 work order:** extend `speed_to_lead_detail` in place with Q3 setter-performance columns + Q7 show/no-show columns. Pure additive change; existing `stl_headline_parity` test guards Q1's locked metric.
+- **First new mart** when the GHL trusted-copy decision lands: `funnel_booking_detail` via `warehouse-fct-scaffold` then `mart-collapse`.
+- **Schedule the Fanbasis staging unlock** (`staging-scaffold` against `Raw.fanbasis_transactions_txn_raw`) — it's not blocked on anything else and unblocks three Tier-C marts.
+- **Re-run roadmap** when the GHL trusted-copy decision lands, any 🔴 matrix cell flips to 🟡, or a new business question doesn't fit an existing chapter.
+- **Untracked control-room files** still pending stage/ignore decision: `.agents/`, `AGENTS.md`, `.cabinet-meta`, `.obsidian/`, `.repo.yaml`. New today: `docs/discovery/gold-layer-roadmap.md`, `docs/runbooks/operator-fast-loop.md`.
+- **Branch is 4 commits behind `origin/chore/triage-2026-04-23`.** Pull before any push from this branch.
+
+## 2026-04-26 — Operator fast loop formalized for Orca + discovery workflow
+
+**What happened**
+- Added `docs/runbooks/operator-fast-loop.md` — a short start-of-session / idea-to-task / review / end-of-session loop that sits above the existing Orca, corpus, and worklog rules.
+- Linked the deeper Orca cleanup runbook to the new fast loop.
+- Refreshed `.claude/state/project-state.md` to reflect the actual current posture: `business-area-map.md` and `coverage-matrix.md` exist, `gold-layer-roadmap.md` is still missing, current branch is `chore/triage-2026-04-23`, and the control room has untracked `.agents/` + `AGENTS.md`.
+- Created sibling repo `/Users/david/Documents/agent-kit` with initial commit `14c21af` to hold portable skills/templates/import tooling.
+
+**Decisions**
+- Optimize next for operator speed and calm: start every session with the control-room audit, classify the session mode, and reduce every idea to one branch/worktree/PR-shaped task.
+- Keep the Discovery Sprint docs-only until `gold-layer-roadmap.md` exists. Build work resumes after the roadmap names mart order, grain, PK, source dependencies, and blockers.
+
+**Open threads**
+- Finish `docs/discovery/gold-layer-roadmap.md`.
+- Protect or intentionally stage the untracked `.agents/` + `AGENTS.md` files.
+- Retire old Orca worktrees only after inspecting dirty files and unique commits.
+- Decide later whether to push `agent-kit` to GitHub and import it into this project as the canonical source for shared skills.
+
 ## 2026-04-24 — Strategic Reset: pause new build, run Data Discovery & Visibility Sprint
 
 **What happened**

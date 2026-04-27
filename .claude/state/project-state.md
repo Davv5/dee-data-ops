@@ -5,55 +5,60 @@ Regenerate at session end per `.claude/rules/worklog.md`. Newest decisions at to
 WORKLOG.md is the append-only audit log; grep it for history.
 -->
 
-# D-DEE Speed-to-Lead — present-moment snapshot
+# D-DEE Data Ops — present-moment snapshot
 
-_Last regenerated: 2026-04-24 (Strategic Reset — Discovery Sprint begins)_
+_Last regenerated: 2026-04-27 (Gold-layer roadmap landed; Phase A complete)_
 
 ## Where we are
 
-- **Active workstream — Strategic Reset / Data Discovery & Visibility Sprint** (2026-04-24 → target 2026-05-08). Pause new build for 1–2 weeks; map all source data + all business areas (not just Speed-to-Lead); Grok-prioritized Gold-layer roadmap; then resume build. Plan: `docs/plans/2026-04-24-strategic-reset.md`.
-- **Foundation is intact (do not rebuild):** BigQuery + dbt + 13 staging models end-to-end + `(id, _ingested_at, payload)` raw-landing discipline. U1 preflight, U2 profile retarget, U3 staging shims all stay shipped.
-- **GCP consolidation plan PAUSED at U3-complete.** `docs/plans/2026-04-23-001-feat-gtm-source-port-plan.md` resumes (with U5+ warehouse scope rewritten against the Grok roadmap) after the sprint. U4a plumbing parity contract stays valid.
-- **Closed workstream (unchanged):** Speed-to-Lead star-schema refactor shipped 2026-04-23. `speed_to_lead_detail` wide mart feeds 15/15 Metabase cards; dashboard live. Speed-to-Lead is now one of several business areas being (re)scoped.
-- **Next concrete step:** finish the decision-facing discovery docs: business-area map, coverage matrix, and Gold-layer roadmap. Source inventory, staging-model inventory, gap analysis, and insights summary already exist under `docs/discovery/`.
-- **Headline metric (locked 2026-04-19):** unchanged. Stays as the reproduction target for U4a when cutover resumes.
+- **Strategic Reset / Discovery Sprint Phase A: COMPLETE** ~11 days ahead of 2026-05-08 target. Final artifact landed: `docs/discovery/gold-layer-roadmap.md`. Reviewed and approved by David 2026-04-27.
+- **Phase B (Layer Build) reactivation imminent.** Architecture pattern proven for one playbook chapter (Funnel — Speed-to-Lead, shipped 2026-04-23). Roadmap ranks the next 5 chapters by value × feasibility.
+- **Mart architecture locked:** **one wide mart per playbook chapter** (`coverage-matrix.md` "Mart architecture commitment" cites `mart-naming.md` Rule 2). Grain split only when justified.
+- **Owner model locked:** roles inferred from playbook chapter (SDR Manager / Sales Manager / Marketing Lead / Finance Lead / Sales Operations / D-DEE Leadership), not named individuals — team is too large for human-level routing.
+- **Foundation intact (do not rebuild):** BigQuery + dbt + 13 staging models + `(id, _ingested_at, payload)` raw-landing discipline. U1 / U2 / U3 stay shipped. `speed_to_lead_detail` mart feeds 15/15 Metabase cards.
+- **GCP consolidation plan PAUSED at U3-complete.** `docs/plans/2026-04-23-001-feat-gtm-source-port-plan.md` U4a+ resumes when the trusted-GHL-copy decision lands.
+- **Current branch:** `chore/triage-2026-04-23` in `/Users/david/Documents/data ops` — **4 commits behind origin**, pull before push. Today's session left `business-area-map.md` + `coverage-matrix.md` modified, `gold-layer-roadmap.md` new.
+- **Headline metric (locked 2026-04-19):** unchanged.
 
 ## Active plan
 
-- **Primary:** `docs/plans/2026-04-24-strategic-reset.md` — 5 parallel workstreams, 4 artifacts under `docs/discovery/`, ~1–2 weeks.
-- **Paused:** `docs/plans/2026-04-23-001-feat-gtm-source-port-plan.md` — 15 units, U1–U3 complete; U4a+ resumes after Gold-layer roadmap exists.
-- **Execution cadence during sprint:** docs-only. Zero dbt / warehouse / mart PRs unless the deliverable is docs. Daily one-line WORKLOG entries.
+- **Primary:** `docs/plans/2026-04-24-strategic-reset.md` — Phase A deliverables done. Phase B (Layer Build) cadence reactivates.
+- **Paused:** `docs/plans/2026-04-23-001-feat-gtm-source-port-plan.md` — U4a+ resumes when GHL trusted-copy decision lands.
 
 ## Last 3 decisions (full entries in WORKLOG.md)
 
-- **2026-04-24** — Strategic Reset: pause new build, run Discovery Sprint, rebuild Gold against Grok-prioritized roadmap. Third restart considered and rejected; foundation is sound; problem is visibility + prioritization, not tech. (`grep -n "Strategic Reset" WORKLOG.md`)
-- **2026-04-23 later** — U3 staging shims landed: 4 blob-shims (Stripe/Typeform/Fathom/Calendly) + GHL column rename; kept pre-U3 Calendly filenames; abandoned Track X Fivetran+poller dual-source; `form_id` gap logged for U9. (`grep -n "U3 staging shims" WORKLOG.md`)
-- **2026-04-23 late** — U2 retarget landed: dbt profiles + env + CI now point at `project-41542e21-470f-4589-96d` for dev/ci/prod. (`grep -n "U2 retarget" WORKLOG.md`)
+- **2026-04-27** — Gold-layer roadmap landed; Phase A complete. 7 marts ranked across 3 tiers; `speed_to_lead_detail` extends in place; `funnel_booking_detail` is Tier B gated on GHL trusted-copy; Fanbasis staging is the highest-leverage unlock for three Tier-C marts. Owners modelled as roles, not names. (`grep -n "Gold-layer roadmap landed" WORKLOG.md`)
+- **2026-04-26** — Operator fast loop formalized: audit/status, classify session mode, shape each idea into one branch/worktree/PR-sized task. (`grep -n "Operator fast loop" WORKLOG.md`)
+- **2026-04-24** — Strategic Reset: pause new build, run Discovery Sprint, rebuild Gold against ranked roadmap. Foundation sound; problem was visibility + prioritization. (`grep -n "Strategic Reset" WORKLOG.md`)
 
 ## Open threads
 
-- **Sprint discovery packet** — landed: `docs/discovery/{source-inventory,staging-models,gap-analysis,insights-summary}.md`; still owed by ~2026-05-08: `docs/discovery/{business-area-map,coverage-matrix,gold-layer-roadmap}.md`.
-- **U4a paused** — resumes when Gold-layer roadmap exists. David's sign-off on U3 staging shape still standing as the precondition to resume.
-- **`merge-dbt-ci@` SA + keyfile** — paused per Strategic Reset; needed before CI can run dbt builds in prod post-resume.
+- **Phase B kickoff candidates** (in order of leverage): (1) extend `speed_to_lead_detail` with Q3 setter columns + Q7 show/no-show columns — additive, parity-test-guarded; (2) Fanbasis staging via `staging-scaffold` against `Raw.fanbasis_transactions_txn_raw` — unblocks three Tier-C marts; (3) `funnel_booking_detail` via `warehouse-fct-scaffold` + `mart-collapse` once GHL trusted-copy decision lands.
+- **GHL trusted-copy decision** — single named blocker for Tier B. Choose between legacy blob (1,314 conversation rows) and Phase-2 (101 rows). Resolves 92% undercount + four empty entities + dual-source ambiguity in one move.
 - **`bq-ingest` service repair** — paused per Strategic Reset; GTM-repo work; prerequisite for U4b when cutover resumes.
 - **Typeform `form_id` gap** — paused per Strategic Reset; real fix is U9.
-- **GHL `conversations` undercount** (101 vs 1,314 blob) — paused per Strategic Reset; U4a decision when cutover resumes.
-- **GHL `messages` / `users` / `tasks`** — 0 rows upstream on both per-object and blob paths; upstream extractor fix out of sprint + cutover scope.
+- **GHL `messages` / `users` / `tasks`** — 0 rows upstream on both per-object and blob paths; upstream extractor fix out of cutover scope.
 - **Fathom transcript landing** — 0% coverage across 1,157 calls; paused per Strategic Reset; fix scheduled for U6 post-resume.
-- **Stripe ~50-day staleness** — pre-existing GTM bug; moot until Gold roadmap decides how much historical Stripe matters (live payments = Fanbasis).
-- **Fanbasis** — raw appears to be landing fresh, but Merge-side dbt is not wired: `_fanbasis__sources.yml` is still a placeholder and there are no `stg_fanbasis__*.sql` models. Elevated priority because it is the live revenue source.
+- **Fanbasis** — raw landing fresh; `_fanbasis__sources.yml` placeholder still points at deprecated pre-U2 project; no `stg_fanbasis__*.sql` exists. Highest-leverage staging unlock.
+- **Stripe ~50-day staleness** — moot until live revenue questions are answered (Fanbasis is the live source).
+- **Untracked control-room files** still pending stage/ignore decision: `.agents/`, `AGENTS.md`, `.cabinet-meta`, `.obsidian/`, `.repo.yaml`. New today: `docs/discovery/gold-layer-roadmap.md`, `docs/runbooks/operator-fast-loop.md`.
+- **Re-run roadmap trigger:** GHL trusted-copy decision lands, any 🔴 matrix cell flips to 🟡, or a new business question doesn't fit any existing playbook chapter.
 - **Week-0 client asks** — unchanged (Fanbasis docs, SLA thresholds, access verification).
+- **Agent kit publication** — decide later whether to push `/Users/david/Documents/agent-kit` to GitHub and import as canonical skills source.
 
 ## Where to look (retrieval map)
 
+- **Gold-layer roadmap (final discovery artifact):** `docs/discovery/gold-layer-roadmap.md`
+- **Mart architecture rule:** `coverage-matrix.md` "Mart architecture commitment" + `.claude/rules/mart-naming.md` Rule 2
+- **Fast operating loop:** `docs/runbooks/operator-fast-loop.md`
+- **Shared portable kit:** `/Users/david/Documents/agent-kit`
 - **Active plan:** `docs/plans/2026-04-24-strategic-reset.md`
 - **Paused plan:** `docs/plans/2026-04-23-001-feat-gtm-source-port-plan.md`
-- **Sprint artifacts:** `docs/discovery/` — source inventory, staging inventory, gap analysis, and insights summary landed; business-area map, coverage matrix, and Gold roadmap pending.
-- **Memories (auto-loaded):** `project_gcp_consolidation_decision.md`, `feedback_preserve_working_infra.md`, `feedback_ship_over_ceremony.md`, `project_stripe_historical_only.md` via `MEMORY.md`
+- **Sprint artifacts:** `docs/discovery/{source-inventory,source-shapes,staging-models,gap-analysis,insights-summary,business-area-map,coverage-matrix,gold-layer-roadmap}.md`
+- **Memories (auto-loaded):** `MEMORY.md` index
 - **Engagement context / locked metric:** `CLAUDE.local.md` (gitignored overlay)
 - **Portable conventions:** `CLAUDE.md` + `dbt_style_guide.md` + `.claude/rules/*.md`
-- **Corpus declaration:** `.claude/corpus.yaml` — 4 notebooks; scope routing in `.claude/rules/using-the-notebook.md`
-- **U1 preflight (seed for source inventory):** `docs/_archive/gtm-gcp-inventory.md`
+- **Corpus declaration:** `.claude/corpus.yaml` — 4 notebooks
 - **Staging shims (U3, frozen):** `2-dbt/models/staging/{ghl,calendly,stripe,typeform,fathom}/`
-- **GTM source repo (read-only reference):** `/Users/david/Documents/operating system/Projects/GTM lead warehouse`
-- **Full history:** `grep -n "^## " WORKLOG.md`; `grep -n "Strategic Reset" WORKLOG.md` for this pivot
+- **Existing wide mart (Funnel — Speed-to-Lead):** `2-dbt/models/marts/speed_to_lead_detail.sql`
+- **Full history:** `grep -n "^## " WORKLOG.md`; `grep -n "Gold-layer roadmap" WORKLOG.md` for today's wrap

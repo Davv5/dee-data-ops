@@ -66,6 +66,28 @@ Each question is also tagged with the analytics playbook chapter it belongs to. 
 
 ---
 
+## Mart architecture commitment
+
+Per `.claude/rules/mart-naming.md` Rule 2 ("Fewer, wider marts over many narrow ones"), the gold-layer roadmap that consumes this matrix will build **one wide mart per playbook chapter**, not one mart per business question.
+
+This locks the unit-of-analysis the rank skill (`mart-roadmap-rank`) operates on. The six chapters tagged in the section above — Funnel, Attribution, Conversion, Net Revenue, Retention, Conversation Intelligence — each map to **one** wide mart. Multiple business questions feed the same mart via slice-and-dice in the BI tool. Concretely:
+
+- **Funnel** → one mart, currently shipped as `speed_to_lead_detail` at booking-touch grain (Q1). Q3 (setter performance), Q6 (stage analysis), and Q7 (no-show / show rate, also tagged Conversion) extend the same mart family.
+- **Attribution** → one mart spanning Q4 (forms), Q10 (lead quality), Q11 (multi-touch). All three collapse into one wide attribution table; they don't get separate marts.
+- **Conversion** → one mart at the call-outcome grain spanning Q5 (closer win rate) and Q7's call-side coverage.
+- **Net Revenue** → one mart spanning Q8 (refunds / chargebacks), gated on Fanbasis cleanup.
+- **Retention** → one mart spanning Q9, gated on Fanbasis customer/subscription shape.
+- **Conversation Intelligence** → one mart spanning Q12, gated on Fathom transcripts.
+
+The exception is **grain**. A second mart in the same chapter is justified only when a genuinely different grain emerges (booking-grain vs. payment-transaction grain, e.g., the Funnel chapter could later split into a booking-grain mart and a stage-transition-grain mart if Q6 demands it). Default: **one mart per chapter, evaluate grain split only when the mart is being built.**
+
+Q2 (lead → paid) deliberately straddles Funnel and Attribution. The roadmap will resolve which mart owns Q2; the leading candidate is Attribution, since "did this lead pay" is the canonical attribution outcome.
+
+> "I typically don't like to create Marts tables one to one for each report... I think that can get a little messy and create a lot of fluff in your data that becomes outdated."
+> — *"How to Create a Data Modeling Pipeline (3 Layer Approach)"*, Data Ops notebook (cited in `mart-naming.md` Rule 2)
+
+---
+
 ## Coverage at a glance
 
 | # | Business question | Playbook chapter | Calendly | GHL | Fanbasis | Typeform | Fathom | Stripe |

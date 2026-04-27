@@ -6,6 +6,10 @@ worktrees, and uncommitted files become invisible debt.
 Orca is worktree-native: each task gets its own checkout and branch. That is the
 right shape for parallel agent work, but it needs a retirement protocol.
 
+For the shortest start-to-finish operating loop, read
+`docs/runbooks/operator-fast-loop.md` first. This runbook is the deeper cleanup
+and worktree-management reference behind that loop.
+
 ## Mental model
 
 There are four separate things:
