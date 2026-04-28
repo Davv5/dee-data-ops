@@ -175,9 +175,9 @@ Captured via `gcloud run services describe bq-ingest --region us-central1 --proj
 - Runtime service account: `id-sa-ingest@project-41542e21-470f-4589-96d.iam.gserviceaccount.com`
 - Image: `us-central1-docker.pkg.dev/project-41542e21-470f-4589-96d/cloud-run-source-deploy/bq-ingest@sha256:693a8cb…`
 
-### Auth posture — finding flagged for immediate remediation
+### Auth posture — found and fixed during the audit
 
-Verified `gcloud run services get-iam-policy bq-ingest`:
+Initial state (verified via `gcloud run services get-iam-policy bq-ingest` on 2026-04-28):
 
 ```yaml
 bindings:
@@ -187,14 +187,34 @@ bindings:
   role: roles/run.invoker
 ```
 
-**The service is publicly invokable.** Anyone on the internet can curl `https://bq-ingest-mjxxki4snq-uc.a.run.app/refresh-models`, `/snapshot-pipeline-stages`, `/run-data-quality`, etc. and trigger BigQuery write operations. This is independent of the migration but the audit must call it out:
+**The service was publicly invokable.** Anyone on the internet could curl `https://bq-ingest-mjxxki4snq-uc.a.run.app/refresh-models`, `/snapshot-pipeline-stages`, `/run-data-quality`, etc. and trigger BigQuery write operations. The `allUsers` binding was almost certainly a leftover from an earlier test/debug iteration that was never tightened — `sa-scheduler@` is the only intended caller and already had its own binding.
 
-- Either there's a deliberate reason the service allows unauthenticated invocations (likely none — `sa-scheduler@` is the only intended caller and it has its own binding), OR
-- The `allUsers` binding is a leftover from an earlier test/debug iteration that was never tightened.
+**Action taken (2026-04-28):**
 
-**Recommendation:** before the consolidation lands, restrict to authenticated callers. The Cloud Scheduler entries in `ops/cloud/jobs.yaml` already use `oidcToken.serviceAccountEmail`, so removing `allUsers` doesn't break the scheduled paths. One-shot: `gcloud run services remove-iam-policy-binding bq-ingest --region us-central1 --project project-41542e21-470f-4589-96d --member='allUsers' --role='roles/run.invoker'`. Verify schedulers still fire; verify `/healthcheck` from a curl with `Authorization: Bearer $(gcloud auth print-identity-token)` continues to work; un-binding allUsers is reversible if anything breaks.
+Verified the 8 Cloud Scheduler entries hitting `bq-ingest` all use OIDC auth via `sa-scheduler@…`, so removing `allUsers` doesn't break the scheduled paths. Then:
 
-This is **out of scope for the bq-ingest source-tree move itself** but is the highest-priority finding the audit surfaced. Do not let it disappear into the consolidation work.
+```
+gcloud run services remove-iam-policy-binding bq-ingest \
+  --region us-central1 --project project-41542e21-470f-4589-96d \
+  --member='allUsers' --role='roles/run.invoker'
+```
+
+Post-state verified:
+
+```yaml
+bindings:
+- members:
+  - serviceAccount:sa-scheduler@project-41542e21-470f-4589-96d.iam.gserviceaccount.com
+  role: roles/run.invoker
+```
+
+End-to-end check after IAM propagation:
+- Unauthenticated curl → `HTTP 403` (closed)
+- `Authorization: Bearer $(gcloud auth print-identity-token)` curl → `HTTP 200` with full route listing (open to legitimate callers)
+
+The next scheduled scheduler fires (next 5–60 min) implicitly verify the OIDC path against the closed surface.
+
+**Originally framed as out of scope for the source-tree move and the highest-priority deferred finding; resolved in the same session.**
 
 ### Build path
 
@@ -283,7 +303,7 @@ If/when branch protection lands at Phase 6, revisit whether the manual-promote s
 
 These are concerns the audit surfaced that don't block the Step 2 code move but must not disappear into "we'll get to it." Each gets its own GH issue or its own line in the Step 2 PR description:
 
-1. **Auth posture**: remove `allUsers → roles/run.invoker` from bq-ingest IAM. (Highest priority — independent of the migration.)
+1. ~~**Auth posture**: remove `allUsers → roles/run.invoker` from bq-ingest IAM.~~ **DONE 2026-04-28** — see §"Auth posture — found and fixed during the audit."
 2. **Cloud Run Jobs image rebuild**: the `fanbasis-python-runner:latest` image (built from `ops/cloud/pipeline-runner/Dockerfile`) builds from the same source tree the service uses. After the move, the build pipeline producing this image must point at the new path — otherwise the next jobs rebuild fails, or worse, succeeds off the archived `gtm-lead-warehouse` repo and silently re-introduces the stale-clone hazard. Either add a parallel CB trigger for the Jobs image (Step 5b) OR document the rebuild procedure in the new RUNBOOK.md.
 3. **Jobs manifest path coexistence**: `ops/cloud/jobs.yaml` carries both `jobs[]` (Cloud Run Jobs) and `schedulers[]` (Cloud Scheduler). The schedulers' URI continuity is covered in pre-flight below. The jobs[] image is a separate scope decision: in scope for a future consolidation pass, out of scope for this plan.
 4. **`1-raw-landing/` consolidation**: deferred to a separate plan. See §"Coexistence with `1-raw-landing/`."
@@ -363,7 +383,7 @@ The Step 2 code move is mechanical: 39 Python files plus support assets move as 
 
 The audit also surfaced material non-mechanical concerns that the Step 2 framing was quietly hiding:
 
-- **The auth-posture finding** (`allUsers → run.invoker` on bq-ingest) is independent of the migration but the highest-priority remediation the audit produced.
+- **The auth-posture finding** (`allUsers → run.invoker` on bq-ingest) was independent of the migration but the highest-priority remediation the audit produced — **fixed in this session**, verified unauth=403 / auth=200.
 - **The SQL-path-resolution claim was wrong** for 7 of 9 modules. The migration preserves current behavior (broken or working) per-module; what's needed is a baseline measurement at Step 4 and a cleanup pass after.
 - **`1-raw-landing/` is a parallel ingestion stack in a different GCP project** the audit's earlier framing didn't acknowledge. Scope for this plan is bq-ingest only; the separate consolidation is tracked as a deferred follow-up.
 - **The Cloud Build trigger** (Step 5) stays optional-but-recommended, with deploy provenance / build reproducibility as the rationale (not stale-clone defense). Step 6 doesn't depend on it.
