@@ -1,0 +1,39 @@
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = [
+    ".venv",
+    "dbt/target",
+    "dbt/dbt_packages",
+    "dbt/logs",
+    # Legacy imperative paths. Phase 2 rewrites into `ingest/`; Phase 3
+    # retires `sql/`. Don't gate cleanup on fluffing code on its way out.
+    "sources",
+    "sql",
+    "ops",
+    "enrichment",
+    "app.py",
+    "setup_*.py",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "F",    # pyflakes
+    "I",    # isort
+    "W",    # pycodestyle warnings
+    "B",    # bugbear
+    "UP",   # pyupgrade
+    "SIM",  # simplify
+]
+ignore = [
+    "E501",  # line-too-long — covered by formatter
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+
+[tool.ruff.lint.isort]
+known-first-party = ["ingest"]
