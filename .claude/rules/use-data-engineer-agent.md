@@ -39,14 +39,14 @@ Whenever the `data-engineer` agent produces a fix, model, or scaffold — or whe
 
 Pair them. Always.
 
-**Empirical anchor (PR #107, 2026-04-28).** The fix-the-6-broken-default-modules problem was solved twice in parallel: once by the main agent (incremental, missed `data_quality.py` on first pass — adversarial reviewer caught it on round 2), and once by the `data-engineer` agent in an isolated worktree (caught all 6 first pass; ran a path-resolution smoke test that compileall would have missed). Both producers needed CE adversarial review to catch what they missed; neither was good enough alone. Lesson: producer + reviewer is the unit, not either alone.
+**Empirical anchor (PR #107, 2026-04-28).** The fix-the-6-broken-default-modules problem was solved twice in parallel: once by the main agent on `Davv5/fix/bq-ingest-sql-path-fallback` (incremental, missed `data_quality.py` on first pass at commit `cae4d82` — `ce-adversarial-reviewer` caught it on round 2, fixed in `8fa4cf1`), and once by the `data-engineer` agent in an isolated worktree on `agent/sql-path-fix` at commit `1e0ee0c` (caught all 6 first pass; ran a path-resolution smoke test that `compileall` would have missed). Both producers needed CE adversarial review to catch what they missed; neither was good enough alone. Lesson: producer + reviewer is the unit, not either alone.
 
 ### When to pick which CE reviewer
 
 - **High-stakes diff, large surface, or production-deploy-bound** → `ce-adversarial-reviewer` (constructs failure scenarios). Default for anything touching auth, payments, data mutations, external APIs, or 50+ changed lines.
 - **Repo conventions / frontmatter / cross-platform / tooling drift** → `ce-project-standards-reviewer`. Default for new rule files, doc updates, and config changes.
 - **Logic or state-management bugs** → `ce-correctness-reviewer`. Always-on review pass for any non-trivial code diff.
-- **Planning documents (specs, plans, ADRs)** → `ce-doc-review` (orchestrates `ce-coherence-reviewer`, `ce-feasibility-reviewer`, `ce-product-lens-reviewer`, etc.).
+- **Planning documents (specs, plans, ADRs)** → invoke the `compound-engineering:ce-doc-review` *skill* (via `Skill` tool or `/ce-doc-review`), which orchestrates `ce-coherence-reviewer`, `ce-feasibility-reviewer`, `ce-product-lens-reviewer`, `ce-scope-guardian-reviewer`, `ce-design-lens-reviewer`, and `ce-security-lens-reviewer` in parallel. (Note: `ce-doc-review` is a skill, not an agent — `Agent(subagent_type="ce-doc-review", ...)` will error. For ad-hoc single-persona doc review, spawn `ce-adversarial-document-reviewer` directly.)
 - **In doubt, run two in parallel.** Adversarial + standards is a cheap default for code; coherence + feasibility is a cheap default for plans.
 
 ### What this does NOT mean
