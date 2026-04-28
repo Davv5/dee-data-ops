@@ -107,9 +107,22 @@ is lower than Stripe's dashboard — eroding trust. Every payment stays visible;
 - `fct_payments` — row source (union of Stripe + Fanbasis; either arm can be empty during ingest outages)
 - `bridge_identity_contact_payment` — left-join for `contact_sk`, `match_method`,
   `match_score`, `bridge_status`; unmatched payments survive with NULL contact_sk
+- `fct_refunds` — pre-aggregated per `(source_platform, parent_payment_id)` and left-joined
+  to expose `refunds_total_amount`, `refunds_total_amount_net`, `refunds_count`,
+  and `net_amount_after_refunds`
 - `dim_contacts` — left-join for campaign / first-touch / last-touch / lead-magnet
   attribution when matched
 - `stg_ghl__opportunities` + `dim_users` — latest Closer per contact when matched
+
+## Net-of-refunds asymmetry
+
+`net_amount_after_refunds = net_amount - refunds_total_amount` is correct today
+because `fct_refunds` is Fanbasis-only and `fct_payments.net_amount` for Stripe
+rows is already net of refunds at the staging layer (`amount_captured_minor -
+amount_refunded_minor`). If `fct_refunds` ever extends to Stripe, the formula
+in `revenue_detail.sql` will double-subtract on Stripe rows — fix it at the
+same time. Singular test `revenue_detail_refunds_parity.sql` asserts the
+mart's refund total matches `fct_refunds` exactly per source_platform.
 
 ## DQ flag semantics
 
