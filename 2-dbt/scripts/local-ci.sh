@@ -34,23 +34,35 @@ if [[ -z "$PR" ]]; then
   echo "usage: $0 <pr-number> [extra dbt args...]" >&2
   exit 2
 fi
+if [[ ! "$PR" =~ ^[0-9]+$ ]]; then
+  echo "ERROR: PR number must be numeric (got: $PR)" >&2
+  echo "usage: $0 <pr-number> [extra dbt args...]" >&2
+  exit 2
+fi
 shift
-
-PROJECT="project-41542e21-470f-4589-96d"
-SCHEMA="ci_pr_${PR}"
 
 # Resolve repo paths whether script is invoked from repo root, 2-dbt/, or scripts/
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DBT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 REPO_ROOT="$(cd "$DBT_DIR/.." && pwd)"
 
-# Source repo .env if present
+# Source repo .env if present (lets the operator override GCP_PROJECT_ID_DEV /
+# BQ_KEYFILE_PATH without editing this script)
 if [[ -f "$REPO_ROOT/.env" ]]; then
   set -a
   # shellcheck disable=SC1091
   source "$REPO_ROOT/.env"
   set +a
 fi
+
+# Single source of truth for the project literal lives in .env (or the
+# profiles.yml fallback if .env is unset). Read it after sourcing.
+PROJECT="${GCP_PROJECT_ID_DEV:-project-41542e21-470f-4589-96d}"
+SCHEMA="ci_pr_${PR}"
+
+# Print a cleanup hint regardless of whether the build passes or fails — a
+# failed build still leaves a half-built dataset behind.
+trap 'echo ""; echo "==> schema $PROJECT:$SCHEMA may need cleanup — drop with: bq rm -r -f -d $PROJECT:$SCHEMA"' EXIT
 
 # Pick target by auth context
 if [[ -n "${BQ_KEYFILE_PATH:-}" && -f "${BQ_KEYFILE_PATH}" ]]; then
@@ -78,4 +90,3 @@ DBT_CI_SCHEMA="$SCHEMA" GCP_PROJECT_ID_DEV="$PROJECT" \
 
 echo ""
 echo "==> done — schema $PROJECT:$SCHEMA"
-echo "    drop with: bq rm -r -f -d $PROJECT:$SCHEMA"

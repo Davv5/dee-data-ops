@@ -37,12 +37,38 @@ From the repo root:
 source .venv/bin/activate
 set -a && source .env && set +a
 cd 2-dbt
-dbt debug --target dev
-dbt build --target dev -s <selection>
+dbt debug --target dev_local
+dbt build --target dev_local -s <selection>
 ```
+
+Two profile flavors cover the two local auth situations:
+
+- **`dev_local` / `ci_local`** — use ADC (run `gcloud auth application-default
+  login` once). Default in `.env` because no consolidated-project SA keyfile
+  is provisioned yet. No keyfile required.
+- **`dev` / `ci`** — use a service-account keyfile via `BQ_KEYFILE_PATH`.
+  Switch `DBT_TARGET=dev` in `.env` once you drop in a key at
+  `~/.config/gcloud/<consolidated-project>/dbt-dev.json`.
 
 Keep `DBT_PROFILES_DIR` pointed at the absolute path to this folder, as shown in
 `.env.example`.
+
+## Local CI (`scripts/local-ci.sh`)
+
+`2-dbt/scripts/local-ci.sh` mirrors the GH Actions `dbt-ci.yml` workflow on
+your laptop. Use it as a pre-push smoke check, when GH Actions is degraded
+and a PR needs to merge, or when you want to eyeball a parity-test result
+before opening the PR.
+
+```bash
+bash 2-dbt/scripts/local-ci.sh <pr-number>                    # full build
+bash 2-dbt/scripts/local-ci.sh <pr-number> --select <model>+  # subset
+```
+
+The script picks SA-keyfile vs ADC auth automatically, provisions the per-PR
+dataset (`ci_pr_<num>`) idempotently, and runs `dbt build --target {ci|ci_local}`
+against it. It is **not** a substitute for the GH Actions merge gate — public
+CI history is part of the engagement deliverable.
 
 ## Conventions
 
