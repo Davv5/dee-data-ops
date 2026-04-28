@@ -9,7 +9,7 @@
 --     4. billing_email_direct  — score 0.80  (payment-only fallback)
 --     5. unmatched             — score 0.00  (bridge_status = 'unmatched')
 -- Keeping the bridge payment-centric (not contact-centric) means every
--- charge / Fanbasis transaction gets exactly one row here; `fct_revenue`
+-- charge / Fanbasis transaction gets exactly one row here; `fct_payments`
 -- left-joins on `(source_platform, payment_id)` to pick up `contact_sk`
 -- + bridge metadata. Stripe is historical-only at D-DEE per memory
 -- `project_stripe_historical_only.md`; Fanbasis is the live-going arm.

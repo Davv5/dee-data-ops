@@ -4,7 +4,7 @@
 -- lost reason / applicant → booker conversion).
 --
 -- Upstream dependencies (Track E): dim_contacts, dim_users,
--- dim_pipeline_stages, fct_calls_booked, fct_revenue, fct_outreach.
+-- dim_pipeline_stages, fct_calls_booked, fct_payments, fct_outreach.
 --
 -- Placeholder columns — shape-preserving NULLs carry columns whose
 -- upstream hasn't shipped yet. This lets dashboards / schemas lock
@@ -64,7 +64,7 @@ revenue as (
         min(transaction_date)                                   as first_payment_at,
         max(transaction_date)                                   as latest_payment_at,
         sum(net_amount)                                         as total_net_revenue
-    from {{ ref('fct_revenue') }}
+    from {{ ref('fct_payments') }}
     where contact_sk is not null
     group by contact_sk
 

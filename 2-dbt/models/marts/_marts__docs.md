@@ -61,7 +61,7 @@ breakdown, pipeline-stage distribution, multi-touch first-vs-last.
 ## What it's built from
 
 - `dim_contacts` — row source; every GHL contact gets a row
-- Aggregated `fct_calls_booked`, `fct_outreach`, `fct_revenue` by contact_sk
+- Aggregated `fct_calls_booked`, `fct_outreach`, `fct_payments` by contact_sk
 - `dim_pipeline_stages` for current pipeline state
 - `stg_ghl__opportunities` for current status + lost_reason
 - `stg_calendly__events` for self-reported source
@@ -104,7 +104,7 @@ is lower than Stripe's dashboard — eroding trust. Every payment stays visible;
 
 ## What it's built from
 
-- `fct_revenue` — row source (union of Stripe + Fanbasis)
+- `fct_payments` — row source (union of Stripe + Fanbasis)
 - `bridge_identity_contact_payment` — left-join for `contact_sk`, `match_method`,
   `match_score`, `bridge_status`; unmatched payments survive with NULL contact_sk
 - `dim_contacts` — left-join for campaign / first-touch / last-touch / lead-magnet
