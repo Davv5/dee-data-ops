@@ -7,6 +7,21 @@
 -- Payment-grain revenue reconciliation mart.
 -- Every payment appears, including unmatched ones — the unmatched rows are
 -- the "transparency" signal for Page 3 of the dashboard. Do NOT filter them.
+--
+-- Net-of-refunds: refund events from `fct_refunds` are aggregated per
+-- parent payment and exposed alongside `net_amount`.
+-- `net_amount_after_refunds` branches on `source_platform` because the
+-- two upstream payment sources arrive with different refund semantics:
+--   - Stripe: `fct_payments.net_amount` is ALREADY net of refunds at
+--     staging (`amount_captured_minor - amount_refunded_minor` in
+--     `stg_stripe__charges`), so subtracting `fct_refunds` would
+--     double-count.
+--   - Fanbasis: `fct_payments.net_amount` is net of FEES only, so the
+--     refund is subtracted here.
+-- Branching mechanically keeps the math correct even if `fct_refunds`
+-- extends to Stripe in the future. The companion parity test
+-- (`revenue_detail_refunds_parity`) gates `refunds_total_amount`
+-- against `fct_refunds` per source_platform regardless.
 
 with
 
@@ -19,6 +34,22 @@ payments as (
 bridge as (
 
     select * from {{ ref('bridge_identity_contact_payment') }}
+
+),
+
+-- One row per (source_platform, parent_payment_id) summarizing every
+-- refund event tied to that payment. Pre-aggregated so the join into
+-- `payments` stays 1:1 — multi-refund payments do not fan out the mart.
+refunds_per_payment as (
+
+    select
+        source_platform,
+        parent_payment_id,
+        sum(refund_amount)                          as refunds_total_amount,
+        sum(refund_amount_net)                      as refunds_total_amount_net,
+        count(*)                                    as refunds_count
+    from {{ ref('fct_refunds') }}
+    group by 1, 2
 
 ),
 
@@ -132,12 +163,32 @@ final as (
             else 'clean'
         end                         as attribution_quality_flag,
 
+        -- Net-of-refunds (see header comment for the source_platform
+        -- branching rationale). Defaults to 0 when no refund events
+        -- exist — never NULL — so BI aggregations don't need to coalesce.
+        coalesce(refunds_per_payment.refunds_total_amount,     0)
+                                    as refunds_total_amount,
+        coalesce(refunds_per_payment.refunds_total_amount_net, 0)
+                                    as refunds_total_amount_net,
+        coalesce(refunds_per_payment.refunds_count,            0)
+                                    as refunds_count,
+        case
+            when payments.source_platform = 'stripe'
+                then payments.net_amount
+            else
+                payments.net_amount
+                - coalesce(refunds_per_payment.refunds_total_amount, 0)
+        end                         as net_amount_after_refunds,
+
         current_timestamp()         as mart_refreshed_at
 
     from payments
     left join bridge
         on payments.source_platform = bridge.source_platform
        and payments.payment_id      = bridge.payment_id
+    left join refunds_per_payment
+        on payments.source_platform = refunds_per_payment.source_platform
+       and payments.payment_id      = refunds_per_payment.parent_payment_id
     left join contacts
         on bridge.contact_sk = contacts.contact_sk
     left join closer_lookup

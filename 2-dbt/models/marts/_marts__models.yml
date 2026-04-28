@@ -166,3 +166,22 @@ models:
         tests:
           - accepted_values:
               values: ['clean', 'unmatched', 'ambiguous_contact_match', 'role_unknown']
+      - name: refunds_total_amount
+        description: Sum of `fct_refunds.refund_amount` for this payment (gross refund returned to the customer). 0 when no refunds; never NULL.
+        tests:
+          - not_null
+      - name: refunds_total_amount_net
+        description: Sum of `fct_refunds.refund_amount_net` for this payment (refund net of refund-side fees). 0 when no refunds; never NULL.
+        tests:
+          - not_null
+      - name: refunds_count
+        description: Number of refund events tied to this payment. 0 when none; never NULL.
+        tests:
+          - not_null
+      - name: net_amount_after_refunds
+        description: |
+          Net of refunds. Branches by `source_platform`: Stripe rows return `net_amount` directly because Stripe net is already net of refunds
+          at staging (`amount_captured_minor - amount_refunded_minor`); Fanbasis (and any future non-Stripe arm) rows return
+          `net_amount - refunds_total_amount`. Mechanical branching keeps the math correct even if `fct_refunds` extends to Stripe later.
+        tests:
+          - not_null

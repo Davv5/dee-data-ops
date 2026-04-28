@@ -107,9 +107,29 @@ is lower than Stripe's dashboard — eroding trust. Every payment stays visible;
 - `fct_payments` — row source (union of Stripe + Fanbasis; either arm can be empty during ingest outages)
 - `bridge_identity_contact_payment` — left-join for `contact_sk`, `match_method`,
   `match_score`, `bridge_status`; unmatched payments survive with NULL contact_sk
+- `fct_refunds` — pre-aggregated per `(source_platform, parent_payment_id)` and left-joined
+  to expose `refunds_total_amount`, `refunds_total_amount_net`, `refunds_count`,
+  and `net_amount_after_refunds`
 - `dim_contacts` — left-join for campaign / first-touch / last-touch / lead-magnet
   attribution when matched
 - `stg_ghl__opportunities` + `dim_users` — latest Closer per contact when matched
+
+## Net-of-refunds asymmetry
+
+The two payment sources arrive with different refund semantics, so
+`net_amount_after_refunds` branches by `source_platform`:
+
+- **Stripe** rows return `net_amount` directly. `stg_stripe__charges` already
+  computes `amount_captured_minor - amount_refunded_minor` at staging, so
+  `fct_payments.net_amount` is already net of refunds for Stripe.
+- **Fanbasis** (and any future non-Stripe arm) returns
+  `net_amount - refunds_total_amount`. Fanbasis's `net_amount` is net of fees
+  only, so the refund is subtracted here.
+
+Mechanical branching keeps the math correct even if `fct_refunds` extends
+to Stripe later — no doc-only future-Claude trap. Singular test
+`revenue_detail_refunds_parity.sql` asserts the mart's refund total matches
+`fct_refunds` exactly per source_platform regardless.
 
 ## DQ flag semantics
 
