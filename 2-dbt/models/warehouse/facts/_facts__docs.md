@@ -125,3 +125,45 @@ should decide explicitly whether to include unmatched revenue (it is
 real money) or exclude it (it can't be attributed to a SDR / AE).
 
 {% enddocs %}
+
+{% docs fct_refunds__overview %}
+
+Grain: one row per refund event. Fanbasis-only.
+
+### Why Fanbasis-only
+
+`stg_stripe__charges` exposes only `amount_refunded_minor` aggregated
+per charge, not the underlying refund events. Producing event-grain
+refund rows from that field would lose temporal fidelity (multiple
+refunds on one charge collapse into a single number) and require an
+extractor change to fix. Stripe is also banned at D-DEE per memory
+`project_stripe_historical_only.md`, so the asymmetry is correct in
+practice — live forward-going refunds are 100% Fanbasis (currently
+9 events / $2,500 USD across the staging window).
+
+If Stripe historical refund timing ever matters, scaffold a separate
+`stg_stripe__refunds` from the Stripe payload first; do not collapse
+charge-grain `amount_refunded_minor` into this fact.
+
+### Contact attribution via parent payment
+
+Refunds inherit their contact from the original payment, so the
+identity bridge is joined on the **parent** payment's `(source_platform,
+payment_id)` — not on the refund_id. This avoids re-running identity
+matching on the refund row and keeps `fct_refunds.contact_sk`
+consistent with `fct_payments.contact_sk` for the same payment.
+
+Per `.claude/rules/warehouse.md`, this is **not** a fact-to-fact join:
+the bridge is not a fact, and the parent payment is referenced by its
+native `payment_id` column, not via `fct_payments.payment_sk`.
+
+### Measure semantics
+
+- `refund_amount` — gross USD returned to the customer
+- `refund_amount_net` — `refund_amount` minus the processor fee
+- `refund_fee` — additional processor fee charged on the refund
+- `refund_total_cost` — total cost to merchant per Fanbasis
+  (`amount + processor side-effects`); leave to mart layer to decide
+  which measure to roll up
+
+{% enddocs %}
