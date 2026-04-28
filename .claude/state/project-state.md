@@ -9,60 +9,62 @@ WORKLOG.md is the append-only audit log; grep it for history.
 
 # D-DEE Data Ops — present-moment snapshot
 
-_Last regenerated: 2026-04-26 (corpus engine v2 landed on feature branch + worklog wrap)_
+_Last regenerated: 2026-04-27 (Phase A closed: roadmap + agent-kit install merged via PR #80; this PR completes the input sharpening)_
 
 ## Where we are
 
-- **Active workstream — Strategic Reset / Data Discovery & Visibility Sprint** (2026-04-24 → target 2026-05-08). Pause new build; finish the decision docs that determine the next Gold-layer build. Plan: `docs/plans/2026-04-24-strategic-reset.md`.
-- **Phase A methodology investment landed (2026-04-26):** `ask-corpus` v2 corpus research engine (planner / fan-out / fuse / rerank) on branch `Davv5/Understanding-NotebookLM`. 11 of 13 active units complete; 126/126 tests pass. PR not yet opened — awaiting design review. Plan: `docs/plans/2026-04-26-001-feat-corpus-research-engine-plan.md`.
-- **Current operating loop:** `docs/runbooks/operator-fast-loop.md` first, then the deeper Orca cleanup runbook. Start every session from the control-room repo with `.claude/scripts/orca-worktree-audit.sh` + `git status --short --branch`.
-- **Foundation is intact (do not rebuild):** BigQuery + dbt + 13 staging models end-to-end + `(id, _ingested_at, payload)` raw-landing discipline. U1 preflight, U2 profile retarget, U3 staging shims all stay shipped.
-- **GCP consolidation plan PAUSED at U3-complete.** `docs/plans/2026-04-23-001-feat-gtm-source-port-plan.md` resumes (with U5+ warehouse scope rewritten against the Grok roadmap) after the sprint. U4a plumbing parity contract stays valid.
-- **Closed workstream (unchanged):** Speed-to-Lead star-schema refactor shipped 2026-04-23. `speed_to_lead_detail` wide mart feeds 15/15 Metabase cards; dashboard live.
-- **Next concrete step:** finish `docs/discovery/gold-layer-roadmap.md`. Other discovery docs already exist under `docs/discovery/`.
-- **Headline metric (locked 2026-04-19):** unchanged. Stays as the reproduction target for U4a when cutover resumes.
+- **Strategic Reset / Discovery Sprint Phase A: CLOSED.** Canonical Gold-layer roadmap landed via PR #80 (`docs/discovery/gold-layer-roadmap.md`). The agent-kit's `data-engineer` subagent + LAW skills are installed globally; discoverability rule + PreToolUse / PostToolUse hooks fire deterministically. PR #81 was closed in favor of PR #80 (kit's standard rank-table format won over PR #81's narrative).
+- **Phase B (Layer Build) authorized.** Per `docs/decisions/2026-04-27-phase-a-to-b-transition.md`: the "no new build" constraint is lifted; future architectural pauses require an explicit declared reset.
+- **First Phase B work order:** `data-engineer` → `staging-scaffold` for `stg_fanbasis__transactions`. Highest-leverage move on the matrix — flips Q2 / Q4 / Q5 / Q8 / Q9 / Q11 from blocked toward usable. Replaces the placeholder CTE in `2-dbt/models/warehouse/facts/fct_revenue.sql:40–66`.
+- **Existing wide marts auto-widen on Fanbasis staging:** `lead_journey`, `revenue_detail`, `sales_activity_detail`, `speed_to_lead_detail` are shipped; refresh-only work after Fanbasis lands.
+- **`ask-corpus` v2 engine** lives on main (PR #74). Routing rule + voice contract are the canonical query path; raw `notebook_query` calls are reserved for ad-hoc lookups.
+- **Foundation intact (do not rebuild):** BigQuery + dbt + 13 staging models + `(id, _ingested_at, payload)` raw-landing discipline. U1 / U2 / U3 stay shipped.
+- **GCP consolidation plan PAUSED at U3-complete.** `docs/plans/2026-04-23-001-feat-gtm-source-port-plan.md` U4a+ resumes when GHL trusted-copy decision lands.
+- **Headline metric (locked 2026-04-19):** unchanged.
 
 ## Active plans
 
-- **Primary (sprint):** `docs/plans/2026-04-24-strategic-reset.md` — 5 workstreams; decision packet under `docs/discovery/`; docs-only until roadmap exists.
-- **Methodology (just landed):** `docs/plans/2026-04-26-001-feat-corpus-research-engine-plan.md` — 11 of 13 active units `[x]`; U9 + U10 deferred. U13 (extra fixtures) + U15 (this entry) are the remaining tail.
-- **Paused (cutover):** `docs/plans/2026-04-23-001-feat-gtm-source-port-plan.md` — 15 units, U1–U3 complete; U4a+ resumes after Gold-layer roadmap exists.
+- **Sprint (closed):** `docs/plans/2026-04-24-strategic-reset.md` — Phase A complete; Phase B reactivates per the ADR.
+- **Methodology (on main):** `docs/plans/2026-04-26-001-feat-corpus-research-engine-plan.md` — corpus engine v2; 11/13 active units shipped.
+- **Paused (cutover):** `docs/plans/2026-04-23-001-feat-gtm-source-port-plan.md` — U4a+ resumes when GHL trusted-copy decision lands.
 
-## Last 3 decisions (full entries in WORKLOG.md)
+## Last 3 decisions
 
-- **2026-04-26** — ask-corpus v2 corpus research engine: two-phase host-LLM JSON handshake (`--phase=retrieve` / `--phase=finalize`); quality-aware diversity guard (parity floor 0.6); 3 LAWs at launch (mart-naming = LAW 3); SKILL.md v2 voice contract; routing rule retargets v1 inline snippet → v2 engine. (`grep -n "ask-corpus v2" WORKLOG.md`)
-- **2026-04-24** — Strategic Reset: pause new build, run Discovery Sprint, rebuild Gold against Grok-prioritized roadmap. Third restart considered and rejected; foundation is sound; problem is visibility + prioritization, not tech. (`grep -n "Strategic Reset" WORKLOG.md`)
-- **2026-04-23 later** — U3 staging shims landed: 4 blob-shims (Stripe/Typeform/Fathom/Calendly) + GHL column rename; kept pre-U3 Calendly filenames; abandoned Track X Fivetran+poller dual-source; `form_id` gap logged for U9. (`grep -n "U3 staging shims" WORKLOG.md`)
+- **2026-04-27** — Phase A → Phase B transition: ship the agent-kit `data-engineer` agent + LAW-skill catalog as v1; close the Strategic Reset; authorize Phase B build work. Destination: `docs/decisions/2026-04-27-phase-a-to-b-transition.md` (ADR) + PR #80.
+- **2026-04-27** — Discovery Sprint inputs sharpened: "one wide mart per playbook chapter" architecture commitment + Owner-as-role column on `business-area-map.md`; mart-roadmap-rank scaffold-audit failure mode logged. Destination: this PR (`chore/discovery-input-sharpen-2026-04-27` → main) + WORKLOG entry for the cross-session learning.
+- **2026-04-26** — ask-corpus v2 corpus research engine: two-phase host-LLM JSON handshake; quality-aware diversity guard; 3 LAWs at launch (mart-naming = LAW 3). Destination: PR #74 (merged to main as `9199b8b`) + WORKLOG entry.
 
 ## Open threads
 
-- **`Davv5/Understanding-NotebookLM` PR** — feature branch with 3 commits ahead of main (Phase 1 skeleton + plan doc + Phase 2-4). Open PR when David approves the design.
-- **U13 corpus engine fixtures** — capture additional `nlm` fixtures (metabase-backup, engagement speed-to-lead) + 3-question smoke variants. Small nlm spend; defer until design approved.
-- **Empirical tuning of corpus-engine constants** — `DIVERSITY_RELEVANCE_THRESHOLD=0.30` and `QUALITY_PARITY_FLOOR=0.6` ship provisional. Acceptance criterion: 3 known-correct-scope questions, top-5 must include the right scope. Lock after first production queries.
-- **Sprint discovery packet** — landed: `docs/discovery/{source-inventory,source-shapes,staging-models,gap-analysis,insights-summary,business-area-map,coverage-matrix}.md`; still owed by ~2026-05-08: `docs/discovery/gold-layer-roadmap.md`.
-- **Orca/control-room cleanup** — audit shows several worktrees dirty / already merged into `origin/main`; protect dirty work before retiring anything.
-- **`merge-dbt-ci@` SA + keyfile** — paused per Strategic Reset; needed before CI can run dbt builds in prod post-resume.
-- **`bq-ingest` service repair** — paused per Strategic Reset; GTM-repo work; prerequisite for U4b when cutover resumes.
-- **Typeform `form_id` gap** — paused per Strategic Reset; real fix is U9.
-- **GHL `conversations` undercount** (101 vs 1,314 blob), **GHL `messages` / `users` / `tasks`** (0 rows upstream), **Fathom transcript landing** (0% across 1,157 calls), **Stripe ~50-day staleness**, **Fanbasis dbt wiring missing** — all paused per Strategic Reset; revisit during cutover resume.
+- **Phase B kickoff** (per the canonical roadmap): (1) `stg_fanbasis__transactions` → `fct_revenue` placeholder fill (highest-leverage); (2) period-grain rollups on top of existing wide marts; (3) net-new facts (`fct_calls_held` from Fathom; `fct_opportunity_stage_transitions` from GHL; `fct_refunds`); (4) `dim_typeform_form`; (5) Tier C marts gated on vendor-support. Invoke through `data-engineer` agent so LAW pattern fires.
+- **GHL trusted-copy decision** — single named blocker for several Tier B/refresh marts. Choose between legacy blob (1,314 conversation rows) and Phase-2 (101 rows). Resolves 92% undercount + four empty entities + dual-source ambiguity in one move.
+- **Fanbasis bridge match-method** — read `bridge_identity_contact_payment` before starting Phase B.1 to confirm whether Fanbasis `payment_id` shape needs a Fanbasis-aware match-method addition.
+- **Fathom → GHL contact join key** — attendee email reliability. Affects `fct_calls_held`.
+- **GHL stage-transition event presence** — confirm raw landing carries stage-change events with timestamps before scaffolding `fct_opportunity_stage_transitions`.
+- **Empirical tuning of corpus-engine constants** — `DIVERSITY_RELEVANCE_THRESHOLD=0.30` + `QUALITY_PARITY_FLOOR=0.6` ship provisional. Lock after first production queries.
+- **`bq-ingest` service repair**, **Typeform `form_id` gap**, **GHL `messages` / `users` / `tasks` 0-row upstream**, **Fathom transcript landing**, **Stripe staleness** — all paused per Strategic Reset; revisit on cutover resume.
 - **Week-0 client asks** — unchanged (Fanbasis docs, SLA thresholds, access verification).
-- **Agent kit publication/import** — decide later whether to push `/Users/david/Documents/agent-kit` to GitHub and re-import this project from that canonical source.
 
-## Where to look (retrieval map)
+## Where to look
 
-- **Corpus engine v2 (just landed):** `.claude/skills/ask-corpus/scripts/` (engine) + `.claude/skills/ask-corpus/SKILL.md` (voice contract) + `.claude/skills/ask-corpus/SKILL-v1.md` (backup)
+- **Canonical roadmap (on main):** `docs/discovery/gold-layer-roadmap.md`
+- **Phase A → B ADR:** `docs/decisions/2026-04-27-phase-a-to-b-transition.md`
+- **Mart architecture commitment:** `docs/discovery/coverage-matrix.md` "Mart architecture commitment" + `.claude/rules/mart-naming.md` Rule 2
+- **Existing wide marts (auto-widen on Fanbasis staging):** `2-dbt/models/marts/{lead_journey,revenue_detail,sales_activity_detail,speed_to_lead_detail}.sql`
+- **Phase B placeholder:** `2-dbt/models/warehouse/facts/fct_revenue.sql:40–66` (the `fanbasis_payments` CTE waiting for staging)
+- **Data-engineer agent + LAW skills:** `~/.claude/agents/data-engineer.md` owns engagement lifecycle; specialist seams via `altimate-{sql-review,data-parity,schema-migration,dbt-unit-tests}` skills. Discoverability rule: `.claude/rules/use-data-engineer-agent.md`. Hooks: PreToolUse(Write|Edit) → `pre-sql-altimate-review.sh`; PostToolUse(Write|Edit) → `post-sql-qa-baseline.sh`.
+- **Corpus engine v2:** `.claude/skills/ask-corpus/scripts/` (engine) + `.claude/skills/ask-corpus/SKILL.md` (voice contract) + `SKILL-v1.md` (backup)
 - **Fast operating loop:** `docs/runbooks/operator-fast-loop.md`
 - **Shared portable kit:** `/Users/david/Documents/agent-kit` (installed globally via `~/.claude/agents/data-engineer.md` symlink + 16 `~/.claude/skills/<kit-name>` symlinks; project-imported via `import-agent-kit.sh --symlink`)
-- **Data-engineer agent + LAW skills:** `~/.claude/agents/data-engineer.md` owns engagement lifecycle; specialist seams via `altimate-{sql-review,data-parity,schema-migration,dbt-unit-tests}` skills. Discoverability rule: `.claude/rules/use-data-engineer-agent.md`. Hooks: PreToolUse(Write|Edit) → `pre-sql-altimate-review.sh`; PostToolUse(Write|Edit) → `post-sql-qa-baseline.sh`.
-- **Orca cleanup protocol:** `docs/runbooks/orca-worktree-power-user-workflow.md`
-- **Active sprint plan:** `docs/plans/2026-04-24-strategic-reset.md`
-- **Corpus engine plan:** `docs/plans/2026-04-26-001-feat-corpus-research-engine-plan.md`
-- **Paused cutover plan:** `docs/plans/2026-04-23-001-feat-gtm-source-port-plan.md`
-- **Sprint artifacts:** `docs/discovery/`
+- **Codex parity:** `AGENTS.md` + `.agents/skills/{ask-corpus,skill-creator,worklog}/`
+- **Sprint artifacts:** `docs/discovery/{source-inventory,source-shapes,staging-models,gap-analysis,insights-summary,business-area-map,coverage-matrix,gold-layer-roadmap}.md`
 - **Memories (auto-loaded):** see `MEMORY.md`
 - **Engagement context / locked metric:** `CLAUDE.local.md` (gitignored overlay)
-- **Portable conventions:** `CLAUDE.md` + `dbt_style_guide.md` + `.claude/rules/*.md`
-- **Corpus declaration:** `.claude/corpus.yaml` — 4 notebooks; scope routing in `.claude/rules/using-the-notebook.md`
-- **Staging shims (U3, frozen):** `dbt/models/staging/{ghl,calendly,stripe,typeform,fathom}/`
-- **GTM source repo (read-only reference):** `/Users/david/Documents/operating system/Projects/GTM lead warehouse`
-- **Full history:** `grep -n "^## " WORKLOG.md`; `grep -n "ask-corpus v2" WORKLOG.md` for the corpus engine entry
+- **Portable conventions:** `CLAUDE.md` + `.claude/rules/*.md`
+- **Routing rule for end-of-session:** `.claude/rules/worklog.md`
+- **Full history:** `grep -n "^## " WORKLOG.md`
+
+## _meta
+
+- Last regen: 2026-04-27
+- WORKLOG: fired this session — captured the cross-session failure-mode learning (`mart-roadmap-rank` without scaffold audit) that doesn't fit any other destination, plus the operator-fast-loop runbook entry that was unstaged on the abandoned triage branch.

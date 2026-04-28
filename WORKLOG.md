@@ -11,6 +11,35 @@ Rolling log of what's been done on this project. Newest entries at the top. Tail
 
 ---
 
+## 2026-04-27 — Discovery Sprint inputs sharpened; mart-roadmap-rank scaffold-audit failure mode logged
+
+**What happened**
+- `docs/discovery/coverage-matrix.md` extended with a "Mart architecture commitment" section: one wide mart per playbook chapter, citing `mart-naming.md` Rule 2.
+- `docs/discovery/business-area-map.md` extended with an `Owner` column. Owners are roles inferred from the playbook chapter (SDR Manager, Sales Manager, Marketing Lead, Finance Lead, Sales Operations, D-DEE Leadership) — not named individuals (team too large for human-level routing) and not `client-decision` placeholders (decisions are encoded in the questions).
+- Codex parity tracked: `AGENTS.md` + `.agents/skills/{ask-corpus, skill-creator, worklog}/`.
+- `.gitignore` adds `.obsidian/`, `.cabinet-meta`, `.repo.yaml` (per-machine local files).
+- Yesterday's `docs/runbooks/operator-fast-loop.md` ports forward in this PR (was uncommitted on the prior triage branch).
+
+**Decisions**
+- **Cross-session learning:** running `mart-roadmap-rank` without first auditing the existing `2-dbt/models/marts/` tree produces a roadmap that proposes duplicates of existing marts (`attribution_detail` / `revenue_event_detail` / `funnel_booking_detail` would all duplicate `lead_journey` / `revenue_detail` / `sales_activity_detail`). PR #80 and PR #81 both produced corrected roadmaps after that audit; an early version on the now-abandoned `chore/triage-2026-04-23` branch did not. The skill should be paired with a marts-tree audit (or inline the audit as a pre-step in the skill itself).
+- **Owner-as-role, not Owner-as-name:** D-DEE team is too large for individual-human routing. Schema-per-audience (`mart-naming.md` Rule 5) becomes the natural future split when audiences diverge — not now.
+- **Track AGENTS.md + `.agents/skills/`** so Codex sessions get the same conventions and core skills Claude Code has.
+
+**Open threads**
+- **Canonical Phase A closing roadmap** lives on PR #80 (`Davv5/eu7-install-and-roadmap`) and PR #81 (`Davv5/Phase-B`) — both target main with overlapping `docs/discovery/gold-layer-roadmap.md` files. Resolve the duplicate before either merges; recommend dropping the roadmap file from PR #80 (keeping the agent-kit install) so PR #81 lands cleanly.
+- **PR #80's hook paths** are absolute machine-local (`/Users/david/Documents/agent-kit/hooks/...`). Confirm the scripts filter by `*.sql` extension before doing real work, or thread an env var.
+- **PR #82 was opened against main from `chore/triage-2026-04-23` and then closed** because the triage branch had diverged from main since PRs #76/#77/#78/#79 landed (would have re-added `docs/methodology.md` after #77 explicitly removed it as a drift-magnet, and deleted `docs/decisions/README.md` after #79 added it). This PR is the small focused replacement.
+
+## 2026-04-26 (later) — Operator fast loop runbook formalized
+
+**What happened**
+- Added `docs/runbooks/operator-fast-loop.md` — short start-of-session / idea-to-task / review / end-of-session loop sitting above existing Orca, corpus, and worklog rules.
+- Linked the deeper Orca cleanup runbook to the new fast loop (4-line cross-link in `orca-worktree-power-user-workflow.md`).
+- Created sibling repo `/Users/david/Documents/agent-kit` (initial commit `14c21af`) for portable skills/templates/import tooling.
+
+**Decisions**
+- Optimize next sessions for operator speed and calm: start every session with the control-room audit, classify session mode, reduce every idea to one branch/worktree/PR-shaped task.
+
 ## 2026-04-26 — ask-corpus v2 corpus research engine: Phase 2-4 landed on feature branch (planner / fan-out / fuse / rerank)
 
 **What happened**
