@@ -4,15 +4,11 @@
 -- contributor.
 --
 -- `contact_sk` + bridge metadata come from
--- `bridge_identity_contact_payment`. Amounts land in major units (USD
--- here; non-USD currency rows pass through at face value — multi-currency
--- handling is a mart-layer concern).
---
--- Bridge gap (follow-up): `bridge_identity_contact_payment` currently sources
--- only from `stg_stripe__charges`, so Fanbasis `payment_id` rows will
--- left-join to a null bridge row and surface as `bridge_status = 'unmatched'`
--- via the coalesce in `final`. Extending the bridge to UNION-ALL Fanbasis is
--- a separate ticket (see staging view docstring).
+-- `bridge_identity_contact_payment`, joined on `(source_platform,
+-- payment_id)` so a Stripe `charge_id` and a Fanbasis `payment_id` cannot
+-- collide. Amounts land in major units (USD here; non-USD currency rows
+-- pass through at face value — multi-currency handling is a mart-layer
+-- concern).
 
 with
 
@@ -76,6 +72,7 @@ unioned as (
 bridge as (
 
     select
+        source_platform,
         payment_id,
         contact_sk,
         match_method,
@@ -116,7 +113,8 @@ final as (
 
     from unioned
     left join bridge
-        on unioned.payment_id = bridge.payment_id
+        on unioned.source_platform = bridge.source_platform
+       and unioned.payment_id      = bridge.payment_id
 
 )
 

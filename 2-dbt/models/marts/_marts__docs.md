@@ -104,7 +104,7 @@ is lower than Stripe's dashboard — eroding trust. Every payment stays visible;
 
 ## What it's built from
 
-- `fct_revenue` — row source (union of Stripe + Fanbasis; Fanbasis may be empty)
+- `fct_revenue` — row source (union of Stripe + Fanbasis)
 - `bridge_identity_contact_payment` — left-join for `contact_sk`, `match_method`,
   `match_score`, `bridge_status`; unmatched payments survive with NULL contact_sk
 - `dim_contacts` — left-join for campaign / first-touch / last-touch / lead-magnet

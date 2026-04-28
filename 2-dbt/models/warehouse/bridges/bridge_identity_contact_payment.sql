@@ -1,30 +1,50 @@
--- Deterministic, tiered email/phone match between Stripe payments and
--- `dim_contacts`. One row per `payment_id` — best-match picked via
--- `qualify row_number() over (partition by payment_id order by
--- match_score desc)`. Tiers and scores (per the corpus audit gap-fix
--- brief):
+-- Deterministic, tiered email/phone match between payments (Stripe +
+-- Fanbasis) and `dim_contacts`. One row per `(source_platform,
+-- payment_id)` — best-match picked via `qualify row_number() over
+-- (partition by source_platform, payment_id order by match_score desc)`.
+-- Tiers and scores (per the corpus audit gap-fix brief):
 --     1. email_exact           — score 1.00
 --     2. email_canonical       — score 0.95  (gmail dot/plus normalized)
 --     3. phone_last10          — score 1.00
 --     4. billing_email_direct  — score 0.80  (payment-only fallback)
 --     5. unmatched             — score 0.00  (bridge_status = 'unmatched')
 -- Keeping the bridge payment-centric (not contact-centric) means every
--- Stripe charge gets exactly one row here; fct_revenue left-joins on
--- payment_id to pick up contact_sk + bridge metadata.
+-- charge / Fanbasis transaction gets exactly one row here; `fct_revenue`
+-- left-joins on `(source_platform, payment_id)` to pick up `contact_sk`
+-- + bridge metadata. Stripe is historical-only at D-DEE per memory
+-- `project_stripe_historical_only.md`; Fanbasis is the live-going arm.
 
 with
 
-payments as (
+stripe_payments as (
 
     select
         charge_id                                                 as payment_id,
         'stripe'                                                  as source_platform,
         lower(trim(billing_email))                                as email_norm,
-        lower(trim(receipt_email))                                as receipt_email_norm,
-        regexp_replace(coalesce(billing_phone, ''), r'[^0-9]', '') as phone_digits,
-        charged_at                                                as transaction_date
+        regexp_replace(coalesce(billing_phone, ''), r'[^0-9]', '') as phone_digits
     from {{ ref('stg_stripe__charges') }}
     where charge_id is not null
+
+),
+
+fanbasis_payments as (
+
+    select
+        payment_id                                                as payment_id,
+        'fanbasis'                                                as source_platform,
+        lower(trim(fan_email))                                    as email_norm,
+        regexp_replace(coalesce(fan_phone, ''), r'[^0-9]', '')    as phone_digits
+    from {{ ref('stg_fanbasis__transactions') }}
+    where payment_id is not null
+
+),
+
+payments as (
+
+    select * from stripe_payments
+    union all
+    select * from fanbasis_payments
 
 ),
 
@@ -115,6 +135,7 @@ contacts_canonicalized as (
 tier_email_exact as (
 
     select
+        payments_canonicalized.source_platform,
         payments_canonicalized.payment_id,
         contacts_canonicalized.contact_sk,
         'email_exact'                                             as match_method,
@@ -131,6 +152,7 @@ tier_email_exact as (
 tier_email_canonical as (
 
     select
+        payments_canonicalized.source_platform,
         payments_canonicalized.payment_id,
         contacts_canonicalized.contact_sk,
         'email_canonical'                                         as match_method,
@@ -149,6 +171,7 @@ tier_email_canonical as (
 tier_phone_last10 as (
 
     select
+        payments_canonicalized.source_platform,
         payments_canonicalized.payment_id,
         contacts_canonicalized.contact_sk,
         'phone_last10'                                            as match_method,
@@ -167,6 +190,7 @@ tier_phone_last10 as (
 tier_billing_email_direct as (
 
     select
+        payments_canonicalized.source_platform,
         payments_canonicalized.payment_id,
         cast(null as string)                                      as contact_sk,
         'billing_email_direct'                                    as match_method,
@@ -186,6 +210,7 @@ tier_billing_email_direct as (
 tier_unmatched as (
 
     select
+        payments_canonicalized.source_platform,
         payments_canonicalized.payment_id,
         cast(null as string)                                      as contact_sk,
         'unmatched'                                               as match_method,
@@ -226,26 +251,28 @@ all_tiers as (
 candidate_counts as (
 
     select
+        source_platform,
         payment_id,
         max(match_score)                                          as best_score,
         count(distinct contact_sk)                                as distinct_candidate_count
     from all_tiers
     where match_method != 'unmatched'
         and match_method != 'billing_email_direct'
-    group by 1
+    group by 1, 2
 
 ),
 
 best_match as (
 
     select
+        all_tiers.source_platform,
         all_tiers.payment_id,
         all_tiers.contact_sk,
         all_tiers.match_method,
         all_tiers.match_score
     from all_tiers
     qualify row_number() over (
-        partition by all_tiers.payment_id
+        partition by all_tiers.source_platform, all_tiers.payment_id
         order by all_tiers.match_score desc
     ) = 1
 
@@ -254,6 +281,7 @@ best_match as (
 final as (
 
     select
+        best_match.source_platform,
         best_match.payment_id,
         best_match.contact_sk,
         best_match.match_method,
@@ -270,7 +298,8 @@ final as (
 
     from best_match
     left join candidate_counts
-        on best_match.payment_id = candidate_counts.payment_id
+        on best_match.source_platform = candidate_counts.source_platform
+       and best_match.payment_id      = candidate_counts.payment_id
 
 )
 

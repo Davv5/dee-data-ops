@@ -136,7 +136,8 @@ final as (
 
     from payments
     left join bridge
-        on payments.payment_id = bridge.payment_id
+        on payments.source_platform = bridge.source_platform
+       and payments.payment_id      = bridge.payment_id
     left join contacts
         on bridge.contact_sk = contacts.contact_sk
     left join closer_lookup

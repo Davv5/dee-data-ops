@@ -227,10 +227,9 @@ models:
       per memory `project_stripe_historical_only.md`); Fanbasis is the
       live forward-going contributor (~466 rows / $170K gross as of
       2026-04-27). Contact attribution flows through
-      `bridge_identity_contact_payment`; `contact_sk` is nullable when
-      the bridge returns `unmatched` — including all Fanbasis rows
-      today, since the bridge is Stripe-only until a Fanbasis-aware
-      tier ships.
+      `bridge_identity_contact_payment`, joined on
+      `(source_platform, payment_id)`; `contact_sk` is nullable when
+      the bridge returns `unmatched`.
     columns:
       - name: payment_sk
         description: Surrogate key over `(source_platform, payment_id)`.
