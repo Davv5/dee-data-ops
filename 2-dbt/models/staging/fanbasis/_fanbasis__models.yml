@@ -82,3 +82,51 @@ models:
 
       - name: _ingested_at
         description: Wall-clock UTC time the row landed in `Raw.fanbasis_transactions_txn_raw`.
+
+  - name: stg_fanbasis__refunds
+    description: >
+      Refund-event staging on `raw_fanbasis.fanbasis_transactions_txn_raw`.
+      Unnests the `$.refunds` JSON array — one row per refund event (multi
+      refunds per parent payment supported, though current data is
+      single-refund-per-transaction). PK: `refund_id`. FK to parent payment
+      via `(source_platform='fanbasis', payment_id)` join into `fct_payments`.
+
+      Amounts in major units (USD); currency hardcoded `'usd'` matching
+      `stg_fanbasis__transactions` (Fanbasis tenant carries no currency
+      field).
+    columns:
+      - name: refund_id
+        description: Fanbasis refund id (stringified). Primary key.
+        tests:
+          - unique
+          - not_null
+
+      - name: payment_id
+        description: Parent Fanbasis transaction id. Joins to `stg_fanbasis__transactions.payment_id`.
+        tests:
+          - not_null
+
+      - name: refund_amount
+        description: Gross refund amount in USD (major units) returned to the customer.
+        tests:
+          - not_null
+
+      - name: refund_amount_net
+        description: Refund amount minus the processor fee, in USD.
+
+      - name: refund_fee
+        description: Processor fee charged on the refund, in USD.
+
+      - name: refund_total_cost
+        description: Total cost to merchant (refund_amount + processor side-effects), in USD.
+
+      - name: currency
+        description: Hardcoded `'usd'` to match parent transaction.
+
+      - name: refunded_at
+        description: UTC timestamp the refund event occurred (Fanbasis `$.created_at`).
+        tests:
+          - not_null
+
+      - name: _ingested_at
+        description: Wall-clock UTC time the parent row landed in raw.
