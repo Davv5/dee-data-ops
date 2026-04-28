@@ -65,3 +65,5 @@ logs/
 .claude/skills/staging-scaffold
 .claude/skills/warehouse-fct-scaffold
 .claude/corpus.yaml.example
+.worktrees
+.claude/scheduled_tasks.lock
