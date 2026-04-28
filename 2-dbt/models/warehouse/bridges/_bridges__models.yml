@@ -8,7 +8,7 @@ models:
       Deterministic 5-tier match between payments (Stripe + Fanbasis) and
       `dim_contacts`; best match picked via `qualify row_number() over
       (partition by source_platform, payment_id order by match_score desc)
-      = 1`. Downstream: `fct_revenue` left-joins on
+      = 1`. Downstream: `fct_payments` left-joins on
       `(source_platform, payment_id)` to attach `contact_sk` + bridge
       metadata. See `_bridges__docs.md` for tier order, scoring, and
       rationale.

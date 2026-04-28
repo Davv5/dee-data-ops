@@ -142,7 +142,7 @@ shape today and light up once the answer-level pivot model ships.
 Per rule: multi-source bridges resolve to the GHL `contact_id`
 *upstream* of `dim_contacts` (in staging or intermediate), never by
 widening this dim's PK. `bridge_identity_contact_payment` is the
-first such bridge and hangs off `fct_revenue`, not `dim_contacts`.
+first such bridge and hangs off `fct_payments`, not `dim_contacts`.
 
 {% enddocs %}
 

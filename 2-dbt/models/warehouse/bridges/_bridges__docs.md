@@ -2,7 +2,7 @@
 
 Payment-centric identity bridge: every payment (Stripe charge + Fanbasis
 transaction) gets exactly one row, with the best-available match to
-`dim_contacts` + diagnostic metadata. `fct_revenue` picks `contact_sk`
+`dim_contacts` + diagnostic metadata. `fct_payments` picks `contact_sk`
 up by left-joining this bridge on `(source_platform, payment_id)`.
 
 ### Why a composite PK
@@ -12,7 +12,7 @@ ambiguous because the two providers issue ids in independent
 namespaces — there is no guarantee a Stripe `ch_*` id can never
 collide with a Fanbasis transaction id. Keying on
 `(source_platform, payment_id)` makes the join deterministic and
-matches `fct_revenue.payment_sk`, which is already hashed over the
+matches `fct_payments.payment_sk`, which is already hashed over the
 same pair.
 
 Stripe at D-DEE is historical-only (memory
@@ -20,13 +20,13 @@ Stripe at D-DEE is historical-only (memory
 contributor. Both arms ride the same tier ladder so the match-rate
 target applies to the unioned bridge, not per-source.
 
-### Why a bridge (not widened columns on dim_contacts or fct_revenue)
+### Why a bridge (not widened columns on dim_contacts or fct_payments)
 
 Per `.claude/rules/warehouse.md` — multi-source identity resolution
 resolves to GHL's `contact_id` *upstream* of `dim_contacts`, not by
 widening the dim's PK. Keeping the matching logic in a named bridge
 model isolates it, makes the tier table testable, and lets the
-`relationships` test on `fct_revenue.contact_sk` work unchanged.
+`relationships` test on `fct_payments.contact_sk` work unchanged.
 
 ### Tiers (priority order)
 
@@ -80,6 +80,6 @@ Hard ship gates remain:
 
 If the warn fires and persists past a backfill window, retune the tier
 set or backfill upstream contact data before treating that source's
-`fct_revenue` rows as report-grade — and escalate to David.
+`fct_payments` rows as report-grade — and escalate to David.
 
 {% enddocs %}

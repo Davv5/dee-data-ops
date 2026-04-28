@@ -3,7 +3,7 @@
 -- Staging view for source fanbasis, table fanbasis_transactions_txn_raw.
 -- 1:1 cleanup only: lowercase rename + light type casts on the JSON payload.
 -- No joins, no aggregations, no business logic per `.claude/rules/staging.md`.
--- Downstream `fct_revenue` ref()s this view; column shape is the union-arm
+-- Downstream `fct_payments` ref()s this view; column shape is the union-arm
 -- contract for the Fanbasis side of the Stripe + Fanbasis revenue fact.
 --
 -- Grain: one row per Fanbasis transaction. PK: `payment_id` (cast to string

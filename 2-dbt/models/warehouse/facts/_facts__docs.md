@@ -95,11 +95,11 @@ by `role = 'SDR'` is a reporting concern that belongs at the
 Both are GHL-native joins (the message row carries `contact_id` +
 `user_id` directly), so `match_method` is always `ghl_native` and
 `match_score` is always 1.00. Those columns exist only for
-shape-parity with `fct_revenue`, where matching is tiered.
+shape-parity with `fct_payments`, where matching is tiered.
 
 {% enddocs %}
 
-{% docs fct_revenue__overview %}
+{% docs fct_payments__overview %}
 
 One row per payment event, unioned across Stripe and Fanbasis.
 
