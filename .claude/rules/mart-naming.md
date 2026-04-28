@@ -15,7 +15,7 @@ In `marts/`, use **business-friendly names** that describe what the table repres
 | Warehouse (keep Kimball) | Marts (business-friendly) |
 |---|---|
 | `fct_calls_booked` | `sales_activity_detail` |
-| `fct_revenue` | `revenue_detail` |
+| `fct_payments` | `revenue_detail` |
 | `dim_contacts` | `contacts` |
 | `dim_offers` | `offers` |
 
