@@ -5,7 +5,7 @@
 - `env/triage/` -> source-specific triage config files for generic pipeline diagnostics
 
 Example:
-- [rotate_api_key_secret.sh](/Users/david/Documents/fanbasis-ingest/ops/scripts/rotate_api_key_secret.sh)
+- [rotate_api_key_secret.sh](scripts/rotate_api_key_secret.sh)
 
 ## Cloud Python Jobs
 
@@ -42,7 +42,7 @@ ops/scripts/rollback_last_scheduler_cutover.sh
 
 ## Pipeline Triage Pattern
 
-Use [run_pipeline_triage.sh](/Users/david/Documents/fanbasis-ingest/ops/scripts/run_pipeline_triage.sh) for fast, repeatable incident diagnosis across sources.
+Use [run_pipeline_triage.sh](scripts/run_pipeline_triage.sh) for fast, repeatable incident diagnosis across sources.
 
 Passive checks (no ingest call):
 
@@ -71,8 +71,8 @@ What it checks:
 - Optional ingest endpoint smoke result
 
 Automatic execution on failure:
-- [validate_marts.sh](/Users/david/Documents/fanbasis-ingest/ops/scripts/validate_marts.sh) auto-runs `run_pipeline_triage_all.sh` when validation fails.
-- [run_pipeline.sh](/Users/david/Documents/fanbasis-ingest/ops/scripts/run_pipeline.sh) auto-runs `run_pipeline_triage_all.sh` on script failure (`ERR` trap).
+- [validate_marts.sh](scripts/validate_marts.sh) auto-runs `run_pipeline_triage_all.sh` when validation fails.
+- [run_pipeline.sh](scripts/run_pipeline.sh) auto-runs `run_pipeline_triage_all.sh` on script failure (`ERR` trap).
 
 Optional toggles:
 - `AUTO_TRIAGE_ON_FAIL=false` to disable automatic triage on failure.
@@ -83,6 +83,6 @@ Release gate:
 - `pipeline.full` now fail-closes on the same Phase 1 release gate in the scheduled Cloud Run job path.
 
 To add another source:
-1. Copy [ops/env/triage/_template.env](/Users/david/Documents/fanbasis-ingest/ops/env/triage/_template.env).
+1. Copy [ops/env/triage/_template.env](env/triage/_template.env). _(Note: the `ops/env/triage/` directory did not exist in the source repo at consolidation time and was not part of the moved tree. The triage scripts that glob it (`run_pipeline_triage.sh`, `run_pipeline_triage_all.sh`) currently exit non-zero on missing config. Tracked as a Step 4 follow-up in `docs/plans/2026-04-28-bq-ingest-consolidation-plan.md` and PR #102 review.)_
 2. Fill source endpoint, tables, and optional scheduler/secret fields.
 3. Run `ops/scripts/run_pipeline_triage.sh --source <name>`.

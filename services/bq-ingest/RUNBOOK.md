@@ -1,6 +1,15 @@
-# GTM Lead Warehouse — Runbook
+# bq-ingest — Runbook
 
-Daily ops, incident response, backfills, validation gates. Written for the sole GTM engineer (you) and any future collaborator picking up a broken pipeline at 2am.
+Daily ops, incident response, backfills, validation gates. Written for the sole operator and any future collaborator picking up a broken pipeline at 2am.
+
+**Python version note:** the service pins `3.13` in `.python-version`, while the rest of the dee-data-ops repo (root `pyproject.toml`, `AGENTS.md`) targets `py311`. The split is intentional — GCP Cloud Run universal builder `universal_builder_20260414_RC00` dropped 3.11, so bq-ingest's Buildpack deploys must use 3.13. See `.claude/rules/operational-health.md` for the originating incident. The dbt project under `2-dbt/` and the `1-raw-landing/` extractors stay on 3.11 since they don't deploy via Cloud Run.
+
+**Heritage:** this code was consolidated from `heidyforero1/gtm-lead-warehouse` into `services/bq-ingest/` per `docs/plans/2026-04-28-bq-ingest-consolidation-plan.md` (PR #102). **Several sections below carry stale guidance from the original repo** that has not yet been rewritten:
+
+- **BI surface (core rule #3, "Looker Studio operations" section).** The repo's actual BI direction is dabi (per memory `project_bi_direction_dabi.md` and `CLAUDE.local.md`); Metabase retired post-cutover; Looker Studio was never adopted. Treat the Looker references as historical until rewritten.
+- **`dbt build --target prod` references (Phase 3 cutover paragraph).** This repo blocks `--target prod` locally via a `.claude/settings.json` hook (per `CLAUDE.md`); production goes through CI on merge to `main`. Do not run `--target prod` locally.
+
+Full rewrite of stale sections is sequenced after Step 4.
 
 ## Core rules (non-negotiable)
 
