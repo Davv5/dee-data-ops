@@ -220,7 +220,7 @@ models:
       - name: mart_refreshed_at
         description: Timestamp of the most recent dbt build for this row.
 
-  - name: fct_revenue
+  - name: fct_payments
     description: >
       Grain: one row per payment event, unioned across Stripe and
       Fanbasis. Stripe rows are historical-only (Stripe banned at D-DEE

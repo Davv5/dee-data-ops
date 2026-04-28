@@ -18,7 +18,7 @@ models:
       in the payload). `is_refunded` is derived from non-empty
       `$.refunds` JSON array.
 
-      Wired into `fct_revenue` as the live forward-going contributor; Stripe
+      Wired into `fct_payments` as the live forward-going contributor; Stripe
       remains in the union for historical preservation only.
     columns:
       - name: payment_id

@@ -12,7 +12,7 @@ with
 
 payments as (
 
-    select * from {{ ref('fct_revenue') }}
+    select * from {{ ref('fct_payments') }}
 
 ),
 

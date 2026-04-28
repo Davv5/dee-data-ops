@@ -2,7 +2,7 @@
 -- Catches the latent failure where a payment falls through every tier
 -- (e.g., phone-only payment with no contact phone match in `dim_contacts`)
 -- and is silently dropped from the bridge — which would propagate as a
--- NULL bridge join in `fct_revenue` instead of `bridge_status =
+-- NULL bridge join in `fct_payments` instead of `bridge_status =
 -- 'unmatched'`. Per `_bridges__docs.md`: "every payment gets exactly
 -- one row" — this test is the enforceable form of that promise.
 --
