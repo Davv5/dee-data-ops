@@ -3,11 +3,12 @@ version: 2
 models:
   - name: bridge_identity_contact_payment
     description: >
+      Grain: one row per `(source_platform, payment_id)`.
+      PK: `(source_platform, payment_id)`.
       Deterministic 5-tier match between payments (Stripe + Fanbasis) and
-      `dim_contacts`. One row per `(source_platform, payment_id)` —
-      best match picked via `qualify row_number() over (partition by
-      source_platform, payment_id order by match_score desc) = 1`.
-      Downstream: `fct_revenue` left-joins on
+      `dim_contacts`; best match picked via `qualify row_number() over
+      (partition by source_platform, payment_id order by match_score desc)
+      = 1`. Downstream: `fct_revenue` left-joins on
       `(source_platform, payment_id)` to attach `contact_sk` + bridge
       metadata. See `_bridges__docs.md` for tier order, scoring, and
       rationale.
@@ -35,6 +36,10 @@ models:
         description: >
           FK to `dim_contacts.contact_sk`. NULL when
           `match_method in ('billing_email_direct', 'unmatched')`.
+        tests:
+          - relationships:
+              to: ref('dim_contacts')
+              field: contact_sk
       - name: match_method
         description: >
           Which tier produced the match. Tier priority (and scores):

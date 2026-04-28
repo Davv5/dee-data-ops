@@ -21,7 +21,7 @@ stripe_payments as (
     select
         charge_id                                                 as payment_id,
         'stripe'                                                  as source_platform,
-        lower(trim(billing_email))                                as email_norm,
+        nullif(lower(trim(billing_email)), '')                    as email_norm,
         regexp_replace(coalesce(billing_phone, ''), r'[^0-9]', '') as phone_digits
     from {{ ref('stg_stripe__charges') }}
     where charge_id is not null
@@ -31,9 +31,9 @@ stripe_payments as (
 fanbasis_payments as (
 
     select
-        payment_id                                                as payment_id,
+        payment_id,
         'fanbasis'                                                as source_platform,
-        lower(trim(fan_email))                                    as email_norm,
+        nullif(lower(trim(fan_email)), '')                        as email_norm,
         regexp_replace(coalesce(fan_phone, ''), r'[^0-9]', '')    as phone_digits
     from {{ ref('stg_fanbasis__transactions') }}
     where payment_id is not null
@@ -89,7 +89,7 @@ contacts as (
         contact_sk,
         contact_id,
         location_id,
-        email_norm                                                as contact_email_norm,
+        nullif(email_norm, '')                                    as contact_email_norm,
         regexp_replace(coalesce(phone, ''), r'[^0-9]', '')        as contact_phone_digits
     from {{ ref('dim_contacts') }}
 
@@ -247,7 +247,10 @@ all_tiers as (
 ),
 
 -- Detect ambiguous multi-candidate: same payment matched to > 1 distinct
--- contact at the *same* highest score.
+-- contact at the *same* highest score. The match_method exclusion list
+-- and the explicit `contact_sk is not null` predicate make the invariant
+-- explicit so a future tier added without remembering to update this
+-- list cannot silently miscount NULLs.
 candidate_counts as (
 
     select
@@ -258,6 +261,7 @@ candidate_counts as (
     from all_tiers
     where match_method != 'unmatched'
         and match_method != 'billing_email_direct'
+        and contact_sk is not null
     group by 1, 2
 
 ),
