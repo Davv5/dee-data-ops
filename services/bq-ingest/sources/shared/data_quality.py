@@ -23,7 +23,17 @@ from google.cloud import bigquery
 PROJECT_ID = os.getenv("GCP_PROJECT_ID")
 DATASET = os.getenv("BQ_DATASET", "Raw")
 RESULTS_TABLE = f"{PROJECT_ID}.{DATASET}.dq_test_results"
-SQL_FILE = os.getenv("DQ_SQL_FILE", str(Path(__file__).resolve().parent / "sql" / "data_quality_tests.sql"))
+def _resolve_dq_sql_file() -> str:
+    override = os.getenv("DQ_SQL_FILE")
+    if override:
+        return override
+    candidate = Path(__file__).resolve().parent / "sql" / "data_quality_tests.sql"
+    if candidate.exists():
+        return str(candidate)
+    return str(Path(__file__).resolve().parents[2] / "sql" / "data_quality_tests.sql")
+
+
+SQL_FILE = _resolve_dq_sql_file()
 
 client = bigquery.Client(project=PROJECT_ID)
 
