@@ -1,6 +1,6 @@
 # bq-ingest dependency audit
 
-**Status:** Discovery output. Created 2026-04-28 as Step 1 of the consolidation plan in [`docs/plans/2026-04-28-bq-ingest-consolidation-plan.md`](../plans/2026-04-28-bq-ingest-consolidation-plan.md). Revised 2026-04-28 evening following multi-persona doc review (PR #100).
+**Status:** Discovery output. Created 2026-04-28 as Step 1 of the consolidation plan in [`docs/plans/2026-04-28-bq-ingest-consolidation-plan.md`](../plans/2026-04-28-bq-ingest-consolidation-plan.md). Revised twice on 2026-04-28 evening following multi-persona doc review rounds 1 and 2 (PR #100). Round 2 caught a P0 regression introduced by Round 1's auth fix (Calendly webhook surface) — verified resolved.
 
 **Purpose:** before moving the bq-ingest source tree from `heidyforero1/gtm-lead-warehouse` into `dee-data-ops/services/bq-ingest/`, map every load-bearing edge (Python imports, SQL file references, env vars, secrets, Cloud Run service spec) so the move is mechanical *for Step 2 specifically* and the deploy-from-new-home succeeds on the first try. Non-mechanical follow-ups surfaced by this audit are itemized in §"Deferred follow-ups" so they don't disappear into "we'll get to it."
 
@@ -35,16 +35,18 @@ Total to move: ~1.2 MB, 39 Python files (32 in `sources/`, 6 in `ops/`, plus `ap
 
 This audit consolidates the bq-ingest **service**. It does NOT consolidate `1-raw-landing/{ghl,calendly,fanbasis}/` — a parallel ingestion stack already living in dee-data-ops with its own `Dockerfile`, `extract.py`, and dedicated GitHub Actions workflows (`cloud-run-deploy-ghl.yml`, `cloud-run-deploy-calendly.yml`) that build and deploy to Cloud Run Jobs in **`dee-data-ops-prod`** — a different GCP project than bq-ingest's `project-41542e21-470f-4589-96d`.
 
-**Post-move state**, the repo holds two independent paths for the same sources, in two GCP projects:
+**Post-move state**, the repo holds two independent deploy paths for the same sources, in two GCP projects:
 
 | Path | Source code | Deploy target | Trigger |
 |---|---|---|---|
 | `services/bq-ingest/sources/ghl/` | (after Step 2) | Cloud Run **service** `bq-ingest` in `project-41542e21-470f-4589-96d` | Flask routes (HTTP), Cloud Scheduler hits |
 | `1-raw-landing/ghl/` | (today) | Cloud Run **Job** in `dee-data-ops-prod` | GH Actions on push |
 
+**Independent at the deploy layer, entangled at the dbt-source layer.** The two paths land into different `Raw.*` tables/schemas, but `2-dbt/` reads from both. The `_ghl__sources.yml` file documents the GHL `Raw` tables as "populated by GTM's `bq-ingest` Cloud Run service + `ghl-incremental-v2` Cloud Run Job" — i.e., the dbt staging layer joins data from both writers. **Consequence for Step 4 parity:** a green dbt run after the bq-ingest move is NOT proof that bq-ingest itself is healthy; if bq-ingest stops writing while `1-raw-landing/`'s job continues, downstream models keep working against possibly-stale rows from the parallel writer, masking the breakage. Step 4's parity check must observe `bq-ingest` write activity directly (per-route response codes, BigQuery write timestamps on the bq-ingest-owned tables), not infer health from dbt.
+
 **Scope decision** (made deliberately rather than by archaeology): this audit treats bq-ingest as the consolidating canonical surface for incremental + webhook ingestion, and treats `1-raw-landing/` as a separate concern owned by the dee-data-ops-prod project's batch-job lifecycle. Whether to fold `1-raw-landing/` into `services/` (making it `services/raw-landing-ghl/` etc.) or keep it separate is **out of scope for this consolidation plan** but should be tracked as a follow-up before the next ingestion source lands.
 
-The risk this section guards against is the consolidation looking complete after Step 6 while the same class of bug (deploy from a stale source path) still applies to `1-raw-landing/`.
+The risk this section guards against is the consolidation looking complete after Step 6 while the same class of bug (deploy from a stale source path) still applies to `1-raw-landing/`, and a future operator reading dbt as the source of truth missing the cross-project entanglement.
 
 ## Python import map
 
@@ -97,24 +99,34 @@ After the move, `parents[2]` walks `services/bq-ingest/ops/scripts/cloud_python_
 
 ### How `*_pipeline.run_models()` actually finds its SQL — important caveat
 
-The Step 1 plan asserted that `Path(__file__).parent / "sql" / "X.sql"` patterns continue to resolve as long as the tree moves as a unit. **This is wrong for 7 of the 9 SQL-emitting modules.** Verified against current source:
+The Step 1 plan asserted that `Path(__file__).parent / "sql" / "X.sql"` patterns continue to resolve as long as the tree moves as a unit. **The reality is more textured — there are four distinct resolution patterns across the 9 SQL-emitting modules**, only two of which work today and one of which depends on process CWD. Verified against current source:
 
 - **Two modules resolve repo-root `sql/` correctly today** via `parents[2]`:
-  - `sources/ghl/ghl_pipeline.py:1041-1045` has the safe pattern: `candidate = Path(__file__).parent / "sql" / "ghl_models.sql"; if candidate.exists() … else: parents[2] / "sql" / "ghl_models.sql"`. The fallback is the only branch that resolves.
-  - `sources/shared/phase1_release_gate.py` uses `parents[2] / "sql" / "phase1_release_gate.sql"` directly.
+  - `sources/ghl/ghl_pipeline.py:1041-1045` — safe pattern: try `parent / "sql" / "ghl_models.sql"`, fall back to `parents[2] / "sql" / "ghl_models.sql"`. The fallback branch is the only one that resolves.
+  - `sources/shared/phase1_release_gate.py:17-20` — `os.getenv("PHASE1_RELEASE_GATE_SQL_FILE", str(Path(__file__).resolve().parents[2] / "sql" / "phase1_release_gate.sql"))`. Default is parents[2]; an env-var override is also accepted.
 
-- **Seven modules use the broken default** `Path(__file__).resolve().parent / "sql" / "X.sql"`, which evaluates to `sources/<source>/sql/X.sql` — a directory that does not exist on disk:
+- **Six modules use the broken default** `Path(__file__).resolve().parent / "sql" / "X.sql"`, which evaluates to `sources/<source>/sql/X.sql` — a directory that does not exist on disk:
   - `sources/calendly/calendly_pipeline.py:1969`
   - `sources/fathom/fathom_pipeline.py:652`
   - `sources/fanbasis/fanbasis_pipeline.py:332`
   - `sources/marts/mart_models.py:39, 51` (the second is `sql/dims/`)
   - `sources/stripe/stripe_pipeline.py:342`
-  - `sources/typeform/typeform_pipeline.py:387`
-  - `sources/shared/data_quality.py:26` (this one has an env-var override `DQ_SQL_FILE` — the only env-var override of this kind in the codebase)
 
-**Implication.** Either (a) the corresponding `/refresh-X-models` routes are silently inert in production today (every call returns ok with `statements_executed=0`), or (b) the deployed Cloud Run service is invoking these via an unenumerated mechanism the audit's env-var capture missed. The audit's earlier framing — "no code change required" — overstates the safety of the move; the real claim is "the move doesn't make a pre-existing latent bug worse."
+- **One module has an env-var override over the broken default**: `sources/shared/data_quality.py:26` — `os.getenv("DQ_SQL_FILE", str(Path(__file__).resolve().parent / "sql" / "data_quality_tests.sql"))`. If `DQ_SQL_FILE` is set in production, this works; otherwise it hits the broken default.
 
-**Step 4 must baseline behavior, not assume it.** Before declaring parity post-move, exercise each scheduled route against the *current* production revision (`bq-ingest-00076-wtl`) and capture which return success-with-side-effects vs success-with-zero-statements vs FileNotFoundError. The new revision must match that baseline, not a green `/routes` listing. This is the same class of failure as the operational-health rule's worked example #2 (the `/snapshot-pipeline-stages` 404 that the route-listing didn't catch).
+- **One module uses a CWD-relative bare literal**: `sources/typeform/typeform_pipeline.py:383` — `sql_file = "sql/typeform_models.sql"`. Resolves correctly only when the process CWD is the package root. Cloud Run Buildpacks happens to set CWD to `/workspace`, where the SQL file lands at the same level — so it works in production. Any local invocation from a different directory raises `FileNotFoundError` deterministically (different failure mode than the broken-default's silent zero-statements).
+
+**Two known env-var overrides** appear in production: `DQ_SQL_FILE` and `PHASE1_RELEASE_GATE_SQL_FILE`. The audit's env-var capture lists neither in §"Plain env vars (52 total)" notable groups — the captured set may not reflect the full set of overrides actually in service spec. Step 4 baseline must capture the complete env-var spec, not just the subset the audit highlighted.
+
+**Implication.** Either (a) the corresponding `/refresh-X-models` routes for the 6 broken-default modules are silently inert in production today (every call returns ok with `statements_executed=0`), (b) deeper env-var overrides exist that the audit didn't enumerate, or (c) some routes raise FileNotFoundError and the failure is being absorbed by Flask's default error handler. The audit's earlier framing — "no code change required" — overstates the safety of the move; the real claim is "the move doesn't make a pre-existing latent bug worse."
+
+**Step 4 must baseline behavior, not assume it** — and the baseline IS the broken state for 6 of 9 modules. Before declaring parity post-move:
+
+1. Capture the complete service env-var spec via `gcloud run services describe bq-ingest --format='value(spec.template.spec.containers[0].env)'`.
+2. Exercise each scheduled route against the *current* production revision (`bq-ingest-00076-wtl`) and record per-route: status code, `statements_executed`, `rows_written`, time-to-respond. Authenticated curl: `curl -H "Authorization: Bearer $(gcloud auth print-identity-token)" https://bq-ingest-mjxxki4snq-uc.a.run.app/<route>`.
+3. The new revision must match per-route. A route that returns `statements_executed=0` today should still return `statements_executed=0` post-move — not a regression, not a "fix." Repairing the broken defaults is deferred follow-up #5; codifying the broken state as parity-success creates a false-confidence artifact, so Step 4's report must explicitly distinguish "matches baseline (broken)" from "matches baseline (working)" per-route.
+
+This is the same class of failure as the operational-health rule's worked example #2 (the `/snapshot-pipeline-stages` 404 that the route-listing didn't catch).
 
 ### File inventory
 
@@ -123,14 +135,14 @@ The Step 1 plan asserted that `Path(__file__).parent / "sql" / "X.sql"` patterns
 | SQL file | Python referrer(s) | Resolution OK? |
 |---|---|---|
 | `sql/ghl_models.sql` | `sources/ghl/ghl_pipeline.py` | ✅ parents[2] fallback |
-| `sql/phase1_release_gate.sql` | `sources/shared/phase1_release_gate.py` | ✅ parents[2] direct |
-| `sql/data_quality_tests.sql` | `sources/shared/data_quality.py` | ⚠️ via `DQ_SQL_FILE` env override only |
+| `sql/phase1_release_gate.sql` | `sources/shared/phase1_release_gate.py` | ✅ parents[2] (env-overridable via `PHASE1_RELEASE_GATE_SQL_FILE`) |
+| `sql/data_quality_tests.sql` | `sources/shared/data_quality.py` | ⚠️ broken default; works only if `DQ_SQL_FILE` env-set |
 | `sql/calendly_models.sql` | `sources/calendly/calendly_pipeline.py` | ❌ broken default |
 | `sql/fathom_models.sql` | `sources/fathom/fathom_pipeline.py` | ❌ broken default |
 | `sql/marts.sql` | `sources/marts/mart_models.py` | ❌ broken default |
-| `sql/models.sql` | `sources/{fanbasis, typeform, marts}/*_pipeline.py` | ❌ broken default |
+| `sql/models.sql` | `sources/{fanbasis, typeform, marts}/*_pipeline.py` | ❌ broken default (fanbasis, marts) |
 | `sql/stripe_models.sql` | `sources/stripe/stripe_pipeline.py` | ❌ broken default |
-| `sql/typeform_models.sql` | `sources/typeform/typeform_pipeline.py` | ❌ broken default |
+| `sql/typeform_models.sql` | `sources/typeform/typeform_pipeline.py` | ⚠️ CWD-relative literal `"sql/typeform_models.sql"` — works in Buildpack runtime, FileNotFoundError otherwise |
 
 **Referenced by bash scripts in `ops/scripts/`**:
 
@@ -208,11 +220,21 @@ bindings:
   role: roles/run.invoker
 ```
 
-End-to-end check after IAM propagation:
-- Unauthenticated curl → `HTTP 403` (closed)
-- `Authorization: Bearer $(gcloud auth print-identity-token)` curl → `HTTP 200` with full route listing (open to legitimate callers)
+End-to-end check after IAM propagation, **on both Cloud Run-generated URLs** (the service has two: `bq-ingest-mjxxki4snq-uc.a.run.app` and `bq-ingest-535993952532.us-central1.run.app`; IAM is service-scoped, so removing `allUsers` closes both — verified):
+
+| URL | unauth | with `Authorization: Bearer $(gcloud auth print-identity-token)` |
+|---|---|---|
+| `bq-ingest-mjxxki4snq-uc.a.run.app/routes` | 403 | 200 (full 22-route listing) |
+| `bq-ingest-535993952532.us-central1.run.app/routes` | 403 | 200 |
 
 The next scheduled scheduler fires (next 5–60 min) implicitly verify the OIDC path against the closed surface.
+
+**Calendly webhook check (Round-2 doc-review caught this risk).** App.py exposes `/webhooks/calendly` (line 328, POST) and the env capture shows `CALENDLY_WEBHOOK_REQUIRE_SIGNATURE=false` — meaning if Calendly were posting to this route, the previous design relied on `allUsers` to admit the request, since Calendly cannot present a Google OIDC token. Verified via Calendly API:
+
+- 30-day Cloud Run logs: 1 hit on `/webhooks/calendly` (2026-04-02, status 200) — almost certainly a manual test.
+- Live `GET /webhook_subscriptions` against the Calendly org: 2 active subscriptions, **both pointing at Zapier hooks** (`hooks.zapier.com/...`); none target `bq-ingest`.
+
+The `/webhooks/calendly` route is dead code today. Closing the surface is safe. If a future engagement needs Calendly webhooks pointing back at this service, the right design is HMAC signature validation (flip `CALENDLY_WEBHOOK_REQUIRE_SIGNATURE=true` and add the secret) plus a per-route public-access exception via a Cloud Load Balancer or split service — not re-opening `allUsers` invoker on the whole service.
 
 **Originally framed as out of scope for the source-tree move and the highest-priority deferred finding; resolved in the same session.**
 
@@ -287,24 +309,26 @@ Plus, in the trigger spec itself:
 - `ignoredFiles: services/bq-ingest/**/*.md, services/bq-ingest/RUNBOOK.md` — suppress no-op deploys on docs-only PRs that would reset cached state.
 - A concurrency clause to serialize racing merges (single in-flight deploy at a time).
 
-`--no-traffic` is critical for the first auto-trigger run: a docs-only PR catching the trigger, or a buggy revert merging to main, should produce a built-but-not-promoted revision. Manual `gcloud run services update-traffic bq-ingest --to-latest` after curl-verifying `/routes` and route behavior promotes it.
+`--no-traffic` is **permanent in the trigger spec**, not a one-time first-deploy precaution. Every merge produces a built-but-not-promoted revision; manual `gcloud run services update-traffic bq-ingest --to-latest` after curl-verifying `/routes` and route behavior promotes it. The trigger delivers auto-build + manual-promote — not auto-deploy.
+
+This is the deliberate steady-state posture for this engagement until branch protection on `main` lands (deferred to Phase 6 — GH Free tier limitation per `CLAUDE.local.md`). At Phase 6, revisit whether to drop `--no-traffic` from the trigger spec and rely on branch protection as the pre-merge gate.
+
+**Sub-directory build context.** `gcloud run deploy --source services/bq-ingest` uploads only the `services/bq-ingest/` subtree to Cloud Build — NOT the dee-data-ops repo root. `.python-version`, `requirements.txt`, `pyproject.toml` MUST live at `services/bq-ingest/` root for the buildpack to find them; files at the dee-data-ops repo root are invisible to the build. The Step 2 inventory enforces this (those files are listed as MOVE → `services/bq-ingest/` root); restating here so a reader skipping straight to Step 5 doesn't miss the constraint.
 
 **Do NOT add `--clear-secrets` or `--update-secrets`** unless re-specifying all five secret refs explicitly. Omitting both flags preserves existing refs; adding `--clear-secrets` to "be explicit" wipes them.
 
 ### Deploy posture — accepted
 
-The trigger fires on every merge to `main` touching `services/bq-ingest/**`. `CLAUDE.local.md` notes branch protection on `main` is deferred to Phase 6 (GH Free tier limitation). The current pre-merge gate is David's own review. Per the engagement's solo-operator pre-authorization (CLAUDE.md), this is the deliberate posture: David's merge IS the deploy approval.
+The trigger fires on every merge to `main` touching `services/bq-ingest/**`. The current pre-merge gate is David's own review. Per the engagement's solo-operator pre-authorization (`CLAUDE.md`), this is the deliberate posture: David's merge IS the deploy approval; `--no-traffic` adds a second checkpoint between merge and 100% traffic.
 
-The `--no-traffic` flag above adds a second checkpoint between merge and 100% traffic, so the posture is: merge → build → revision created at 0% traffic → manual promote after curl-verification. This preserves the "human in the loop" property even with auto-build.
-
-If/when branch protection lands at Phase 6, revisit whether the manual-promote step can be relaxed.
+merge → build → revision created at 0% traffic → manual promote after curl-verification. Auto-build + manual-promote, not auto-deploy.
 
 ## Deferred follow-ups (surfaced by this audit, not in scope for Step 2)
 
 These are concerns the audit surfaced that don't block the Step 2 code move but must not disappear into "we'll get to it." Each gets its own GH issue or its own line in the Step 2 PR description:
 
 1. ~~**Auth posture**: remove `allUsers → roles/run.invoker` from bq-ingest IAM.~~ **DONE 2026-04-28** — see §"Auth posture — found and fixed during the audit."
-2. **Cloud Run Jobs image rebuild**: the `fanbasis-python-runner:latest` image (built from `ops/cloud/pipeline-runner/Dockerfile`) builds from the same source tree the service uses. After the move, the build pipeline producing this image must point at the new path — otherwise the next jobs rebuild fails, or worse, succeeds off the archived `gtm-lead-warehouse` repo and silently re-introduces the stale-clone hazard. Either add a parallel CB trigger for the Jobs image (Step 5b) OR document the rebuild procedure in the new RUNBOOK.md.
+2. **Cloud Run Jobs image rebuild**: the `fanbasis-python-runner:latest` image (built from `ops/cloud/pipeline-runner/Dockerfile`) builds from the same source tree the service uses. After the move, the build pipeline producing this image must point at the new path — otherwise the next jobs rebuild fails, or worse, succeeds off the archived `gtm-lead-warehouse` repo and silently re-introduces the stale-clone hazard. Either add a parallel Cloud Build trigger for the Jobs image (sequenced alongside Step 5's bq-ingest service trigger — same trigger PR, different `includedFiles` glob targeting the Jobs image's source path) OR document the rebuild procedure in the new RUNBOOK.md.
 3. **Jobs manifest path coexistence**: `ops/cloud/jobs.yaml` carries both `jobs[]` (Cloud Run Jobs) and `schedulers[]` (Cloud Scheduler). The schedulers' URI continuity is covered in pre-flight below. The jobs[] image is a separate scope decision: in scope for a future consolidation pass, out of scope for this plan.
 4. **`1-raw-landing/` consolidation**: deferred to a separate plan. See §"Coexistence with `1-raw-landing/`."
 5. **SQL resolution cleanup**: 7 of 9 `*_pipeline.run_models()` modules use the broken `parent / "sql"` default. Fix the defaults to follow the ghl/phase1 `parents[2]` pattern OR use env-var overrides. Not a Step 2 blocker; the migration preserves current behavior (broken or working) per-module. Track as cleanup ticket.
@@ -336,13 +360,14 @@ Before opening the code-move PR, confirm:
 **Build SA permissions** (new — required for Step 4 deploy and Step 5 trigger):
 
 - [ ] Step 4 deployer (David's user account) has `roles/run.developer` on the bq-ingest service, `roles/iam.serviceAccountUser` on `id-sa-ingest@…` (to attach the runtime SA to a new revision), and `roles/storage.objectAdmin` on the `gs://run-sources-*` bucket.
-- [ ] Step 5 build SA `run-build-sa@project-41542e21-470f-4589-96d` has the same three roles, plus `roles/artifactregistry.writer` on the `cloud-run-source-deploy` AR repo (for image push).
+- [ ] Step 5 build SA `run-build-sa@project-41542e21-470f-4589-96d` has `roles/run.builder` (the aggregate role Cloud Run's Buildpacks pipeline uses — bundles run.developer, iam.serviceAccountUser-on-runtime-SA, storage.objectAdmin, and artifactregistry.writer internally). Verified 2026-04-28 — current binding is `roles/run.builder`, deploys succeed.
   ```
   gcloud projects get-iam-policy project-41542e21-470f-4589-96d \
     --flatten="bindings[].members" \
     --filter="bindings.members:run-build-sa" \
-    --format="table(bindings.role)"
+    --format="value(bindings.role)"
   ```
+  Expected output: `roles/run.builder`. If the binding ever degrades to a narrower role, Cloud Build trigger deploys will fail at attach-runtime-SA time.
 
 **Cloud Scheduler URI continuity** (new):
 
@@ -361,7 +386,7 @@ Before opening the code-move PR, confirm:
   - `ops/cloud/pipeline-runner/Dockerfile` → `FROM python:3.11-slim` (Cloud Run Jobs runtime)
   
   Decide before move: (a) bring all three to 3.13, OR (b) document the pipeline-runner Jobs runtime as a deliberate divergence in `services/bq-ingest/RUNBOOK.md` and pin Ruff to py311.
-- [ ] `pyproject.toml`'s `[tool.ruff.lint.isort] known-first-party = ["ingest"]` references a package that doesn't exist (actual roots are `sources`, `ops`). Correct to `["sources", "ops"]` post-move.
+- [ ] `pyproject.toml`'s lint config is internally inconsistent: `[tool.ruff.lint.isort] known-first-party = ["ingest"]` references a non-existent package, but `[tool.ruff] extend-exclude` already lists `sources`, `sql`, `ops`, `enrichment`, `app.py` — meaning Ruff lints none of the service code today, so the `known-first-party` value is unused. Pick: (a) **remove** sources/ops/app.py from extend-exclude AND set `known-first-party = ["sources", "ops"]` (start linting the service surface); OR (b) **document** that lint is intentionally disabled on the service code while it migrates and leave both fields untouched. Don't half-fix it.
 
 **Buildpack version pin** (new — defends against the next 3.11-style drop):
 
@@ -369,7 +394,7 @@ Before opening the code-move PR, confirm:
 
 ## What this audit explicitly did not check (deferred to Step 4)
 
-- Behavioral parity between the current revision (`bq-ingest-00076-wtl`) and the post-move revision. `/routes` parity is necessary but **not sufficient** — `/routes` lists registered handlers, not behavior. Per §"How `*_pipeline.run_models()` actually finds its SQL," Step 4 must also exercise each `/refresh-*` route and `python3 -m ops.runner.cli run backfill.<source>` against the new tree, capturing baseline `statements_executed` / `rows_written` / `ok=true` semantics from the current revision and matching against the new one.
+- Behavioral parity between the current revision (`bq-ingest-00076-wtl`) and the post-move revision. `/routes` parity is necessary but **not sufficient** — `/routes` lists registered handlers, not behavior. Per §"How `*_pipeline.run_models()` actually finds its SQL," Step 4 must also exercise each `/refresh-*` route and `python3 -m ops.runner.cli run backfill.<source>` against the new tree, capturing baseline `statements_executed` / `rows_written` / `ok=true` semantics from the current revision and matching against the new one. **Preconditions for the local CLI invocation:** (a) CWD must be the package root (typeform's CWD-relative literal raises FileNotFoundError otherwise), (b) ADC or a service-account keyfile with BigQuery + Secret Manager read access (`gcloud auth application-default login` plus runtime SA impersonation, or download an `id-sa-ingest@…` keyfile temporarily), (c) all 5 vendor-API env vars sourced from the local shell (`gcloud secrets versions access latest --secret=<name>` per secret) — production runs read these from Secret Manager bindings, but the local CLI reads them from `os.getenv` directly.
 
 ## Layout precedent — services/ as a polyrepo bet
 
