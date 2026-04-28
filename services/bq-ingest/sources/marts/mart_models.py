@@ -36,7 +36,11 @@ def run_mart_models(sql_file_path: Optional[str] = None) -> int:
     run_typeform_models()
 
     if sql_file_path is None:
-        sql_file_path = str(Path(__file__).resolve().parent / "sql" / "marts.sql")
+        candidate_path = Path(__file__).resolve().parent / "sql" / "marts.sql"
+        if candidate_path.exists():
+            sql_file_path = str(candidate_path)
+        else:
+            sql_file_path = str(Path(__file__).resolve().parents[2] / "sql" / "marts.sql")
     sql_text = Path(sql_file_path).read_text(encoding="utf-8")
     statements = _split_sql_statements(sql_text)
     client = bigquery.Client(project=PROJECT_ID)
@@ -48,7 +52,8 @@ def run_mart_models(sql_file_path: Optional[str] = None) -> int:
             raise RuntimeError(f"mart_models failed at statement {i}/{len(statements)}: {exc}") from exc
         executed += 1
 
-    dims_dir = Path(__file__).resolve().parent / "sql" / "dims"
+    candidate_dims_dir = Path(__file__).resolve().parent / "sql" / "dims"
+    dims_dir = candidate_dims_dir if candidate_dims_dir.exists() else Path(__file__).resolve().parents[2] / "sql" / "dims"
     for dims_file in sorted(dims_dir.glob("*.sql")):
         dims_text = dims_file.read_text(encoding="utf-8")
         dims_statements = _split_sql_statements(dims_text)

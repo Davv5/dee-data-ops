@@ -339,7 +339,11 @@ def parse_object_types() -> List[str]:
 
 def run_models(sql_file_path: Optional[str] = None) -> int:
     if sql_file_path is None:
-        sql_file_path = str(Path(__file__).resolve().parent / "sql" / "stripe_models.sql")
+        candidate_path = Path(__file__).resolve().parent / "sql" / "stripe_models.sql"
+        if candidate_path.exists():
+            sql_file_path = str(candidate_path)
+        else:
+            sql_file_path = str(Path(__file__).resolve().parents[2] / "sql" / "stripe_models.sql")
     sql_text = Path(sql_file_path).read_text(encoding="utf-8")
     lines: List[str] = []
     for line in sql_text.splitlines():

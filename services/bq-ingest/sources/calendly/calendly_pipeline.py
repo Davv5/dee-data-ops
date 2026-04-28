@@ -1966,7 +1966,11 @@ def ingest_webhook_event(payload: Dict[str, Any], headers: Dict[str, Any], body_
 
 def run_models(sql_file_path: Optional[str] = None) -> int:
     if sql_file_path is None:
-        sql_file_path = str(Path(__file__).resolve().parent / "sql" / "calendly_models.sql")
+        candidate_path = Path(__file__).resolve().parent / "sql" / "calendly_models.sql"
+        if candidate_path.exists():
+            sql_file_path = str(candidate_path)
+        else:
+            sql_file_path = str(Path(__file__).resolve().parents[2] / "sql" / "calendly_models.sql")
 
     sql_text = Path(sql_file_path).read_text(encoding="utf-8")
     lines: List[str] = []
