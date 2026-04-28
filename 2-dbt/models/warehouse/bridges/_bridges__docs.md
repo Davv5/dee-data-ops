@@ -66,10 +66,20 @@ case-sensitive is the safer default given provider-side variance.
 
 ### Target match rate
 
-≥ 70% across the unioned bridge. If `bridge_status = 'matched'` /
-`count(*)` drops below that threshold for either source, the tier set
-needs retuning before `fct_revenue` is trusted for reporting.
-Escalate to David before shipping a mart that depends on `contact_sk`
-resolution at lower rates.
+≥ 70% per source — a **tuning trigger**, not a ship gate. Enforced by
+`bridge_match_rate_floor.sql` (severity = `warn`); a new payment
+processor can legitimately land below 70% during a contact-backfill
+catch-up window.
+
+Hard ship gates remain:
+
+- `bridge_payment_count_parity` — every staging payment row appears in
+  the bridge (no silent drops)
+- `dbt_utils.unique_combination_of_columns` — composite PK
+  `(source_platform, payment_id)` is unique
+
+If the warn fires and persists past a backfill window, retune the tier
+set or backfill upstream contact data before treating that source's
+`fct_revenue` rows as report-grade — and escalate to David.
 
 {% enddocs %}

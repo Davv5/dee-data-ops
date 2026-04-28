@@ -206,7 +206,28 @@ tier_billing_email_direct as (
 
 ),
 
--- Tier 5: unmatched — payment has no email, no phone, and no CRM match.
+-- All matched (and billing-direct) tiers — the union that defines
+-- "this payment was accounted for by a higher-confidence tier."
+-- tier_unmatched below is the anti-join of payments against this set,
+-- guaranteeing the docstring promise: every payment gets exactly one
+-- bridge row, regardless of which non-NULL identity columns it carries.
+matched_or_billing as (
+
+    select * from tier_email_exact
+    union all
+    select * from tier_email_canonical
+    union all
+    select * from tier_phone_last10
+    union all
+    select * from tier_billing_email_direct
+
+),
+
+-- Tier 5: unmatched — every payment that did not appear in any prior
+-- tier. Anti-join shape (not per-row predicates) so structural gaps in
+-- the upstream tier predicates cannot silently drop payments from the
+-- bridge. Covers the no-email-no-phone case, the phone-only-no-match
+-- case, and any future shape that fails to satisfy tiers 1-4.
 tier_unmatched as (
 
     select
@@ -216,31 +237,20 @@ tier_unmatched as (
         'unmatched'                                               as match_method,
         0.00                                                      as match_score
     from payments_canonicalized
-    left join contacts_canonicalized
-        on payments_canonicalized.email_canonical
-           = contacts_canonicalized.contact_email_canonical
-        or payments_canonicalized.phone_last10
-           = contacts_canonicalized.contact_phone_last10
-    where contacts_canonicalized.contact_sk is null
-        and (
-            payments_canonicalized.email_norm is null
-            or payments_canonicalized.email_norm = ''
-        )
-        and (
-            payments_canonicalized.phone_last10 is null
-        )
+    where not exists (
+        select 1
+        from matched_or_billing
+        where matched_or_billing.source_platform
+                  = payments_canonicalized.source_platform
+          and matched_or_billing.payment_id
+                  = payments_canonicalized.payment_id
+    )
 
 ),
 
 all_tiers as (
 
-    select * from tier_email_exact
-    union all
-    select * from tier_email_canonical
-    union all
-    select * from tier_phone_last10
-    union all
-    select * from tier_billing_email_direct
+    select * from matched_or_billing
     union all
     select * from tier_unmatched
 
