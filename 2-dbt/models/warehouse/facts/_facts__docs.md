@@ -109,11 +109,12 @@ One row per payment event, unioned across Stripe and Fanbasis.
   converted from minor units (cents) to major units here — staging
   preserves Stripe's minor-unit contract for multi-currency fidelity,
   warehouse normalizes to major units for mart-friendly aggregation.
-- **Fanbasis side:** zero-row `where false` stub. The extractor is
-  still blocked on Week-0 credentials. Structural parity is preserved
-  so `dbt build` is green today; when the real staging model lands,
-  swap the CTE body for a ref to the forthcoming Fanbasis staging model
-  without touching the downstream union or the final projection.
+- **Fanbasis side:** `stg_fanbasis__transactions`, one row per
+  Fanbasis transaction. Live forward-going revenue source for D-DEE
+  post-Stripe-ban (per memory `project_stripe_historical_only.md`).
+  Amounts are already in major units (USD); `currency` is hardcoded
+  `'usd'` at the staging layer because Fanbasis payloads at this
+  tenant carry no currency field.
 
 ### Contact attribution
 

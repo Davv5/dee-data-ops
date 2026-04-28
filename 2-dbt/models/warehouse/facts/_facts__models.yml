@@ -223,11 +223,14 @@ models:
   - name: fct_revenue
     description: >
       Grain: one row per payment event, unioned across Stripe and
-      Fanbasis. Fanbasis side is a zero-row structural placeholder until
-      the extractor ships (Week-0 credentials still pending).
-      Contact attribution flows through
+      Fanbasis. Stripe rows are historical-only (Stripe banned at D-DEE
+      per memory `project_stripe_historical_only.md`); Fanbasis is the
+      live forward-going contributor (~466 rows / $170K gross as of
+      2026-04-27). Contact attribution flows through
       `bridge_identity_contact_payment`; `contact_sk` is nullable when
-      the bridge returns `unmatched`.
+      the bridge returns `unmatched` — including all Fanbasis rows
+      today, since the bridge is Stripe-only until a Fanbasis-aware
+      tier ships.
     columns:
       - name: payment_sk
         description: Surrogate key over `(source_platform, payment_id)`.
@@ -241,7 +244,7 @@ models:
               to: ref('dim_contacts')
               field: contact_sk
       - name: payment_id
-        description: Native payment id (Stripe `charge_id` today).
+        description: Native payment id (Stripe `charge_id` or Fanbasis transaction id).
         tests:
           - not_null
       - name: source_platform

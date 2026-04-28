@@ -1,14 +1,18 @@
 -- Grain: one row per payment event, unioned across Stripe + Fanbasis.
--- Fanbasis CTE is a zero-row placeholder (extractor still waiting on
--- Week-0 creds) — shaped so the union is structurally valid and the
--- model ships today. When Fanbasis raw lands, swap the placeholder for
--- a ref() to the forthcoming Fanbasis staging model (name TBD) without
--- touching the downstream union.
+-- Stripe rows are historical-only (Stripe banned at D-DEE per memory
+-- `project_stripe_historical_only.md`); Fanbasis is the live forward-going
+-- contributor.
 --
 -- `contact_sk` + bridge metadata come from
 -- `bridge_identity_contact_payment`. Amounts land in major units (USD
 -- here; non-USD currency rows pass through at face value — multi-currency
 -- handling is a mart-layer concern).
+--
+-- Bridge gap (follow-up): `bridge_identity_contact_payment` currently sources
+-- only from `stg_stripe__charges`, so Fanbasis `payment_id` rows will
+-- left-join to a null bridge row and surface as `bridge_status = 'unmatched'`
+-- via the coalesce in `final`. Extending the bridge to UNION-ALL Fanbasis is
+-- a separate ticket (see staging view docstring).
 
 with
 
@@ -39,29 +43,25 @@ stripe_payments as (
 
 fanbasis_payments as (
 
-    -- Placeholder: structural union-parity stub until the Fanbasis
-    -- extractor + staging ship. Zero-row-producing `where false` keeps
-    -- this model green without mocking payment volume.
     select
-        cast(null as string)                                  as payment_id,
+        payment_id                                            as payment_id,
         'fanbasis'                                            as source_platform,
 
-        cast(null as float64)                                 as gross_amount,
-        cast(null as float64)                                 as net_amount,
-        cast(null as string)                                  as currency,
+        gross_amount,
+        net_amount,
+        currency,
 
-        cast(null as string)                                  as product,
+        product_title                                         as product,
 
-        cast(null as string)                                  as billing_email,
-        cast(null as string)                                  as card_issue_country,
-        cast(null as string)                                  as payment_method,
+        fan_email                                             as billing_email,
+        fan_country_code                                      as card_issue_country,
+        payment_type                                          as payment_method,
 
-        cast(null as timestamp)                               as transaction_date,
-        cast(null as bool)                                    as is_captured,
-        cast(null as bool)                                    as is_paid,
-        cast(null as bool)                                    as is_refunded
-    from unnest([struct(1 as _placeholder)])
-    where false
+        transaction_date,
+        is_captured,
+        is_paid,
+        is_refunded
+    from {{ ref('stg_fanbasis__transactions') }}
 
 ),
 

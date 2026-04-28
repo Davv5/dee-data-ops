@@ -1,0 +1,84 @@
+version: 2
+
+models:
+  - name: stg_fanbasis__transactions
+    description: >
+      1:1 staging view on `raw_fanbasis.fanbasis_transactions_txn_raw`. One row
+      per Fanbasis transaction (live revenue source for D-DEE post-Stripe-ban,
+      per memory `project_stripe_historical_only.md`). PK: `payment_id`
+      (cast to string for cross-platform uniqueness in the warehouse fact's
+      surrogate-key hash).
+
+      Amounts are preserved in **major units** (USD) — Fanbasis payloads in
+      D-DEE's tenant carry no `currency` field, so `currency` is hardcoded
+      `'usd'` here per the staging "rename and light cast" mandate.
+
+      `is_captured` and `is_paid` are true by construction (the raw landing
+      only contains settled transactions; no pending/auth-only state surfaces
+      in the payload). `is_refunded` is derived from non-empty
+      `$.refunds` JSON array.
+
+      Wired into `fct_revenue` as the live forward-going contributor; Stripe
+      remains in the union for historical preservation only.
+    columns:
+      - name: payment_id
+        description: Fanbasis transaction id (stringified). Primary key.
+        tests:
+          - unique
+          - not_null
+
+      - name: gross_amount
+        description: Gross transaction amount in USD (major units).
+
+      - name: net_amount
+        description: Net amount after Fanbasis fees, in USD (major units).
+
+      - name: fee_amount
+        description: Fanbasis platform fee, in USD (major units).
+
+      - name: currency
+        description: Hardcoded `'usd'` — Fanbasis payloads carry no currency field at this tenant.
+
+      - name: product_title
+        description: Human-readable product/offer name from `$.product.title`.
+
+      - name: product_id
+        description: Fanbasis product id from `$.product.id`.
+
+      - name: payment_type
+        description: Payment type from `$.servicePayment.payment_type` (e.g. `upfront`).
+
+      - name: service_payment_id
+        description: Fanbasis service-payment id from `$.servicePayment.id`.
+
+      - name: fan_id
+        description: Fanbasis "fan" (payer) id from `$.fan.id`.
+
+      - name: fan_email
+        description: Email on the Fanbasis transaction's `$.fan.email`. Used for identity bridge.
+
+      - name: fan_name
+        description: Display name on the Fanbasis transaction's `$.fan.name`.
+
+      - name: fan_phone
+        description: Phone on the Fanbasis transaction's `$.fan.phone` (often null).
+
+      - name: fan_country_code
+        description: ISO country code on `$.fan.country_code` (often null in this tenant).
+
+      - name: transaction_date
+        description: UTC timestamp of the transaction from `$.transaction_date`.
+        tests:
+          - not_null
+
+      - name: is_captured
+        description: True by construction — raw landing only contains settled transactions.
+
+      - name: is_paid
+        description: True by construction — raw landing only contains settled transactions.
+
+      - name: is_refunded
+        description: True if `$.refunds` JSON array is non-empty (full or partial refund present).
+
+      - name: _ingested_at
+        description: Wall-clock UTC time the row landed in `Raw.fanbasis_transactions_txn_raw`.
