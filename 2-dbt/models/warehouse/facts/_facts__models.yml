@@ -293,13 +293,19 @@ models:
 
   - name: fct_refunds
     description: >
-      Grain: one row per refund event. PK: `refund_sk`. Fanbasis-only
-      today (Stripe staging exposes only charge-grain `amount_refunded_minor`,
-      not refund-event grain). Contact attribution via
-      `bridge_identity_contact_payment` joined on the **parent** payment's
-      `(source_platform, payment_id)` — refunds inherit their contact from
-      the original payment, so we do not re-run identity matching on the
-      refund row.
+      Grain: one row per refund event. PK: `refund_sk`.
+      **WARNING: Fanbasis-only — excludes Stripe historical refunds.**
+      `stg_stripe__charges.amount_refunded_minor` is at charge-grain (one
+      number per charge, not one row per refund event), so a Stripe arm
+      would lose temporal fidelity. Aggregating `sum(refund_amount)` from
+      this fact answers "live forward-going refunds since Fanbasis cutover,"
+      not "total refunds in D-DEE history." See `fct_refunds__overview`
+      doc block before using this fact in cross-period analysis.
+
+      Contact attribution via `bridge_identity_contact_payment` joined on
+      the **parent** payment's `(source_platform, payment_id)` — refunds
+      inherit their contact from the original payment, so we do not re-run
+      identity matching on the refund row.
     columns:
       - name: refund_sk
         description: Surrogate key over `(source_platform, refund_id)`.
@@ -336,7 +342,21 @@ models:
           - not_null
           - dbt_utils.accepted_range:
               min_value: 0
-              inclusive: false
+              inclusive: true
+      - name: refund_amount_net
+        description: Refund amount minus the processor fee, in USD. Can be negative if processor fee exceeds the gross refund (rare but legitimate on chargebacks).
+      - name: refund_fee
+        description: Processor fee charged on the refund, in USD.
+        tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+              inclusive: true
+      - name: refund_total_cost
+        description: Total cost to merchant per Fanbasis (refund_amount + processor side-effects), in USD.
+        tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+              inclusive: true
       - name: match_method
         description: Bridge tier that produced the contact attribution (or `unmatched`).
         tests:

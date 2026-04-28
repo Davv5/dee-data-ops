@@ -54,7 +54,14 @@ parsed as (
 
     select
         cast(json_value(refund_json, '$.id') as string)               as refund_id,
-        cast(json_value(refund_json, '$.payment_id') as string)       as payment_id,
+        -- Use the OUTER transaction's `$.id` as the parent payment id,
+        -- not the refund's own `$.payment_id`. The two should match by
+        -- Fanbasis's API contract, but using the outer id makes the
+        -- staging-side natural-key relationship robust against any
+        -- future denormalization drift (a refund whose inner
+        -- `payment_id` disagrees with its landing transaction id would
+        -- silently misattribute the contact otherwise).
+        parent_payment_id                                             as payment_id,
 
         cast(json_value(refund_json, '$.amount') as float64)          as refund_amount,
         cast(json_value(refund_json, '$.amount_gross') as float64)    as refund_amount_net,

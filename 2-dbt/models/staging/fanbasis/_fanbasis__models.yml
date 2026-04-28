@@ -85,11 +85,12 @@ models:
 
   - name: stg_fanbasis__refunds
     description: >
-      Refund-event staging on `raw_fanbasis.fanbasis_transactions_txn_raw`.
-      Unnests the `$.refunds` JSON array — one row per refund event (multi
-      refunds per parent payment supported, though current data is
-      single-refund-per-transaction). PK: `refund_id`. FK to parent payment
-      via `(source_platform='fanbasis', payment_id)` join into `fct_payments`.
+      Grain: one row per refund event. PK: `refund_id`.
+      Refund-event staging on `raw_fanbasis.fanbasis_transactions_txn_raw`
+      — unnests the `$.refunds` JSON array (multi refunds per parent
+      payment supported, though current data is single-refund-per-
+      transaction). FK to parent payment via
+      `(source_platform='fanbasis', payment_id)` join into `fct_payments`.
 
       Amounts in major units (USD); currency hardcoded `'usd'` matching
       `stg_fanbasis__transactions` (Fanbasis tenant carries no currency
