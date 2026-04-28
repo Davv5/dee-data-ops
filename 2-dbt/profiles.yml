@@ -9,10 +9,12 @@
 #   ci_local   → mirror of `ci`, but uses ADC (oauth) instead of an SA keyfile
 #
 # Pick a target by auth context:
-#   - GH Actions:        dev (parse-only) / ci (PR builds) / prod (deploys)
+#   - GH Actions:        ci (PR builds) / prod (deploys, snapshots, docs).
+#                        `dev` is NOT used in any workflow; it's local-only.
 #   - Local with SA key: dev / ci         (BQ_KEYFILE_PATH must be set in .env)
 #   - Local with ADC:    dev_local / ci_local
-#                        (run `gcloud auth application-default login` once)
+#                        (run `gcloud auth application-default login` once;
+#                        also driven by `2-dbt/scripts/local-ci.sh`)
 #
 # All targets point at the consolidated GCP project per the 2026-04-23
 # consolidation decision (docs/plans/2026-04-23-001-feat-gtm-source-port-plan.md).
