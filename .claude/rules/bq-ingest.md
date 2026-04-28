@@ -1,0 +1,27 @@
+---
+paths: ["services/bq-ingest/**"]
+---
+
+# bq-ingest service rules
+
+Load when working on any file under `services/bq-ingest/` (the Cloud Run Flask + Cloud Run Jobs ingestion path consolidated from `gtm-lead-warehouse` per `docs/plans/2026-04-28-bq-ingest-consolidation-plan.md`). Sister rule: `.claude/rules/ingest.md` — covers the broader ingestion contract and the dual-path coexistence with `1-raw-landing/`.
+
+## Refresh order: Raw → Core → Marts
+
+Manual refreshes inside this service must respect upstream order. Never skip Core when chasing a stale Mart number; never touch a Mart without first refreshing the upstream Core. Marts always run last.
+
+This is enforced automatically by `dbt build` in the `2-dbt/` path (DAG ordering) and by `sources/marts/mart_models.py` in the bq-ingest path (it runs upstream models first, then `sql/marts.sql` and `sql/dims/*.sql`). The rule still matters when (a) refreshing one source's Core via `python -m ops.runner.cli run pipeline.<source>` outside the marts wrapper, (b) hitting a single `/refresh-<source>-models` route on `app.py`, or (c) reasoning about which layer to investigate when a number looks wrong.
+
+(Source: ported from `gtm-lead-warehouse/RUNBOOK.md` core rule #1 and the dropped `sources/marts/CLAUDE.md` "safe change order" line — both retired with PR #102 cleanup.)
+
+## Fathom: core SQL only — no LLM enrichment lane in this tree
+
+`services/bq-ingest/` contains the **core** Fathom ingestion path (transcript fetch + meeting models in `sql/fathom_models.sql`). It does NOT contain an LLM enrichment lane. The original `gtm-lead-warehouse/enrichment/fathom/` tree (Gemini transcript analysis, separate Dockerfile, high-memory runtime) was deliberately **dropped** during consolidation per the audit at `docs/discovery/bq-ingest-dependency-audit.md` because nothing in bq-ingest imported from it.
+
+If a future task needs LLM transcript enrichment:
+
+- Do NOT recreate it inside `services/bq-ingest/enrichment/` — the runtime profile (Gemini SDK, GPU/high-memory, separate auth scope) is materially different from the rest of bq-ingest, and merging them is the same anti-pattern the audit cleared out.
+- Stand up a sibling service at `services/<name>/` with its own Dockerfile, deploy lifecycle, and rule file. The `services/` directory pattern accommodates additional sibling services.
+- The dropped tree's source code, if needed for reference, lives in the archived `heidyforero1/gtm-lead-warehouse@515c89a` snapshot.
+
+(Source: ported from the dropped `sources/fathom/CLAUDE.md` split-runtime note — retired with PR #102 cleanup.)

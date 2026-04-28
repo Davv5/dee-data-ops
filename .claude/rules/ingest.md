@@ -1,10 +1,12 @@
 ---
-paths: ["1-raw-landing/**", "ingest/**", "sources/**"]
+paths: ["1-raw-landing/**", "ingest/**", "sources/**", "services/bq-ingest/**"]
 ---
 
 # Ingestion conventions
 
-Load when working on any file under `1-raw-landing/` (current target shape for custom Python extractors). `ingest/` and `sources/` are accepted aliases for portability across sibling projects.
+Load when working on any file under `1-raw-landing/` (the `(id, _ingested_at, payload)` GH-Actions extractor path) or `services/bq-ingest/` (the Cloud Run Flask + Cloud Run Jobs path consolidated from `gtm-lead-warehouse` per `docs/plans/2026-04-28-bq-ingest-consolidation-plan.md`). `ingest/` and `sources/` are accepted aliases for portability across sibling projects.
+
+**Two ingestion paths coexist during the consolidation window** — see `docs/discovery/bq-ingest-dependency-audit.md` §"Coexistence with 1-raw-landing/" for the current state. They write into different `Raw.*` tables/schemas but the dbt staging layer joins data from both writers, so a green dbt run is NOT proof either path is healthy on its own. Whether `1-raw-landing/` folds into `services/` (`services/raw-landing-<source>/`) or stays separate is tracked as a follow-up before the next ingestion source lands.
 
 ## The ingestion contract
 

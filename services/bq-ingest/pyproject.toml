@@ -3,15 +3,12 @@ line-length = 100
 target-version = "py311"
 extend-exclude = [
     ".venv",
-    "dbt/target",
-    "dbt/dbt_packages",
-    "dbt/logs",
-    # Legacy imperative paths. Phase 2 rewrites into `ingest/`; Phase 3
-    # retires `sql/`. Don't gate cleanup on fluffing code on its way out.
+    # Legacy imperative paths inherited from gtm-lead-warehouse. Lint here is
+    # advisory only — these files predate the project's ruff bar and gating
+    # cleanup on style fixes blocks more valuable work. Re-evaluate file-by-file.
     "sources",
     "sql",
     "ops",
-    "enrichment",
     "app.py",
     "setup_*.py",
 ]

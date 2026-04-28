@@ -1,6 +1,10 @@
-# GTM Lead Warehouse — Runbook
+# bq-ingest — Runbook
 
-Daily ops, incident response, backfills, validation gates. Written for the sole GTM engineer (you) and any future collaborator picking up a broken pipeline at 2am.
+Daily ops, incident response, backfills, validation gates. Written for the sole operator and any future collaborator picking up a broken pipeline at 2am.
+
+**Python version note:** the service pins `3.13` in `.python-version`, while the rest of the dee-data-ops repo (root `pyproject.toml`, `AGENTS.md`) targets `py311`. The split is intentional — GCP Cloud Run universal builder `universal_builder_20260414_RC00` dropped 3.11, so bq-ingest's Buildpack deploys must use 3.13. See `.claude/rules/operational-health.md` for the originating incident. The dbt project under `2-dbt/` and the `1-raw-landing/` extractors stay on 3.11 since they don't deploy via Cloud Run.
+
+**Heritage:** this code was consolidated from `heidyforero1/gtm-lead-warehouse` into `services/bq-ingest/` per `docs/plans/2026-04-28-bq-ingest-consolidation-plan.md` (PR #102). Some references below still describe the old repo's deploy origin and will be updated as Step 4 lands.
 
 ## Core rules (non-negotiable)
 

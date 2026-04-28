@@ -37,7 +37,7 @@ These look like health signals but lie. Always cross-check.
 |---|---|
 | `MAX(_ingested_at)` per `raw_<source>.<source>__<obj>_raw` table | The only reliable freshness signal; everything else is a proxy |
 | `dbt source freshness` against the configured `warn_after` / `error_after` blocks in `_<source>__sources.yml` | What CI gates on |
-| `bq-ingest:/routes` (added in `gtm-lead-warehouse` PR #1) | Confirms which routes the running image actually serves — catches stale-deploy drift |
+| `bq-ingest:/routes` (added in PR #1 of the originating `gtm-lead-warehouse` repo, now in `services/bq-ingest/app.py`) | Confirms which routes the running image actually serves — catches stale-deploy drift |
 | Service-level structured logs (search for `ERROR` severity in `bq-ingest`) | Surfaces OOMs, BigQuery quota errors, vendor-API 5xx — the failures that don't reach the HTTP response |
 
 ## The 2026-04-28 incident — patterns that should not recur
@@ -55,7 +55,9 @@ Three failures discovered during one fact-table audit:
 
 ### Where the bq-ingest source lives (today + planned)
 
-Today: `heidyforero1/gtm-lead-warehouse` (production deploy origin). David does NOT actively push to that repo, which is the structural smell that produced #1 above. Planned consolidation into `dee-data-ops/services/bq-ingest/` — see `docs/plans/2026-04-28-bq-ingest-consolidation-plan.md`. Until that lands, code changes to bq-ingest go through the `gtm-lead-warehouse` PR flow.
+**This repo, at `services/bq-ingest/`** — code consolidated from `heidyforero1/gtm-lead-warehouse@515c89a` via PR #102 (Step 2 of the consolidation plan, merged 2026-04-28). The full plan is at `docs/plans/2026-04-28-bq-ingest-consolidation-plan.md` and the dependency audit at `docs/discovery/bq-ingest-dependency-audit.md`.
+
+**Production still serves from the OLD repo** until Step 4 (first deploy from `services/bq-ingest/` with `/routes` parity check). The live revision `bq-ingest-00076-wtl` (gen 84) was deployed 2026-04-28 from `gtm-lead-warehouse` via Buildpack. When Step 4 ships, the deploy command MUST be `gcloud run deploy bq-ingest --source services/bq-ingest …` (NOT `--source .` — Buildpack autodetection won't find `requirements.txt` at the dee-data-ops monorepo root). Sister rule for service-side conventions: `.claude/rules/bq-ingest.md`.
 
 ## Freshness gates in CI
 
