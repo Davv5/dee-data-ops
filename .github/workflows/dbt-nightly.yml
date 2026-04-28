@@ -56,10 +56,16 @@ jobs:
           BQ_KEYFILE_PATH_PROD: ${{ steps.auth.outputs.credentials_file_path }}
         run: cd 2-dbt && dbt deps
 
-      - name: dbt source freshness (warn-only)
+      - name: dbt source freshness (gate)
+        # Fails the nightly when any source is past its `error_after`
+        # threshold. Per-source thresholds live in
+        # `2-dbt/models/staging/<source>/_<source>__sources.yml`. Tune the
+        # threshold rather than soft-warning here — silent decay went
+        # undetected for 9+ days under the old `|| true` shape (2026-04-28
+        # incident; see `.claude/rules/operational-health.md`).
         env:
           BQ_KEYFILE_PATH_PROD: ${{ steps.auth.outputs.credentials_file_path }}
-        run: cd 2-dbt && dbt source freshness --target prod || true
+        run: cd 2-dbt && dbt source freshness --target prod
 
       - name: dbt snapshot
         env:
