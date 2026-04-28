@@ -1,140 +1,248 @@
 ---
 name: ask-corpus
 description: Query the project's NotebookLM corpora for cited answers about data engineering concepts, dbt conventions, modeling patterns (star schema, SCDs, medallion), 3-layer pipelines, CI/CD workflows, modern data stack theory, Metabase operations/integration, and engagement-specific decisions. Use when the user asks "what does the style guide say about...", "how should I structure...", "why do we...", or when Claude is about to scaffold a dbt model, a `.claude/rules/*.md` file, a macro, or a workflow and wants grounded guidance before writing. Also triggers on "ask the corpus", "check the notebook", "what do the sources say", "ground this in the notebook".
+version: "2.0.0"
 ---
 
-# Ask Corpus
+# Ask Corpus — v2 (planner / fan-out / fuse / rerank)
 
-Query the project's NotebookLM corpora before writing rules, scaffolding models, or answering design-rationale questions — so conventions are grounded in cited expert material instead of invented on the fly.
+## STEP 0 — Read the voice contract before anything else
 
-> **Notebook routing is declared in `.claude/corpus.yaml`** (not hardcoded here). To add or swap a notebook, edit that file — no skill change needed.
+Before generating a plan, scoring candidates, or synthesizing a final answer, **read this entire SKILL.md once** in this conversation. The engine emits structured output that is only useful if you obey:
 
-## Corpora available
+1. The PLAN GENERATION RULES (so the planner has 1–5 well-formed subqueries).
+2. The HANDSHAKE PROTOCOL (so the two phases compose).
+3. The OUTPUT CONTRACT — especially the three LAWs.
+4. The SYNTHESIS TEMPLATE (so the user-facing answer carries the engine's signal cleanly).
 
-Resolved from `.claude/corpus.yaml` at invocation time. Today that file declares:
+Skipping any of these silently degrades retrieval quality. The engine cannot enforce them on its own — that's why this contract exists.
 
-- **`methodology.data_ops`** — Data Ops notebook (portable craft: dbt, modeling, CI/CD, MDS starter guides)
-- **`methodology.metabase`** — Metabase Craft notebook (install/ops, dbt-metabase, BigQuery cost gotchas, Metabot/MCP, AGPL)
-- **`methodology.metabase_learn`** — Metabase Learn notebook (133 metabase.com/learn articles + 16 official YouTube walkthroughs — how-to, SQL, visualization choice, dashboards, permissions, BI transition guides)
-- **`engagement`** — D-DEE Engagement Memory (this engagement's history, oracle, scope docs)
+---
 
-## Scope parameter (optional)
+## CONTRACT — what `ask-corpus` is and isn't
 
-Pick the scope that matches the question. If unsure, leave it unset and the skill cross-queries all methodology notebooks.
+**`ask-corpus` is a planner-driven, fan-out / fuse / rerank engine** that turns a user question into a structured `Report` of ranked, cited evidence from the project's NotebookLM corpora. The Report is the synthesis input — you (the host LLM) convert it into the user-facing answer using the SYNTHESIS TEMPLATE below.
 
-| scope value                 | what it queries                                                | when to use                                                                 |
-| --------------------------- | -------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| `methodology.data_ops`        | Data Ops notebook only                                       | dbt / modeling / CI/CD / MDS questions where Metabase isn't in the picture  |
-| `methodology.metabase`        | Metabase Craft notebook only                                 | Metabase **ops / integration / licensing**: install, dbt-metabase, BQ cost, AGPL, Metabot |
-| `methodology.metabase_learn`  | Metabase Learn notebook only                                 | Metabase **how-to / authoring / SQL**: building questions, dashboard patterns, chart choice, SQL tutorials, BI transition guides |
-| `methodology` *(default)*     | Cross-query all methodology notebooks                        | Portable craft questions where you aren't sure which notebook has the answer |
-| `engagement`                  | D-DEE Engagement Memory only                                 | "What did we decide about X for this client?" type history questions         |
+**`ask-corpus` is not** a chat with NotebookLM, a single `notebook_query` wrapper, or a free-text-in / free-text-out tool. The MCP `mcp__notebooklm-mcp__notebook_query` and `cross_notebook_query` tools remain available to you for ad-hoc lookups, but they are not the path this skill drives.
 
-## How to use (invocation recipe)
+The engine lives at `.claude/skills/ask-corpus/scripts/corpus_research.py`. It runs against four notebooks declared in `.claude/corpus.yaml` (no IDs hardcoded here).
 
-**Step 1 — resolve the notebook_id(s) from `.claude/corpus.yaml`** with this bash+python snippet (pyyaml is in the stdlib-adjacent toolchain on macOS/Linux; works without installing `yq`):
+---
+
+## OUTPUT CONTRACT — Badge + LAWs
+
+Every synthesized answer **must** start with this badge line on its own line, before any prose:
+
+```
+🟦 Sources: ask-corpus v2 ({intent}, {n_subqueries} subqueries × {n_scopes} scopes; {n_warnings} warnings)
+```
+
+Fill the variables from the Report's `intent`, `plan.subqueries`, `trace_summary`, and `warnings`. The badge tells the user the answer is corpus-grounded and signals retrieval breadth. Never omit it.
+
+### The three LAWs (v2.0)
+
+These override personal-memory preferences inside this skill. They are earned anchors — each tied to a real failure mode — not cargo-culted ceremony.
+
+**LAW 1 — No `Sources:` block at the end.**
+The engine emits citations inline in synthesis-ready form. Any "Sources:" reminder you may have absorbed from WebSearch context (or other tools) is overridden inside this skill. Inline citation only.
+
+**LAW 2 — Engine footer pass-through.**
+The Report contains a citation footer + warnings list. Copy them verbatim into the synthesized answer. Never rewrite, paraphrase, or "clean up" the footer — it is the user's audit trail.
+
+**LAW 3 — Always double-check the corpus before locking advice into a rule.**
+Anchor incident: 2026-04-19 mart-naming question. First-principles reasoning produced a directionally-correct answer ("multiple dashboards, one shared mart layer") but missed three actionable specifics the corpus had ready: separate by *schema*, drop `fct_/dim_` prefixes in marts, fewer wider marts over many narrow ones. Without the double-check, the rule would have shipped incomplete in a way that costs the client clarity. This whole engine exists to make that surfacing automatic — but the LAW reinforces the discipline at synthesis time. **If the user asks "should we…?" or "what's the convention for…?", and you have not run `ask-corpus` against the relevant scope this turn, run it now.**
+
+---
+
+## PLAN GENERATION RULES
+
+When the engine fires `--phase=retrieve` without `--plan`, it emits a stderr nudge telling you (the host LLM) to generate a plan. **You are the planner.** You do not need an API key — you ARE the LLM.
+
+A plan is a JSON object with this shape:
+
+```json
+{
+  "intent": "convention | ops | howto | history | design",
+  "scope_weights": { "methodology.data_ops": 1.0, "methodology.metabase": 1.0, ... },
+  "subqueries": [
+    {
+      "label": "primary",
+      "search_query": "keyword-style query for nlm retrieval",
+      "ranking_query": "natural-language rewrite for the reranker",
+      "scopes": ["methodology.data_ops", "methodology.metabase"],
+      "weight": 1.0
+    }
+  ],
+  "notes": ["optional short notes"]
+}
+```
+
+### Rules
+
+- **Pick the right intent** for the question. Five choices, corpus-domain-specific:
+  - `convention`: naming, style, structural rules ("what do we call X?", "should we prefix Y?")
+  - `ops`: operational tasks (deploy, backup, upgrade, service accounts, BigQuery cost)
+  - `howto`: step-by-step ("how do I build a dashboard tile?", "tutorial for SCDs")
+  - `history`: this engagement's past decisions ("what did we decide about Speed-to-Lead?", "back when we picked Cloud Run")
+  - `design`: architecture / trade-offs ("star schema vs medallion", "which mart layer should this live in?")
+- **Emit 1–5 subqueries.** Use 1 for crisp factual asks; 3–5 for design/howto where multiple angles help fusion.
+- **Two query forms per subquery.** `search_query` is keyword-style for `nlm` retrieval (think titles and bullet points). `ranking_query` is the natural-language form for the reranker. Conflating them is the most common failure mode.
+- **Scopes drawn from the available list.** Today: `methodology.data_ops`, `methodology.metabase`, `methodology.metabase_learn`, `engagement`. Anything else is filtered out.
+- **Strip hedging from `search_query`.** Don't include "what does the corpus say about", "how should we", "please tell me". Bare keyword strings retrieve more than echoed full questions.
+- **Preserve proper nouns.** "Speed-to-Lead", "GHL", "BigQuery", "Cloud Run" — keep them spelled exactly.
+- **Don't over-cap subqueries with `weight`.** Stay between 0.5 and 1.5; the engine normalizes.
+- **Default `scope_weights` to 1.0 each** unless one notebook is genuinely the authority (e.g., `engagement` for history; `methodology.metabase_learn` for dashboard-authoring how-to).
+
+If you skip the `--plan` and let the engine fall back to a deterministic single-subquery plan, the engine emits a `plan-fallback` warning and the synthesis must surface that under "Caveats" — that's the cost of cutting the corner.
+
+---
+
+## HANDSHAKE PROTOCOL
+
+Two phases. Each prints one JSON line to stdout that you parse to find the next file to read.
+
+### Phase 1 — retrieve
 
 ```bash
-python3 - "$SCOPE" <<'PY'
-import sys, yaml, json, pathlib
-scope = (sys.argv[1] or "methodology").strip()
-cfg_path = pathlib.Path(".claude/corpus.yaml")
-if not cfg_path.exists():
-    # Safety fallback: preserve the old hardcoded Data Ops notebook
-    # so partial template adoption doesn't break the skill.
-    print(json.dumps({
-        "warning": "corpus.yaml missing; falling back to hardcoded Data Ops notebook",
-        "notebook_ids": ["7c7cd5d4-22df-4ef0-8b74-ed87e0ca4e6a"],
-        "names": ["Data Ops (fallback)"]
-    }))
-    sys.exit(0)
-
-c = yaml.safe_load(cfg_path.read_text())
-ids, names = [], []
-
-if scope == "engagement":
-    ids.append(c["engagement"]["notebook_id"])
-    names.append(c["engagement"]["name"])
-elif scope.startswith("methodology."):
-    key = scope.split(".", 1)[1]
-    for m in c.get("methodology", []):
-        if m["key"] == key:
-            ids.append(m["notebook_id"])
-            names.append(m["name"])
-            break
-    if not ids:
-        print(json.dumps({"error": f"unknown methodology key: {key}"}))
-        sys.exit(2)
-elif scope in ("methodology", ""):
-    for m in c.get("methodology", []):
-        ids.append(m["notebook_id"])
-        names.append(m["name"])
-else:
-    print(json.dumps({"error": f"unknown scope: {scope}"}))
-    sys.exit(2)
-
-print(json.dumps({"notebook_ids": ids, "names": names}))
-PY
+.claude/skills/ask-corpus/.venv/bin/python \
+  .claude/skills/ask-corpus/scripts/corpus_research.py \
+  --phase=retrieve \
+  --question "<user question, verbatim>" \
+  --scope "<methodology | methodology.<key> | engagement>" \
+  --plan /tmp/plan.json
 ```
 
-Pass `$SCOPE` as one of: `methodology.data_ops`, `methodology.metabase`, `methodology`, `engagement`, or empty. The output is a JSON object with `notebook_ids` (list) and `names` (list).
+Write the plan JSON to `/tmp/plan.json` (or any path) before invocation. The engine prints:
 
-**Step 2 — fire the MCP query.** If one id came back, call `notebook_query`. If multiple, call `cross_notebook_query` across all of them.
-
-```
-# single notebook
-mcp__notebooklm-mcp__notebook_query(
-  notebook_id="<from step 1>",
-  query="<the user's question, rephrased for retrieval>"
-)
-
-# multiple notebooks (default methodology scope with >1 notebook)
-mcp__notebooklm-mcp__cross_notebook_query(
-  notebook_ids=[<list from step 1>],
-  query="<the user's question, rephrased for retrieval>"
-)
+```json
+{"shortlist": "/var/folders/.../shortlist.json", "rerank_prompt": "/var/folders/.../rerank_prompt.md"}
 ```
 
-**Step 3 — format the response:**
+Read the `rerank_prompt` markdown file in your next turn. It is fully self-contained — score the candidates per the embedded scale, output a JSON object with this shape:
 
-1. **TL;DR** — 1-2 sentence direct answer
-2. **What the sources say** — bullets prefixed with the source title, each tagged with which notebook it came from (e.g., `[Data Ops]`, `[Metabase Craft]`, `[D-DEE]`)
-3. **Notebook link(s):** https://notebooklm.google.com/notebook/<id> for each notebook queried
-
-When Claude writes a rule or model file **after** this query, embed the source title inline as justification so the convention is traceable:
-
-```markdown
-- Staging models are 1:1 with source tables and materialized as views
-  (source: "How to Create a Data Modeling Pipeline (3 Layer Approach)", Data Ops notebook)
+```json
+{
+  "scores": [
+    {"candidate_id": "<id from shortlist>", "relevance": 0-100, "reason": "short reason"}
+  ]
+}
 ```
 
-## When to use
+Write that to a file (e.g., `/tmp/scores.json`).
 
-**Use it:**
-- Drafting a new `.claude/rules/*.md` convention file
-- Scaffolding a dbt model, macro, test, or CI workflow and want grounded defaults
-- User asks "why do we…", "how should I…", "what's the right way to…" about data architecture or Metabase ops
-- User says "ask the corpus" / "check the notebook" / "ground this"
-- Engagement-specific questions: "what did we decide about X for D-DEE?"
+### Phase 2 — finalize
 
-**Skip it:**
-- Pure code-mechanic questions (what columns does this file have?) — just read the file
-- Question already answered inside `.claude/rules/` — those are already grounded
-- Topic outside data engineering / dbt / MDS / Metabase / engagement history
+```bash
+.claude/skills/ask-corpus/.venv/bin/python \
+  .claude/skills/ask-corpus/scripts/corpus_research.py \
+  --phase=finalize \
+  --shortlist /var/folders/.../shortlist.json \
+  --rerank-scores /tmp/scores.json
+```
 
-## Example (scoped)
+The engine prints:
 
-**User:** "what's the recommended way to back up Metabase's application database?"
+```json
+{"report": "/var/folders/.../report.json"}
+```
 
-**Claude:**
-1. Runs the Step 1 snippet with `SCOPE=methodology.metabase` → gets the Metabase Craft `notebook_id`
-2. Calls `notebook_query(notebook_id=<metabase id>, query="application database backup strategy")`
-3. Replies with TL;DR + bulleted sources + notebook link
+Read that file. It carries:
 
-## Fallback safety
+- `question`, `intent`, `primary_entity`
+- `plan` (the sanitized plan you emitted)
+- `ranked_candidates` (each with `final_score`, `rerank_reason`, `snippet`, `scope`, `source_id`)
+- `clusters` (one per surviving subquery; each with `theme` and ordered candidates)
+- `warnings` (structured list — see "Synthesizing warnings" below)
+- `trace_summary`
 
-If `.claude/corpus.yaml` is missing (e.g., someone forked the template and hasn't added one yet), the Step 1 snippet returns the Data Ops notebook id as a fallback and emits a one-line warning. The skill keeps working; just without multi-notebook routing.
+Synthesize per the SYNTHESIS TEMPLATE.
 
-## Cost note
+### When you skip a step
 
-`notebook_query` and `cross_notebook_query` are free — no Perplexity quota, no per-call cost. Use them liberally rather than guessing. If the query returns no useful citations, say so and fall back to reasoning from first principles.
+- **No `--plan`:** the engine emits `plan-fallback`, runs a single-subquery deterministic plan, retrieval is shallower. Surface this in synthesis.
+- **No `--rerank-scores` on finalize:** the engine emits `rerank-fallback`, falls back to local-relevance scoring with the entity-miss penalty preserved. Surface this in synthesis.
+
+---
+
+## SYNTHESIS TEMPLATE
+
+After reading `report.json`, produce the user-facing answer in this shape:
+
+```
+🟦 Sources: ask-corpus v2 ({intent}, {n_subqueries} subqueries × {n_scopes} scopes; {n_warnings} warnings)
+
+What the sources say:
+
+**{Bold lead-in for the first claim}** — supporting prose with inline citations like (source: "<source_title>", <scope>). Group claims by subquery cluster when more than one cluster surfaced. Tight paragraphs; no `##` body headers.
+
+**{Bold lead-in for the second claim}** — keep paragraphs short. If the user asked a yes/no question, answer it explicitly in the first paragraph.
+
+KEY PATTERNS from the corpus:
+
+1. {First pattern, one sentence, with citation}.
+2. {Second pattern, one sentence, with citation}.
+3. ...
+
+{Engine footer — copy verbatim from the Report's warnings + top citations. LAW 2.}
+
+{Optional invitation: "Want me to drill into <X> or <Y>?"}
+```
+
+### Body conventions (template guidance, not LAWs)
+
+- No `##` body headers.
+- No em-dashes used as parenthetical punctuation; use sentence breaks instead.
+- No invented title above the badge — the badge is the title.
+- Inline citations only; never an end-of-answer "Sources:" block (LAW 1).
+
+### Synthesizing warnings
+
+The engine's `warnings` list is your audit trail for the user. Translate each into a short caveat under the engine footer:
+
+- `plan-fallback` → "Used a single-subquery deterministic plan; consider re-asking with a multi-subquery angle for richer retrieval."
+- `rerank-fallback` → "Reranker fell back to local heuristic — relevance ranking is approximate."
+- `thin-evidence` → "Fewer than 5 candidates surfaced; the corpus may not cover this question well."
+- `scope-concentration` → "Top results all came from one scope; consider widening the scope."
+- `scope-errors` → "One or more scopes failed retrieval. Coverage is partial."
+- `no-usable-items` → "The corpus returned no usable citations. Falling back to first-principles answer."
+
+---
+
+## LAW ANCHORS
+
+Each LAW is anchored to a specific incident. As new incidents surface, add a new LAW here — the discipline that makes anchors load-bearing is **earning** them, not copying them.
+
+| LAW | Anchor |
+|-----|--------|
+| LAW 1 — No `Sources:` block | Architecture-driven; carried from `last30days` SKILL.md. The engine emits citations inline so the WebSearch reminder doesn't apply. |
+| LAW 2 — Engine footer pass-through | Mechanical. Preserves trace fidelity for the user. |
+| LAW 3 — Always double-check | **2026-04-19 mart-naming incident.** First-principles reasoning was directionally correct but missed three actionable specifics the corpus had ready (separate by schema, drop `fct_/dim_` in marts, fewer wider marts over many narrow ones). Without the double-check, the rule would have shipped incomplete. |
+
+---
+
+## WHEN TO USE / SKIP
+
+**Use `ask-corpus` before:**
+- Writing any `.claude/rules/*.md` file.
+- Scaffolding a dbt model, macro, or test pattern that encodes a design choice.
+- Authoring a CI/CD workflow file.
+- Making a Metabase operational decision (backup, upgrade, dbt-metabase sync, BQ cost tuning).
+- Answering a "why do we…" or "how should I…" architecture question.
+- Answering a "what did we decide about X for this client?" question.
+
+**Skip when:**
+- The question is pure code-mechanic ("what columns does this model have?") — read the code.
+- The answer is already in an existing `.claude/rules/*.md` file — that's already corpus-grounded.
+- The topic is unrelated to data engineering / dbt / MDS / Metabase / this engagement.
+- The user has already invoked the skill this turn for the same question.
+
+---
+
+## COST NOTE
+
+- `nlm` retrieval calls are **free** (no Pro-search quota; use liberally).
+- The planner LLM call is **you** (the host LLM) — no extra API quota.
+- The reranker LLM call is **you** (the host LLM) — same.
+- Engine I/O is local subprocess + JSON files in `$TMPDIR`.
+
+There is no cost to invoking `ask-corpus` other than the small latency of the two-phase handshake. Default to using it when in doubt.
