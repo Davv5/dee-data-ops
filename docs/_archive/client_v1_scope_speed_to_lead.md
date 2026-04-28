@@ -1,5 +1,22 @@
 # Client v1 Scope — Speed-to-Lead Dashboard
 
+> **⚠️ FROZEN — historical artifact.** This document captures the V1 plan as
+> it shipped 2026-04-22 on Metabase OSS (now retired). **Do not edit.** Several
+> assumptions here are now superseded:
+>
+> - **BI tool:** Looker Studio (in §1) was abandoned pre-ship; v1 actually shipped
+>   on Metabase OSS, which has since been retired. Current direction is dabi —
+>   see memory `project_bi_direction_dabi.md`.
+> - **Stripe** as a payment source: D-DEE's Stripe is now banned (historical-only);
+>   Fanbasis is the live revenue processor (memory `project_stripe_historical_only.md`).
+> - **Ingestion path:** Fanbasis was Week-0-deferred at scope time; it is now live
+>   via `services/bq-ingest/sources/fanbasis/` (PR #102, 2026-04-28).
+> - **Phase tracker:** the v1 build plan that this scope referenced has been
+>   retired; current state lives in `.claude/state/project-state.md`.
+>
+> For present-moment direction, read `.claude/state/project-state.md` and
+> `CLAUDE.local.md`. For shipped facts, see `WORKLOG.md`.
+
 **Status:** Draft for client alignment
 **Author:** David
 **Date:** 2026-04-19

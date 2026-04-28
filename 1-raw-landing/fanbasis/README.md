@@ -1,57 +1,37 @@
-# Fanbasis Extractor
+# Fanbasis ingestion — moved
 
-Custom Python extractor for Fanbasis → BigQuery `raw_fanbasis.*`. Same shape as
-`1-raw-landing/ghl/` — see that README for the design-choice rationale, corpus citations,
-and cursor-state pattern.
+**This directory is retired.** It used to hold a Week-0-blocked GH Actions
+extractor skeleton (`extract.py` returning no rows until D-DEE delivered Fanbasis
+API credentials). Those credentials never landed via the v1 path; meanwhile the
+authoritative Fanbasis pipeline grew up inside the `gtm-lead-warehouse`
+`bq-ingest` service and was consolidated into this repo on 2026-04-28 (PR #102,
+Step 2 of the bq-ingest consolidation).
 
-## Current status
+## Where Fanbasis ingestion lives now
 
-This extractor is still a repo-local skeleton: BigQuery loading/state helpers
-exist, but `fetch_endpoint()` returns no rows until the Fanbasis API contract is
-implemented. Discovery Sprint findings show Fanbasis transaction rows landing in
-`project-41542e21-470f-4589-96d.Raw.fanbasis_transactions_txn_raw`; that table
-appears to come from an upstream/GTM-side path, not this script.
+`services/bq-ingest/sources/fanbasis/`
 
-Before extending this extractor, confirm whether the GTM-side writer is the
-authoritative path or whether this repo should own Fanbasis ingestion going
-forward.
+- **Pipeline:** `fanbasis_pipeline.py` — paginated `/checkout-sessions/transactions`
+  poller, MERGE-by-`transaction_id`, separate `fanbasis_backfill_state` table
+- **Backfill:** `fanbasis_backfill.py`
+- **Raw landing target:** `project-41542e21-470f-4589-96d.Raw.fanbasis_transactions_txn_raw`
+- **Trigger:** Cloud Run Flask service (`bq-ingest`), invoked by the bq-ingest
+  scheduler — not GitHub Actions
+- **Service rule:** `.claude/rules/bq-ingest.md`
+- **Ingestion contract:** `.claude/rules/ingest.md` (v1 source inventory updated
+  in the same PR that retired this skeleton)
 
-## What it pulls
+## Downstream wiring
 
-Three v1 endpoints (scope §4):
+- **Staging:** `2-dbt/models/staging/fanbasis/stg_fanbasis__transactions.sql` +
+  `stg_fanbasis__refunds.sql`
+- **Warehouse:** `fct_payments`, `fct_refunds`, `bridge_identity_contact_payment`
+- **Mart:** `revenue_detail`
 
-- `customers`
-- `subscriptions`
-- `payments`
+## Why the directory itself isn't deleted
 
-Intended repo-local landing target: `raw_fanbasis.<endpoint>` (WRITE_APPEND)
-with a `_ingested_at` UTC column. This does not match the currently observed
-GTM-side table shape under `Raw.fanbasis_transactions_txn_raw`; reconcile that
-before building production dbt models.
-
-## CSV-export fallback (scope Risk #5)
-
-The Fanbasis API is the lowest-confidence source in v1 — reliability and endpoint
-coverage are unknown until Week 0. If the API proves unworkable:
-
-1. Fanbasis admin console exports CSV per entity.
-2. Land CSVs to `gs://dee-data-ops-raw/fanbasis/<endpoint>/YYYY-MM-DD.csv` (manual
-   drop is fine for v1 cadence — payments don't need same-day freshness).
-3. Replace `fetch_endpoint` with a `load_csv_from_gcs(endpoint, date)` helper;
-   everything downstream (cursor, staging) stays the same.
-4. Escalate to weekly cadence if CSV is manual-only; the headline metric doesn't
-   depend on Fanbasis (GHL + Calendly do).
-
-## Running it
-
-Same as `1-raw-landing/ghl/`:
-
-```bash
-python 1-raw-landing/fanbasis/extract.py --dry-run
-python 1-raw-landing/fanbasis/extract.py
-```
-
-Required GitHub Actions secrets:
-
-- `GCP_SA_KEY` — shared with ghl
-- `FANBASIS_API_KEY` — Week-0 client ask
+Kept as a tombstone so future-Claude searching `1-raw-landing/fanbasis/` lands
+here instead of recreating the skeleton. The directory has no extractor, no
+requirements.txt, no executable code — only this README. Safe to delete in a
+later cleanup pass once enough sessions have referenced the new location that
+nobody looks here first.

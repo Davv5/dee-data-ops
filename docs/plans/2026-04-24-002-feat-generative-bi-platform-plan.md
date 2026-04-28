@@ -112,7 +112,7 @@ Plan A is engagement-shaped (D-DEE pivot, Metabase decommission, parity gate). P
 
 ### Institutional Learnings
 
-- `feedback_ship_over_ceremony.md` — direct execution preferred. Plan B units run in main session; no plan-architect → executor pipeline.
+- `feedback_multi_agent_orchestration.md` — supersedes `feedback_ship_over_ceremony.md` (2026-04-27). Main-session execution remains default for solo build steps; spawn parallel/specialized agents (CE reviewers, Altimate skills, data-engineer agent) when fanning out independent work.
 - `feedback_preserve_working_infra.md` — keeps the dabi build on the existing VM + Caddy + IP rather than spinning up new infra.
 - `project_gcp_consolidation_decision.md` — confirms `project-41542e21-470f-4589-96d` as the GCP home; Plan B's terraform targets this project.
 - The Strategic Reset Sprint plan defines the docs-only ban; Plan B U1 lands during the sprint, U2-U8 wait for exit.

@@ -12,6 +12,10 @@ For human onboarding (initial setup, project layout, how the rules system works)
 - **dbt style:** [`docs/conventions/dbt_style_guide.md`](docs/conventions/dbt_style_guide.md)
 - **Corpus queries:** [`ask-corpus` skill](.claude/skills/ask-corpus/SKILL.md) (v2 planner / fan-out / fuse / rerank engine; not a `notebook_query` wrapper). Trigger conditions, cite-source norm, and the boundary with raw MCP / Perplexity live in [`.claude/rules/using-the-notebook.md`](.claude/rules/using-the-notebook.md).
 
+## Pivot discipline
+
+When you save a memory file under `~/.claude/projects/-Users-david-Documents-data-ops/memory/` that captures a *strategic pivot* (BI direction change, source-of-truth change, scope cut, work-bucket pause/resume, supersession of a prior memory), the same session must walk the checklist in [`.claude/rules/pivot-discipline.md`](.claude/rules/pivot-discipline.md) and update or banner-archive the docs the pivot supersedes (`CLAUDE.local.md`, affected rules, plans, scope docs, project-state index). If the walk can't happen in-session, surface "pivot-debt" as an Open Thread in `project-state.md` per that rule's escape-valve clause. Memory writes about pivots without the walk create the compound-fog risk this rule was written to prevent (empirical anchor: 2026-04-28 reconciliation sweep that found 7 stale artifacts caused by un-walked pivots).
+
 ## dbt operating note
 
 Run from `2-dbt/` with the venv activated and `.env` sourced. Default target is `dev`. **Never run `dbt build --target prod` locally** — production goes through CI on merge to `main`. A `.claude/settings.json` hook blocks `--target prod` deterministically.

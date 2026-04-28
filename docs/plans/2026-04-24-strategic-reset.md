@@ -1,19 +1,20 @@
 # Strategic Reset — Data Discovery & Visibility Sprint (2026-04-24)
 
-**Duration:** ~1–2 weeks (2026-04-24 → target 2026-05-08)
-**Status:** Active
-**Supersedes (temporarily):** `2026-04-23-001-feat-gtm-source-port-plan.md` — PAUSED at U3-complete
+**Duration:** ~1–2 weeks (2026-04-24 → 2026-04-27 closure)
+**Status:** Phase A (Discovery Sprint) **closed 2026-04-27**. Phase B (Layer Build) is active — see `.claude/state/project-state.md`. This plan kept as the historical record of the discovery rationale + artifact shape; do not edit decisions retroactively.
+**Supersedes (temporarily):** `2026-04-23-001-feat-gtm-source-port-plan.md` — PAUSED at U3-complete (U4a–U14 still paused; resume gated on Gold-layer roadmap exit).
+**Stale-step flag:** Original plan named Grok as the value×feasibility ranker. **Grok is no longer in the loop** (memory: `project_grok_out_of_loop.md`). Ranking now uses the `mart-roadmap-rank` skill's baked-in rubric (or a per-engagement custom rubric). Lines that say "walk Grok through X" are historical text; treat the rubric path as the live one.
 
 ---
 
 ## Why
 
-A strategic discussion with Grok concluded:
+The team concluded after a strategic discussion:
 
 1. **The project is NOT restarting.** A third restart was considered and rejected.
 2. **The technical foundation is sound** — BigQuery + dbt, 13 staging models resolving end-to-end, `(id, _ingested_at, payload)` raw-landing discipline. U1 preflight, U2 profile retarget, and U3 staging shims all stay.
 3. **The real problem is visibility and business prioritization, not technology.** We have been building against a single metric (Speed-to-Lead) without mapping the full business surface, and we have been moving toward a GCP cutover without first confirming what the Gold layer has to produce.
-4. **The fix is a Discovery Sprint, not another rebuild.** Pause new build work, map what data exists and what business areas need serving, let Grok help prioritize, then rebuild Gold against real priorities.
+4. **The fix is a Discovery Sprint, not another rebuild.** Pause new build work, map what data exists and what business areas need serving, score the marts via a value×feasibility rubric, then rebuild Gold against real priorities.
 
 ## What we are NOT doing
 
@@ -24,18 +25,18 @@ A strategic discussion with Grok concluded:
 
 ## Strategic Reset Plan
 
-The five bullets from the Grok discussion, with a one-line "what this means in practice":
+The five bullets, with a one-line "what this means in practice":
 
 1. **Pause new feature development for 1–2 weeks.**
-   *In practice:* no dbt model PRs, no Metabase/Evidence.dev work, no source extractor fixes, no warehouse refactors. Only docs and bookkeeping land.
+   *In practice:* no dbt model PRs, no BI/dashboard work *(originally written as "no Metabase/Evidence.dev work" — both retired since; current direction is dabi, memory `project_bi_direction_dabi.md`)*, no source extractor fixes, no warehouse refactors. Only docs and bookkeeping land.
 2. **Run a Data Discovery & Visibility Sprint.**
    *In practice:* five parallel workstreams (below) producing a discovery packet under `docs/discovery/`. The packet started with the four planned decision artifacts and now also includes model/gap/insight views that make the source reality easier to use.
 3. **Get full clarity on what data actually exists across all sources.**
    *In practice:* per-source inventory — table / row count / freshness / owner / breakage — across GHL, Stripe, Typeform, Calendly, Fathom, Fanbasis.
 4. **Map all important business areas (not just Speed-to-Lead).**
    *In practice:* explicit enumeration of lead acquisition, speed-to-lead, appointment setting, closing, revenue attribution, churn, SDR/AE performance, pipeline velocity, funnel ROI, refunds/chargebacks — with stakeholder, decision, and data dependency for each.
-5. **Create a prioritized roadmap with Grok's guidance, then rebuild Gold against real priorities.**
-   *In practice:* walk Grok through the inventory and business-area map; let Grok rank by value × feasibility; publish an ordered list of marts to build; supersede the U5+ section of the GCP cutover plan with the new roadmap.
+5. **Score the marts via a value×feasibility rubric, then rebuild Gold against real priorities.**
+   *In practice:* feed the inventory + business-area map + coverage matrix into the `mart-roadmap-rank` skill (baked-in rubric, or a per-engagement custom rubric). The skill emits an ordered list of marts. Supersede the U5+ section of the GCP cutover plan with the new roadmap. (Original plan called for Grok-in-loop ranking; Grok was removed — memory `project_grok_out_of_loop.md`.)
 
 ---
 
@@ -88,7 +89,7 @@ Areas to enumerate (starter list, extend during sprint):
 - No-show / rescue flows
 - DQ / lead quality
 
-Input to Grok's prioritization step.
+Input to the rubric-based prioritization step (artifact 4).
 
 ### 3. Data-to-business crosswalk (days 4–6)
 
@@ -103,11 +104,11 @@ Matrix of business areas (rows) × source tables (columns), color-coded:
 
 Highlights which areas are ready to build against today vs. which need an extractor fix first.
 
-### 4. Grok roadmap review (days 6–8)
+### 4. Rubric-based roadmap ranking (days 6–8)
 
 **Output:** `docs/discovery/gold-layer-roadmap.md`
 
-Walk Grok through artifacts 1–3. Grok ranks business areas by **value × feasibility**. Output is an ordered list of marts to build:
+Feed artifacts 1–3 into the `mart-roadmap-rank` skill, which scores candidate marts by **value × feasibility** using a baked-in rubric (or a per-engagement custom rubric supplied via `--rubric`). Output is an ordered list of marts to build:
 
 ```
 Rank | Mart name | Grain | PK | Purpose (1 line) | Business area | Rationale | Data deps | Blockers
@@ -117,12 +118,14 @@ Each mart entry declares **grain + PK + 1-line purpose** upfront — per Joshua 
 
 This ordered list replaces the U5+ scope of `2026-04-23-001-feat-gtm-source-port-plan.md`.
 
+> *Original plan (now stale): "walk Grok through artifacts 1–3 and let Grok rank by value × feasibility." Grok was removed from the loop — memory `project_grok_out_of_loop.md`.*
+
 ### 5. Sprint retro + re-plan (days 9–10)
 
 **Output:** `docs/plans/2026-05-xx-gold-layer-rebuild.md` (supersedes U5+ of the cutover plan)
 
 - Resume the GCP cutover plan where it still applies (U4a plumbing parity against a frozen snapshot).
-- Rewrite the U5+ warehouse scope using the Grok-prioritized mart list.
+- Rewrite the U5+ warehouse scope using the rubric-prioritized mart list from artifact 4.
 - Close the Sprint workstream in `.claude/state/project-state.md`; open the new build workstream.
 
 **Daily cadence during sprint:** one-line WORKLOG.md entry per day capturing progress (even if no code lands). Zero dbt / warehouse / mart PRs unless the deliverable *is* docs.
@@ -173,6 +176,6 @@ The sprint ends when all four decision gates are true:
 1. `docs/discovery/source-inventory.md` exists and covers all six sources.
 2. `docs/discovery/business-area-map.md` exists and enumerates every business area D-DEE cares about, each with stakeholder + decision + data deps + current state.
 3. `docs/discovery/coverage-matrix.md` exists and maps every business area to its source dependencies with a status color.
-4. `docs/discovery/gold-layer-roadmap.md` exists, has been reviewed with Grok, and carries an ordered list of marts to build.
+4. `docs/discovery/gold-layer-roadmap.md` exists, has been ranked by the `mart-roadmap-rank` rubric, and carries an ordered list of marts to build.
 
 When all four are in place, publish `docs/plans/2026-05-xx-gold-layer-rebuild.md` and flip `.claude/state/project-state.md` to the new build workstream.

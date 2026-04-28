@@ -10,10 +10,24 @@ supersedes: v1 of this plan (ported-sources-to-dee-data-ops-prod approach, disca
 
 # Consolidate data ops in `project-41542e21-470f-4589-96d`
 
-> **Current status (2026-04-24+):** paused at U3-complete during the
-> Strategic Reset / Discovery Sprint. Use `.claude/state/project-state.md` for
-> live status and `docs/discovery/` for current source reality before executing
-> any unchecked unit from this plan.
+> **Current status (2026-04-28+):** **U4a, U4b, U5, U6, U7, U8, U9, U12, U14 are all PAUSED.**
+> The plan was paused at U3-complete on 2026-04-24 to run the Strategic Reset /
+> Discovery Sprint. Phase A (Discovery Sprint) **closed 2026-04-27**; Phase B
+> (Layer Build) is active and is shipping marts via `2-dbt/models/marts/`
+> (PRs #84/#86/#88/#90/#92 landed B.1–B.4 on 2026-04-28).
+>
+> **Resumption is gated** on the Gold-layer roadmap (`docs/discovery/gold-layer-roadmap.md`)
+> being ranked + published. Original plan named Grok as the ranker; Grok was
+> removed (memory `project_grok_out_of_loop.md`). Ranking now uses the
+> `mart-roadmap-rank` skill rubric. See `docs/plans/2026-04-24-strategic-reset.md`.
+>
+> The bq-ingest consolidation (`docs/plans/2026-04-28-bq-ingest-consolidation-plan.md`)
+> ran in parallel with this pause and shipped Steps 1–4 on 2026-04-28 — those
+> bring the GTM-side ingestion code home into `services/bq-ingest/` without
+> waiting for U4a+. Don't conflate that consolidation with this plan's resumption.
+>
+> Use `.claude/state/project-state.md` for live status and `docs/discovery/`
+> for current source reality before executing any unchecked unit.
 
 ## Fresh session startup
 
@@ -21,11 +35,11 @@ If you're opening this plan in a new Claude session, do these in order **before 
 
 1. Read `CLAUDE.md` (repo conventions) and `CLAUDE.local.md` (locked Speed-to-Lead metric math — gitignored; David has it).
 2. Read `.claude/state/project-state.md` for the current snapshot.
-3. Confirm auto-loaded memory includes `project_gcp_consolidation_decision.md` + `feedback_preserve_working_infra.md` + `feedback_ship_over_ceremony.md` (via `MEMORY.md`).
+3. Confirm auto-loaded memory includes `project_gcp_consolidation_decision.md` + `feedback_preserve_working_infra.md` + `feedback_multi_agent_orchestration.md` (via `MEMORY.md`). The earlier `feedback_ship_over_ceremony.md` was **superseded** 2026-04-27 by `feedback_multi_agent_orchestration.md` — multi-agent pipelines are leverage when fanning out work, ceremony only when piling decisions back on one human.
 4. Read this plan in full — especially **Key Technical Decisions**, **Phased Delivery**, and **Risks**.
 5. Confirm which unit you're executing. Default: the next unchecked `- [ ]` in Implementation Units order. Wait for explicit user sign-off on any HARD GATE.
 
-**Execution posture (from `feedback_ship_over_ceremony.md`):** direct build-in-main-session. Do **not** spawn `plan-architect → track-executor → pr-reviewer` for this engagement. David is sole operator; that pipeline is ceremony, not value. For read-only audits (U1), run commands and write docs directly. For code changes (U2+), still prefer main-session execution unless the user explicitly asks for a worktree.
+**Execution posture (per `feedback_multi_agent_orchestration.md`, supersedes prior `ship_over_ceremony`):** main-session direct execution remains the default for solo build steps; spawn parallel/specialized agents (CE reviewers, Altimate skills, data-engineer agent) when fanning out independent work. Always pair producers with reviewers per `.claude/rules/use-data-engineer-agent.md`.
 
 **Phase boundaries are non-negotiable.** Finish all of Phase 1 before starting Phase 2. HARD GATES at U4a (plumbing parity), U8, U12 require David's explicit sign-off on parity results before the dependent work proceeds. U4b (live-raw business parity) gates U14 decommission, not U5. Parity windows (7-day U4b / U8, 14-day U12, 30-day U14 soak) are calendar-bound and cannot be compressed.
 

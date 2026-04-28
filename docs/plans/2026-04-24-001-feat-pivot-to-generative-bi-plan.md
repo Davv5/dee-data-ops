@@ -94,7 +94,7 @@ This plan moves D-DEE off Metabase to dabi for the v1 surface, which puts the en
 
 ### Institutional Learnings
 
-- `feedback_ship_over_ceremony.md` — direct execution preferred; no plan-architect → executor pipeline. Plan A units run in main session.
+- `feedback_multi_agent_orchestration.md` — supersedes `feedback_ship_over_ceremony.md` (2026-04-27). Main-session execution remains default for solo build steps; spawn parallel/specialized agents (CE reviewers, Altimate skills, data-engineer agent) when fanning out independent work.
 - `feedback_preserve_working_infra.md` — drives the "keep the Caddy / nip.io URL stable through cutover" decision.
 - `project_evidence_dev_transition.md` — captured the WHY behind moving off Metabase (Claude-Code-editability of git-versioned source). dabi achieves the same goal without the Evidence framework. **Action:** this memory is updated/superseded in Plan A U1.
 - `project_gcp_consolidation_decision.md` — confirms the consolidation target; Plan A's hosting decisions reuse `project-41542e21-470f-4589-96d` infra.
