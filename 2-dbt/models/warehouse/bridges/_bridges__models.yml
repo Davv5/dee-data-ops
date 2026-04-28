@@ -54,6 +54,10 @@ models:
         description: Confidence score for the chosen tier. Range 0.00-1.00.
         tests:
           - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 1
+              inclusive: true
       - name: bridge_status
         description: >
           Summary flag. `matched` when a CRM contact was resolved;
