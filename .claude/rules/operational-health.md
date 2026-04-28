@@ -47,9 +47,15 @@ Three failures discovered during one fact-table audit:
 1. **Stale-deploy drift.** `bq-ingest` was deployed from `~/Documents/fanbasis-ingest` (local clone, app.py mtime 2026-04-13) while GitHub HEAD on `gtm-lead-warehouse` had newer routes (incl. `/snapshot-pipeline-stages`). Daily snapshot scheduler hit 404 silently for at least 2 days; `Core.fct_pipeline_stage_snapshots` had been empty since the table was created.
    - **Defense:** always `gcloud run deploy --source` from a fresh `git pull` of GitHub HEAD. After every deploy, `curl /routes` and grep for the routes you expect.
 2. **Silent semantic data loss.** `snapshot_pipeline_stages_daily` SQL had `WHERE LOWER(status) NOT IN ('lost','abandoned','won')` — exactly the close transitions we most want for funnel analysis.
-   - **Defense:** every WHERE clause in a snapshot/fact insert is a candidate for silent data loss. Code review should flag any filter that could exclude a load-bearing event class. Future snapshot-style code lives in [`gtm-lead-warehouse:sources/ghl/ghl_pipeline.py`](https://github.com/heidyforero1/gtm-lead-warehouse).
+   - **Defense:** every WHERE clause in a snapshot/fact insert is a candidate for silent data loss. Code review should flag any filter that could exclude a load-bearing event class.
 3. **Memory-bound intermittent OOM.** `bq-ingest` ran with 512Mi for `run_models()` calls that polled BQ jobs to completion; gunicorn worker overhead crossed the limit. Both Fathom and Calendly pipelines hit it.
    - **Defense:** Cloud Run service memory should match the largest payload it processes; OOMs that look "intermittent" are usually deterministic on the right input. Bump first, investigate second if recurrence persists.
+4. **Buildpack Python version drift on first redeploy.** Restoring the snapshot route required `gcloud run deploy --source .`. The current GCP universal builder (`universal_builder_20260414_RC00`) ships only Python 3.13 / 3.14; previous prod ran 3.11. Without a pin, the redeploy autodetected 3.14 and the service boot-failed on a protobuf C-extension incompatibility. Rolled back, pinned `.python-version` to 3.13, redeployed.
+   - **Defense:** any service deployed via buildpacks needs an explicit Python pin in the source tree. Verify after any builder upgrade that the pinned version is still in the supported list — the catalog drifts faster than the pin does.
+
+### Where the bq-ingest source lives (today + planned)
+
+Today: `heidyforero1/gtm-lead-warehouse` (production deploy origin). David does NOT actively push to that repo, which is the structural smell that produced #1 above. Planned consolidation into `dee-data-ops/services/bq-ingest/` — see `docs/plans/2026-04-28-bq-ingest-consolidation-plan.md`. Until that lands, code changes to bq-ingest go through the `gtm-lead-warehouse` PR flow.
 
 ## Freshness gates in CI
 
