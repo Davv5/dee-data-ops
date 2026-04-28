@@ -68,8 +68,9 @@ This is escape-valve, not norm. If pivot-debt accumulates more than two unresolv
 ## See also
 
 - `.claude/rules/worklog.md` — end-of-session routing for session output (sister always-on rule)
-- `.claude/rules/using-the-notebook.md` — corpus-citation norm (sister always-on rule). The "Empirical anchor" pattern this rule introduces is *distinct* from corpus citation: corpus citation references a notebook source; an empirical anchor references an in-repo incident that prompted a rule. Both styles can appear in the same rule file when both kinds of grounding apply.
+- `.claude/rules/using-the-notebook.md` — corpus-citation + empirical-anchor norms (sister always-on rule). The "Empirical anchor" pattern this rule introduces is now formally documented there alongside the corpus-citation form; both styles can coexist in the same rule when both kinds of grounding apply.
 - `.claude/rules/use-data-engineer-agent.md` — when retirement edits a rule file, pair the producer with a CE reviewer per that file's "Reviews always pair" clause
+- `.claude/scripts/post-pivot-memory-reminder.sh` — PostToolUse(Write|Edit) hook that fires when a memory file is written under `~/.claude/projects/-Users-david-Documents-data-ops/memory/`. Emits this rule's checklist as a stderr reminder so the convention surfaces deterministically at memory-write time rather than depending on Claude noticing the rule. Doesn't block, doesn't mutate; the judgment ("is this a pivot?") still belongs to Claude.
 - Memory: `MEMORY.md` (index) + per-fact files in `~/.claude/projects/-Users-david-Documents-data-ops/memory/`
 
 ## Lessons learned
