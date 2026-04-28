@@ -1,0 +1,1211 @@
+{
+  "version": 1,
+  "project_id": "project-41542e21-470f-4589-96d",
+  "region": "us-central1",
+  "rule_file": "docs/runbooks/AGENT_EXECUTION_RULES.md",
+  "images": {
+    "shared_runner": "us-central1-docker.pkg.dev/project-41542e21-470f-4589-96d/cloud-run-source-deploy/fanbasis-python-runner:latest"
+  },
+  "jobs": [
+    {
+      "name": "calendly-backfill",
+      "managed": true,
+      "canary": false,
+      "current": {
+        "image": "us-central1-docker.pkg.dev/project-41542e21-470f-4589-96d/cloud-run-source-deploy/calendly-backfill@sha256:3030a58c08cf0b6613dc5a2e5d1c78f032fe4b6e922dfb6e8f11d24959c33b61",
+        "command": [
+          "/layers/google.python.uv/uv-dependencies/.venv/bin/python"
+        ],
+        "args": [
+          "/workspace/calendly_backfill.py"
+        ]
+      },
+      "target": {
+        "image": "us-central1-docker.pkg.dev/project-41542e21-470f-4589-96d/cloud-run-source-deploy/fanbasis-python-runner:latest",
+        "command": [
+          "python3"
+        ],
+        "args": [
+          "-m",
+          "ops.runner.cli",
+          "run",
+          "backfill.calendly"
+        ]
+      },
+      "service_account": "id-sa-ingest@project-41542e21-470f-4589-96d.iam.gserviceaccount.com",
+      "cpu": "1000m",
+      "memory": "512Mi",
+      "timeout_seconds": 10800,
+      "max_retries": 1,
+      "tasks": 1,
+      "parallelism": null,
+      "env": {
+        "GCP_PROJECT_ID": "project-41542e21-470f-4589-96d",
+        "BQ_DATASET": "Raw",
+        "BQ_CALENDLY_RAW_TABLE": "calendly_objects_raw",
+        "BQ_CALENDLY_STATE_TABLE": "calendly_backfill_state",
+        "BQ_CALENDLY_INVITEE_STATE_TABLE": "calendly_invitee_backfill_state",
+        "BQ_CALENDLY_WEBHOOK_RAW_TABLE": "calendly_webhook_events_raw",
+        "CALENDLY_API_BASE": "https://api.calendly.com",
+        "CALENDLY_OBJECT_TYPES": "event_types,routing_forms,routing_form_submissions,scheduled_events,event_invitees",
+        "CALENDLY_ENABLE_PHASE1": "true",
+        "CALENDLY_ENABLE_PHASE2": "true",
+        "CALENDLY_ENABLE_PHASE3": "false",
+        "CALENDLY_PAGE_LIMIT": "100",
+        "CALENDLY_INVITEE_MAX_PAGES_PER_EVENT": "0",
+        "CALENDLY_BACKFILL_INVITEE_WORKERS": "6",
+        "CALENDLY_BACKFILL_INVITEE_BATCH_SIZE": "200",
+        "CALENDLY_INCREMENTAL_INVITEE_WORKERS": "4",
+        "CALENDLY_MAX_PAGES_PER_OBJECT": "0",
+        "CALENDLY_MAX_PAGES_EVENT_TYPES": "0",
+        "CALENDLY_MAX_PAGES_ROUTING_FORMS": "0",
+        "CALENDLY_MAX_PAGES_ROUTING_FORM_SUBMISSIONS": "0",
+        "CALENDLY_MAX_PAGES_SCHEDULED_EVENTS": "0",
+        "CALENDLY_MAX_PAGES_EVENT_INVITEES": "0",
+        "CALENDLY_BACKFILL_MODE": "events_only",
+        "CALENDLY_RUN_MODELS_AFTER": "true",
+        "CALENDLY_INCREMENTAL_LOOKBACK_HOURS": "48",
+        "CALENDLY_INCREMENTAL_MAX_PAGES_PER_OBJECT": "3",
+        "CALENDLY_RUN_MODELS_AFTER_INCREMENTAL": "false",
+        "CALENDLY_WEBHOOK_REQUIRE_SIGNATURE": "false"
+      },
+      "secrets": {
+        "CALENDLY_API_KEY": "CalendlyApiKey:latest"
+      }
+    },
+    {
+      "name": "calendly-invitee-drain",
+      "managed": true,
+      "canary": false,
+      "current": {
+        "image": "us-central1-docker.pkg.dev/project-41542e21-470f-4589-96d/cloud-run-source-deploy/calendly-invitee-drain@sha256:d0f8cca84e13ec075663747190d52a8e0a9fafee80f43a5bf9ff85c3a6e91c4a",
+        "command": [
+          "/layers/google.python.uv/uv-dependencies/.venv/bin/python"
+        ],
+        "args": [
+          "/workspace/calendly_invitee_drain.py"
+        ]
+      },
+      "target": {
+        "image": "us-central1-docker.pkg.dev/project-41542e21-470f-4589-96d/cloud-run-source-deploy/fanbasis-python-runner:latest",
+        "command": [
+          "python3"
+        ],
+        "args": [
+          "-m",
+          "ops.runner.cli",
+          "run",
+          "backfill.calendly_invitee_drain"
+        ]
+      },
+      "service_account": "id-sa-ingest@project-41542e21-470f-4589-96d.iam.gserviceaccount.com",
+      "cpu": "1000m",
+      "memory": "512Mi",
+      "timeout_seconds": 10800,
+      "max_retries": 1,
+      "tasks": 1,
+      "parallelism": null,
+      "env": {
+        "GCP_PROJECT_ID": "project-41542e21-470f-4589-96d",
+        "BQ_DATASET": "Raw",
+        "BQ_CALENDLY_RAW_TABLE": "calendly_objects_raw",
+        "BQ_CALENDLY_STATE_TABLE": "calendly_backfill_state",
+        "BQ_CALENDLY_INVITEE_STATE_TABLE": "calendly_invitee_backfill_state",
+        "BQ_CALENDLY_WEBHOOK_RAW_TABLE": "calendly_webhook_events_raw",
+        "CALENDLY_API_BASE": "https://api.calendly.com",
+        "CALENDLY_OBJECT_TYPES": "event_types,routing_forms,routing_form_submissions,scheduled_events,event_invitees",
+        "CALENDLY_ENABLE_PHASE1": "true",
+        "CALENDLY_ENABLE_PHASE2": "true",
+        "CALENDLY_ENABLE_PHASE3": "false",
+        "CALENDLY_PAGE_LIMIT": "100",
+        "CALENDLY_INVITEE_MAX_PAGES_PER_EVENT": "0",
+        "CALENDLY_BACKFILL_INVITEE_WORKERS": "6",
+        "CALENDLY_BACKFILL_INVITEE_BATCH_SIZE": "200",
+        "CALENDLY_INCREMENTAL_INVITEE_WORKERS": "4",
+        "CALENDLY_MAX_PAGES_PER_OBJECT": "0",
+        "CALENDLY_MAX_PAGES_EVENT_TYPES": "0",
+        "CALENDLY_MAX_PAGES_ROUTING_FORMS": "0",
+        "CALENDLY_MAX_PAGES_ROUTING_FORM_SUBMISSIONS": "0",
+        "CALENDLY_MAX_PAGES_SCHEDULED_EVENTS": "0",
+        "CALENDLY_MAX_PAGES_EVENT_INVITEES": "0",
+        "CALENDLY_BACKFILL_MODE": "invitees_only",
+        "CALENDLY_RUN_MODELS_AFTER": "false",
+        "CALENDLY_WEBHOOK_REQUIRE_SIGNATURE": "false"
+      },
+      "secrets": {
+        "CALENDLY_API_KEY": "CalendlyApiKey:latest"
+      }
+    },
+    {
+      "name": "dq-tests",
+      "managed": true,
+      "canary": false,
+      "current": {
+        "image": "us-central1-docker.pkg.dev/project-41542e21-470f-4589-96d/cloud-run-source-deploy/dq-tests@sha256:d1e5abe8e78f0fd7335e6d24dacfcf9ae6339b8db9630edc3fc440a241461fa4",
+        "command": [
+          "/layers/google.python.uv/uv-dependencies/.venv/bin/python"
+        ],
+        "args": [
+          "/workspace/data_quality.py"
+        ]
+      },
+      "target": {
+        "image": "us-central1-docker.pkg.dev/project-41542e21-470f-4589-96d/cloud-run-source-deploy/fanbasis-python-runner:latest",
+        "command": [
+          "python3"
+        ],
+        "args": [
+          "-m",
+          "ops.runner.cli",
+          "run",
+          "quality.dq"
+        ]
+      },
+      "service_account": "id-sa-ingest@project-41542e21-470f-4589-96d.iam.gserviceaccount.com",
+      "cpu": "1000m",
+      "memory": "512Mi",
+      "timeout_seconds": 600,
+      "max_retries": 0,
+      "tasks": 1,
+      "parallelism": null,
+      "env": {
+        "GCP_PROJECT_ID": "project-41542e21-470f-4589-96d",
+        "BQ_DATASET": "Raw"
+      },
+      "secrets": {}
+    },
+    {
+      "name": "fanbasis-backfill",
+      "managed": true,
+      "canary": false,
+      "current": {
+        "image": "us-central1-docker.pkg.dev/project-41542e21-470f-4589-96d/cloud-run-source-deploy/fanbasis-backfill@sha256:1be66c21afbeec000a2a63ca908722e000e3339589484275673d751095d6d57e",
+        "command": [
+          "/layers/google.python.uv/uv-dependencies/.venv/bin/python"
+        ],
+        "args": [
+          "/workspace/backfill.py"
+        ]
+      },
+      "target": {
+        "image": "us-central1-docker.pkg.dev/project-41542e21-470f-4589-96d/cloud-run-source-deploy/fanbasis-python-runner:latest",
+        "command": [
+          "python3"
+        ],
+        "args": [
+          "-m",
+          "ops.runner.cli",
+          "run",
+          "backfill.fanbasis"
+        ]
+      },
+      "service_account": "id-sa-ingest@project-41542e21-470f-4589-96d.iam.gserviceaccount.com",
+      "cpu": "1000m",
+      "memory": "512Mi",
+      "timeout_seconds": 3600,
+      "max_retries": 1,
+      "tasks": 1,
+      "parallelism": null,
+      "env": {
+        "GCP_PROJECT_ID": "project-41542e21-470f-4589-96d",
+        "BQ_DATASET": "Raw",
+        "BQ_TXN_TABLE": "fanbasis_transactions_txn_raw",
+        "BQ_BACKFILL_STATE_TABLE": "fanbasis_backfill_state",
+        "FANBASIS_PER_PAGE": "100",
+        "BACKFILL_START_PAGE": "1",
+        "BACKFILL_MAX_PAGES": "0"
+      },
+      "secrets": {
+        "FANBASIS_API_KEY": "Secret:latest"
+      }
+    },
+    {
+      "name": "fathom-backfill",
+      "managed": true,
+      "canary": false,
+      "current": {
+        "image": "us-central1-docker.pkg.dev/project-41542e21-470f-4589-96d/cloud-run-source-deploy/fathom-backfill@sha256:475c881bfc70112512e660bf22717967698be32c68cb9e98350d55602ed01e2f",
+        "command": [
+          "/layers/google.python.uv/uv-dependencies/.venv/bin/python"
+        ],
+        "args": [
+          "/workspace/fathom_backfill.py"
+        ]
+      },
+      "target": {
+        "image": "us-central1-docker.pkg.dev/project-41542e21-470f-4589-96d/cloud-run-source-deploy/fanbasis-python-runner:latest",
+        "command": [
+          "python3"
+        ],
+        "args": [
+          "-m",
+          "ops.runner.cli",
+          "run",
+          "backfill.fathom"
+        ]
+      },
+      "service_account": "id-sa-ingest@project-41542e21-470f-4589-96d.iam.gserviceaccount.com",
+      "cpu": "1000m",
+      "memory": "512Mi",
+      "timeout_seconds": 10800,
+      "max_retries": 1,
+      "tasks": 1,
+      "parallelism": null,
+      "env": {
+        "GCP_PROJECT_ID": "project-41542e21-470f-4589-96d",
+        "BQ_DATASET": "Raw",
+        "BQ_FATHOM_RAW_TABLE": "fathom_calls_raw",
+        "BQ_FATHOM_STATE_TABLE": "fathom_backfill_state",
+        "FATHOM_API_BASE": "https://api.fathom.ai/external/v1",
+        "FATHOM_WORKSPACE_ID": "default",
+        "FATHOM_OBJECT_TYPES": "calls",
+        "FATHOM_PAGE_LIMIT": "100",
+        "FATHOM_MAX_PAGES_PER_OBJECT": "0",
+        "FATHOM_RUN_MODELS_AFTER": "true",
+        "FATHOM_INCREMENTAL_LOOKBACK_HOURS": "2",
+        "FATHOM_INCREMENTAL_MAX_PAGES_PER_OBJECT": "3",
+        "FATHOM_RUN_MODELS_AFTER_INCREMENTAL": "false",
+        "FATHOM_INTERNAL_EMAIL_DOMAINS": "fanbasis.com",
+        "FATHOM_INCLUDE_SUMMARY": "false",
+        "FATHOM_INCLUDE_ACTION_ITEMS": "false",
+        "FATHOM_INCLUDE_CRM_MATCHES": "false",
+        "FATHOM_INCLUDE_TRANSCRIPT": "false"
+      },
+      "secrets": {
+        "FATHOM_API_KEY": "FathomApiKeyLegacySales:latest"
+      }
+    },
+    {
+      "name": "fathom-llm-analysis",
+      "managed": false,
+      "canary": false,
+      "current": {
+        "image": "us-central1-docker.pkg.dev/project-41542e21-470f-4589-96d/fathom/fathom-llm-analysis:latest",
+        "command": [],
+        "args": []
+      },
+      "target": {
+        "image": "us-central1-docker.pkg.dev/project-41542e21-470f-4589-96d/fathom/fathom-llm-analysis:latest",
+        "command": [],
+        "args": []
+      },
+      "service_account": "535993952532-compute@developer.gserviceaccount.com",
+      "cpu": "2",
+      "memory": "4Gi",
+      "timeout_seconds": 18000,
+      "max_retries": 0,
+      "tasks": 5,
+      "parallelism": 5,
+      "env": {},
+      "secrets": {
+        "GOOGLE_API_KEY": "fathom-gemini-api-key:latest"
+      }
+    },
+    {
+      "name": "ghl-backfill",
+      "managed": true,
+      "canary": false,
+      "current": {
+        "image": "us-central1-docker.pkg.dev/project-41542e21-470f-4589-96d/cloud-run-source-deploy/ghl-backfill@sha256:6a3cd705efa6bc3fdc38ed1d2d2757b5b3aa955517147106bd755304f07f6feb",
+        "command": [
+          "/layers/google.python.uv/uv-dependencies/.venv/bin/python"
+        ],
+        "args": [
+          "/workspace/ghl_backfill.py"
+        ]
+      },
+      "target": {
+        "image": "us-central1-docker.pkg.dev/project-41542e21-470f-4589-96d/cloud-run-source-deploy/fanbasis-python-runner:latest",
+        "command": [
+          "python3"
+        ],
+        "args": [
+          "-m",
+          "ops.runner.cli",
+          "run",
+          "backfill.ghl"
+        ]
+      },
+      "service_account": "id-sa-ingest@project-41542e21-470f-4589-96d.iam.gserviceaccount.com",
+      "cpu": "1000m",
+      "memory": "512Mi",
+      "timeout_seconds": 10800,
+      "max_retries": 1,
+      "tasks": 1,
+      "parallelism": null,
+      "env": {
+        "GCP_PROJECT_ID": "project-41542e21-470f-4589-96d",
+        "BQ_DATASET": "Raw",
+        "BQ_GHL_RAW_TABLE": "ghl_objects_raw",
+        "BQ_GHL_STATE_TABLE": "ghl_backfill_state",
+        "GHL_LOCATION_ID": "yDDvavWJesa03Cv3wKjt",
+        "GHL_OBJECT_TYPES": "contacts,opportunities,forms,form_submissions,pipelines,pipeline_stages,outbound_call_logs,conversations,users,tags",
+        "GHL_ENDPOINT_TAGS": "/locations/yDDvavWJesa03Cv3wKjt/tags",
+        "GHL_PAGINATION_TAGS": "none",
+        "GHL_ENABLE_OUTBOUND_CALL_LOGS": "true",
+        "GHL_PAGINATION_OPPORTUNITIES": "scroll",
+        "GHL_PAGE_LIMIT": "100",
+        "GHL_REQUEST_TIMEOUT_SEC": "25",
+        "GHL_MAX_ATTEMPTS_DEFAULT": "4",
+        "GHL_MAX_ATTEMPTS_OUTBOUND_CALL_LOGS": "2",
+        "GHL_MAX_PAGES_PER_OBJECT": "0",
+        "GHL_RUN_MODELS_AFTER": "true",
+        "GHL_INCREMENTAL_LOOKBACK_HOURS": "2",
+        "GHL_INCREMENTAL_MAX_PAGES_PER_OBJECT": "3",
+        "GHL_ENDPOINT_OUTBOUND_CALL_LOGS": "/conversations/messages/export",
+        "GHL_METHOD_OUTBOUND_CALL_LOGS": "GET",
+        "GHL_PAGINATION_OUTBOUND_CALL_LOGS": "none"
+      },
+      "secrets": {
+        "GHL_ACCESS_TOKEN": "GhlAccessToken:latest"
+      }
+    },
+    {
+      "name": "ghl-call-log-backfill",
+      "managed": true,
+      "canary": false,
+      "current": {
+        "image": "us-central1-docker.pkg.dev/project-41542e21-470f-4589-96d/cloud-run-source-deploy/ghl-call-log-backfill@sha256:62ebaf3d2db801ec4f1a6c6d4b4b4159bfadc7505710e2e94141ccfbade96393",
+        "command": [
+          "/layers/google.python.uv/uv-dependencies/.venv/bin/python"
+        ],
+        "args": [
+          "/workspace/ghl_call_log_backfill.py"
+        ]
+      },
+      "target": {
+        "image": "us-central1-docker.pkg.dev/project-41542e21-470f-4589-96d/cloud-run-source-deploy/fanbasis-python-runner:latest",
+        "command": [
+          "python3"
+        ],
+        "args": [
+          "-m",
+          "ops.runner.cli",
+          "run",
+          "backfill.ghl_call_logs"
+        ]
+      },
+      "service_account": "id-sa-ingest@project-41542e21-470f-4589-96d.iam.gserviceaccount.com",
+      "cpu": "1000m",
+      "memory": "512Mi",
+      "timeout_seconds": 3600,
+      "max_retries": 3,
+      "tasks": 4,
+      "parallelism": 4,
+      "env": {
+        "GCP_PROJECT_ID": "project-41542e21-470f-4589-96d",
+        "BQ_DATASET": "Raw",
+        "BQ_GHL_RAW_TABLE": "ghl_objects_raw",
+        "BQ_GHL_STATE_TABLE": "ghl_backfill_state",
+        "GHL_LOCATION_ID": "yDDvavWJesa03Cv3wKjt",
+        "GHL_CALL_LOG_START_DATE": "2024-01-01",
+        "GHL_CALL_LOG_WINDOW_DAYS": "30",
+        "GHL_CALL_LOG_RUN_MODELS": "false",
+        "GHL_ENABLE_OUTBOUND_CALL_LOGS": "true"
+      },
+      "secrets": {
+        "GHL_ACCESS_TOKEN": "GhlAccessToken:latest"
+      }
+    },
+    {
+      "name": "ghl-form-submissions-backfill",
+      "managed": true,
+      "canary": false,
+      "current": {
+        "image": "us-central1-docker.pkg.dev/project-41542e21-470f-4589-96d/cloud-run-source-deploy/ghl-form-submissions-backfill@sha256:50cb92c375fd0b5b662c9583ce9589e97d831efd3baffb915179026b75ae26a2",
+        "command": [
+          "/layers/google.python.uv/uv-dependencies/.venv/bin/python"
+        ],
+        "args": [
+          "/workspace/ghl_form_submissions_backfill.py"
+        ]
+      },
+      "target": {
+        "image": "us-central1-docker.pkg.dev/project-41542e21-470f-4589-96d/cloud-run-source-deploy/fanbasis-python-runner:latest",
+        "command": [
+          "python3"
+        ],
+        "args": [
+          "-m",
+          "ops.runner.cli",
+          "run",
+          "backfill.ghl_form_submissions"
+        ]
+      },
+      "service_account": "id-sa-ingest@project-41542e21-470f-4589-96d.iam.gserviceaccount.com",
+      "cpu": "1000m",
+      "memory": "512Mi",
+      "timeout_seconds": 3600,
+      "max_retries": 1,
+      "tasks": 1,
+      "parallelism": null,
+      "env": {
+        "GCP_PROJECT_ID": "project-41542e21-470f-4589-96d",
+        "BQ_DATASET": "Raw",
+        "BQ_GHL_RAW_TABLE": "ghl_objects_raw",
+        "BQ_GHL_STATE_TABLE": "ghl_backfill_state",
+        "GHL_LOCATION_ID": "yDDvavWJesa03Cv3wKjt",
+        "GHL_FORMS_START_DATE": "2024-09-01",
+        "GHL_FORMS_WINDOW_DAYS": "30",
+        "GHL_FORMS_RUN_MODELS": "true"
+      },
+      "secrets": {
+        "GHL_ACCESS_TOKEN": "GhlAccessToken:latest"
+      }
+    },
+    {
+      "name": "ghl-comprehensive-backfill",
+      "managed": true,
+      "canary": false,
+      "current": null,
+      "target": {
+        "image": "us-central1-docker.pkg.dev/project-41542e21-470f-4589-96d/cloud-run-source-deploy/fanbasis-python-runner:latest",
+        "command": ["python3"],
+        "args": ["ghl_comprehensive_backfill.py"]
+      },
+      "service_account": "id-sa-ingest@project-41542e21-470f-4589-96d.iam.gserviceaccount.com",
+      "cpu": "1000m",
+      "memory": "1Gi",
+      "timeout_seconds": 7200,
+      "max_retries": 1,
+      "tasks": 4,
+      "parallelism": 4,
+      "env": {
+        "GCP_PROJECT_ID": "project-41542e21-470f-4589-96d",
+        "BQ_DATASET": "Raw",
+        "BQ_GHL_RAW_TABLE": "ghl_objects_raw",
+        "BQ_GHL_STATE_TABLE": "ghl_backfill_state",
+        "GHL_LOCATION_ID": "yDDvavWJesa03Cv3wKjt",
+        "GHL_BACKFILL_CALL_LOGS_START_DATE": "2024-01-01",
+        "GHL_BACKFILL_FORMS_START_DATE": "2024-09-01",
+        "GHL_BACKFILL_WINDOW_DAYS": "30",
+        "GHL_BACKFILL_RUN_MODELS": "true",
+        "GHL_COMPREHENSIVE_BACKFILL_RUN_ID": "ghl-comprehensive-backfill-v1",
+        "GHL_BACKFILL_PER_ENTITY_DELAY_SEC": "0.15",
+        "GHL_BACKFILL_MAX_CONTACTS_PER_RUN": "5000"
+      },
+      "secrets": {
+        "GHL_ACCESS_TOKEN": "GhlAccessToken:latest"
+      }
+    },
+    {
+      "name": "ghl-identity-sync",
+      "managed": true,
+      "canary": false,
+      "current": {
+        "image": "us-central1-docker.pkg.dev/project-41542e21-470f-4589-96d/cloud-run-source-deploy/fanbasis-python-runner:latest",
+        "command": [
+          "python3"
+        ],
+        "args": [
+          "-m",
+          "ops.runner.cli",
+          "run",
+          "identity.ghl_users_sync"
+        ]
+      },
+      "target": {
+        "image": "us-central1-docker.pkg.dev/project-41542e21-470f-4589-96d/cloud-run-source-deploy/fanbasis-python-runner:latest",
+        "command": [
+          "sh"
+        ],
+        "args": [
+          "-c",
+          "python3 -m ops.runner.cli run identity.ghl_users_sync && python3 -m ops.runner.cli run backfill.ghl"
+        ]
+      },
+      "service_account": "id-sa-ingest@project-41542e21-470f-4589-96d.iam.gserviceaccount.com",
+      "cpu": "1",
+      "memory": "1Gi",
+      "timeout_seconds": 900,
+      "max_retries": 1,
+      "tasks": 1,
+      "parallelism": null,
+      "env": {
+        "GCP_PROJECT_ID": "project-41542e21-470f-4589-96d",
+        "BQ_DATASET": "Raw",
+        "BQ_CORE_DATASET": "Core",
+        "BQ_MARTS_DATASET": "Marts",
+        "BQ_OPS_DATASET": "Ops",
+        "GHL_LOCATION_ID": "yDDvavWJesa03Cv3wKjt",
+        "GHL_USERS_ENDPOINTS": "/users/,/users/search",
+        "GHL_USERS_METHOD": "GET",
+        "GHL_USERS_PAGE_LIMIT": "100",
+        "GHL_USERS_MAX_PAGES": "200",
+        "GHL_USERS_MAX_ATTEMPTS": "5",
+        "GHL_OBJECT_TYPES": "custom_field_definitions",
+        "GHL_RUN_MODELS_AFTER": "false",
+        "GHL_MAX_PAGES_PER_OBJECT": "0",
+        "IDENTITY_DQ_LOOKBACK_DAYS": "7",
+        "IDENTITY_DQ_MIN_TOUCHED_COVERAGE": "0.95"
+      },
+      "secrets": {
+        "GHL_ACCESS_TOKEN": "GhlAccessToken:latest"
+      }
+    },
+    {
+      "name": "pipeline-run",
+      "managed": true,
+      "canary": true,
+      "current": {
+        "image": "us-central1-docker.pkg.dev/project-41542e21-470f-4589-96d/cloud-run-source-deploy/fanbasis-python-runner:latest",
+        "command": [
+          "/app/ops/scripts/run_pipeline.sh"
+        ],
+        "args": [
+          "-c"
+        ]
+      },
+      "target": {
+        "image": "us-central1-docker.pkg.dev/project-41542e21-470f-4589-96d/cloud-run-source-deploy/fanbasis-python-runner:latest",
+        "command": [
+          "python3"
+        ],
+        "args": [
+          "-m",
+          "ops.runner.cli",
+          "run",
+          "pipeline.full"
+        ]
+      },
+      "service_account": "id-sa-ingest@project-41542e21-470f-4589-96d.iam.gserviceaccount.com",
+      "cpu": "1",
+      "memory": "1Gi",
+      "timeout_seconds": 3600,
+      "max_retries": 0,
+      "tasks": 1,
+      "parallelism": null,
+      "env": {
+        "GCP_PROJECT_ID": "project-41542e21-470f-4589-96d",
+        "BQ_DATASET": "Raw",
+        "GHL_LOCATION_ID": "yDDvavWJesa03Cv3wKjt"
+      },
+      "secrets": {
+        "CALENDLY_API_KEY": "CalendlyApiKey:latest",
+        "FATHOM_API_KEY": "FathomApiKey:latest",
+        "GHL_ACCESS_TOKEN": "GhlAccessToken:latest",
+        "STRIPE_API_KEY": "StripeApiKey:latest",
+        "TYPEFORM_API_KEY": "typeform-api-key:latest",
+        "FANBASIS_API_KEY": "Secret:latest"
+      }
+    },
+    {
+      "name": "pipeline-marts-hourly",
+      "managed": true,
+      "canary": true,
+      "current": {
+        "image": "us-central1-docker.pkg.dev/project-41542e21-470f-4589-96d/cloud-run-source-deploy/fanbasis-python-runner:latest",
+        "command": [
+          "python3"
+        ],
+        "args": [
+          "-m",
+          "ops.runner.cli",
+          "run",
+          "pipeline.marts_refresh_hourly"
+        ]
+      },
+      "target": {
+        "image": "us-central1-docker.pkg.dev/project-41542e21-470f-4589-96d/cloud-run-source-deploy/fanbasis-python-runner:latest",
+        "command": [
+          "python3"
+        ],
+        "args": [
+          "-m",
+          "ops.runner.cli",
+          "run",
+          "pipeline.marts_refresh_hourly"
+        ]
+      },
+      "service_account": "id-sa-ingest@project-41542e21-470f-4589-96d.iam.gserviceaccount.com",
+      "cpu": "1",
+      "memory": "1Gi",
+      "timeout_seconds": 3600,
+      "max_retries": 0,
+      "tasks": 1,
+      "parallelism": null,
+      "env": {
+        "GCP_PROJECT_ID": "project-41542e21-470f-4589-96d",
+        "BQ_DATASET": "Raw",
+        "GHL_LOCATION_ID": "yDDvavWJesa03Cv3wKjt"
+      },
+      "secrets": {
+        "CALENDLY_API_KEY": "CalendlyApiKey:latest",
+        "FATHOM_API_KEY": "FathomApiKey:latest",
+        "GHL_ACCESS_TOKEN": "GhlAccessToken:latest",
+        "STRIPE_API_KEY": "StripeApiKey:latest",
+        "TYPEFORM_API_KEY": "typeform-api-key:latest",
+        "FANBASIS_API_KEY": "Secret:latest"
+      }
+    },
+    {
+      "name": "python-runner",
+      "managed": true,
+      "canary": true,
+      "current": {
+        "image": "us-central1-docker.pkg.dev/project-41542e21-470f-4589-96d/cloud-run-source-deploy/fanbasis-python-runner:latest",
+        "command": [
+          "python3"
+        ],
+        "args": [
+          "ops/scripts/cloud_python_dispatch.py"
+        ]
+      },
+      "target": {
+        "image": "us-central1-docker.pkg.dev/project-41542e21-470f-4589-96d/cloud-run-source-deploy/fanbasis-python-runner:latest",
+        "command": [
+          "python3"
+        ],
+        "args": [
+          "ops/scripts/cloud_python_dispatch.py"
+        ]
+      },
+      "service_account": "id-sa-ingest@project-41542e21-470f-4589-96d.iam.gserviceaccount.com",
+      "cpu": "1",
+      "memory": "1Gi",
+      "timeout_seconds": 3600,
+      "max_retries": 0,
+      "tasks": 1,
+      "parallelism": null,
+      "env": {
+        "GCP_PROJECT_ID": "project-41542e21-470f-4589-96d",
+        "BQ_DATASET": "Raw",
+        "GHL_LOCATION_ID": "yDDvavWJesa03Cv3wKjt"
+      },
+      "secrets": {
+        "CALENDLY_API_KEY": "CalendlyApiKey:latest",
+        "FATHOM_API_KEY": "FathomApiKey:latest",
+        "GHL_ACCESS_TOKEN": "GhlAccessToken:latest",
+        "STRIPE_API_KEY": "StripeApiKey:latest",
+        "TYPEFORM_API_KEY": "typeform-api-key:latest",
+        "FANBASIS_API_KEY": "Secret:latest"
+      }
+    },
+    {
+      "name": "typeform-backfill",
+      "managed": true,
+      "canary": false,
+      "current": null,
+      "target": {
+        "image": "us-central1-docker.pkg.dev/project-41542e21-470f-4589-96d/cloud-run-source-deploy/fanbasis-python-runner:latest",
+        "command": ["python3"],
+        "args": ["typeform_backfill.py"]
+      },
+      "service_account": "id-sa-ingest@project-41542e21-470f-4589-96d.iam.gserviceaccount.com",
+      "cpu": "1000m",
+      "memory": "512Mi",
+      "timeout_seconds": 3600,
+      "max_retries": 1,
+      "tasks": 1,
+      "parallelism": null,
+      "env": {
+        "GCP_PROJECT_ID": "project-41542e21-470f-4589-96d",
+        "BQ_DATASET": "Raw",
+        "TYPEFORM_API_BASE": "https://api.typeform.com",
+        "TYPEFORM_PAGE_LIMIT": "200",
+        "TYPEFORM_BACKFILL_RUN_MODELS": "true"
+      },
+      "secrets": {
+        "TYPEFORM_API_KEY": "typeform-api-key:latest"
+      }
+    },
+    {
+      "name": "stripe-backfill",
+      "managed": true,
+      "canary": false,
+      "current": {
+        "image": "us-central1-docker.pkg.dev/project-41542e21-470f-4589-96d/cloud-run-source-deploy/stripe-backfill@sha256:87252addf338fd881799cc159788ccea01aa3656de155c5be8e836daf2a24b8b",
+        "command": [
+          "/layers/google.python.uv/uv-dependencies/.venv/bin/python"
+        ],
+        "args": [
+          "/workspace/stripe_backfill.py"
+        ]
+      },
+      "target": {
+        "image": "us-central1-docker.pkg.dev/project-41542e21-470f-4589-96d/cloud-run-source-deploy/fanbasis-python-runner:latest",
+        "command": [
+          "python3"
+        ],
+        "args": [
+          "-m",
+          "ops.runner.cli",
+          "run",
+          "backfill.stripe"
+        ]
+      },
+      "service_account": "id-sa-ingest@project-41542e21-470f-4589-96d.iam.gserviceaccount.com",
+      "cpu": "1000m",
+      "memory": "512Mi",
+      "timeout_seconds": 3600,
+      "max_retries": 1,
+      "tasks": 1,
+      "parallelism": null,
+      "env": {
+        "GCP_PROJECT_ID": "project-41542e21-470f-4589-96d",
+        "BQ_DATASET": "Raw",
+        "BQ_STRIPE_RAW_TABLE": "stripe_objects_raw",
+        "BQ_STRIPE_STATE_TABLE": "stripe_backfill_state",
+        "STRIPE_PAGE_LIMIT": "100",
+        "STRIPE_RUN_MODELS_AFTER": "true",
+        "STRIPE_OBJECT_TYPES": "charges,refunds,disputes,customers,products,prices,subscriptions,invoices,balance_transactions",
+        "STRIPE_MAX_PAGES_PER_OBJECT": "2"
+      },
+      "secrets": {
+        "STRIPE_API_KEY": "StripeApiKey:latest"
+      }
+    }
+  ],
+  "schedulers": [
+    {
+      "name": "calendly-hourly-ingest",
+      "location": "us-central1",
+      "schedule": "33 * * * *",
+      "time_zone": "America/New_York",
+      "state": "ENABLED",
+      "http": {
+        "uri": "https://bq-ingest-mjxxki4snq-uc.a.run.app/ingest-calendly",
+        "method": "POST",
+        "headers": {
+          "User-Agent": "Google-Cloud-Scheduler"
+        },
+        "body_base64": null
+      },
+      "auth": {
+        "type": "oidc",
+        "service_account_email": "sa-scheduler@project-41542e21-470f-4589-96d.iam.gserviceaccount.com",
+        "audience": "https://bq-ingest-mjxxki4snq-uc.a.run.app"
+      },
+      "canary_cutover": false
+    },
+    {
+      "name": "fanbasis-hourly-ingest",
+      "location": "us-central1",
+      "schedule": "0 * * * *",
+      "time_zone": "America/New_York",
+      "state": "ENABLED",
+      "http": {
+        "uri": "https://bq-ingest-mjxxki4snq-uc.a.run.app/ingest",
+        "method": "POST",
+        "headers": {
+          "User-Agent": "Google-Cloud-Scheduler"
+        },
+        "body_base64": null
+      },
+      "auth": {
+        "type": "oidc",
+        "service_account_email": "sa-scheduler@project-41542e21-470f-4589-96d.iam.gserviceaccount.com",
+        "audience": "https://bq-ingest-mjxxki4snq-uc.a.run.app"
+      },
+      "canary_cutover": false
+    },
+    {
+      "name": "fanbasis-hourly-models-refresh",
+      "location": "us-central1",
+      "schedule": "10 * * * *",
+      "time_zone": "America/New_York",
+      "state": "ENABLED",
+      "http": {
+        "uri": "https://bq-ingest-mjxxki4snq-uc.a.run.app/refresh-models",
+        "method": "POST",
+        "headers": {
+          "User-Agent": "Google-Cloud-Scheduler"
+        },
+        "body_base64": null
+      },
+      "auth": {
+        "type": "oidc",
+        "service_account_email": "sa-scheduler@project-41542e21-470f-4589-96d.iam.gserviceaccount.com",
+        "audience": "https://bq-ingest-mjxxki4snq-uc.a.run.app"
+      },
+      "canary_cutover": false
+    },
+    {
+      "name": "fathom-hourly-ingest",
+      "location": "us-central1",
+      "schedule": "17 * * * *",
+      "time_zone": "America/New_York",
+      "state": "ENABLED",
+      "http": {
+        "uri": "https://bq-ingest-535993952532.us-central1.run.app/ingest-fathom",
+        "method": "POST",
+        "headers": {
+          "User-Agent": "Google-Cloud-Scheduler"
+        },
+        "body_base64": null
+      },
+      "auth": {
+        "type": "oidc",
+        "service_account_email": "sa-scheduler@project-41542e21-470f-4589-96d.iam.gserviceaccount.com",
+        "audience": "https://bq-ingest-535993952532.us-central1.run.app"
+      },
+      "canary_cutover": false
+    },
+    {
+      "name": "ghl-hourly-ingest",
+      "location": "us-central1",
+      "schedule": "20 * * * *",
+      "time_zone": "America/New_York",
+      "state": "ENABLED",
+      "http": {
+        "uri": "https://bq-ingest-mjxxki4snq-uc.a.run.app/ingest-ghl",
+        "method": "POST",
+        "headers": {
+          "User-Agent": "Google-Cloud-Scheduler"
+        },
+        "body_base64": null
+      },
+      "auth": {
+        "type": "oidc",
+        "service_account_email": "sa-scheduler@project-41542e21-470f-4589-96d.iam.gserviceaccount.com",
+        "audience": "https://bq-ingest-mjxxki4snq-uc.a.run.app"
+      },
+      "canary_cutover": false
+    },
+    {
+      "name": "ghl-pipeline-stage-snapshot-daily",
+      "location": "us-central1",
+      "schedule": "0 7 * * *",
+      "time_zone": "America/New_York",
+      "state": "ENABLED",
+      "http": {
+        "uri": "https://bq-ingest-mjxxki4snq-uc.a.run.app/snapshot-pipeline-stages",
+        "method": "POST",
+        "headers": {
+          "User-Agent": "Google-Cloud-Scheduler"
+        },
+        "body_base64": null
+      },
+      "auth": {
+        "type": "oidc",
+        "service_account_email": "sa-scheduler@project-41542e21-470f-4589-96d.iam.gserviceaccount.com",
+        "audience": "https://bq-ingest-mjxxki4snq-uc.a.run.app"
+      },
+      "canary_cutover": false
+    },
+    {
+      "name": "ghl-identity-sync-2h",
+      "location": "us-central1",
+      "schedule": "0 */2 * * *",
+      "time_zone": "America/New_York",
+      "state": "ENABLED",
+      "http": {
+        "uri": "https://run.googleapis.com/v2/projects/project-41542e21-470f-4589-96d/locations/us-central1/jobs/ghl-identity-sync:run",
+        "method": "POST",
+        "headers": {
+          "Content-Type": "application/octet-stream",
+          "User-Agent": "Google-Cloud-Scheduler"
+        },
+        "body_base64": "e30="
+      },
+      "auth": {
+        "type": "oauth",
+        "service_account_email": "sa-scheduler@project-41542e21-470f-4589-96d.iam.gserviceaccount.com",
+        "scope": "https://www.googleapis.com/auth/cloud-platform"
+      },
+      "canary_cutover": false,
+      "cloud_run_job_target": {
+        "job_name": "ghl-identity-sync",
+        "api_version": "v2"
+      }
+    },
+    {
+      "name": "marts-hourly-refresh",
+      "location": "us-central1",
+      "schedule": "50 * * * *",
+      "time_zone": "America/New_York",
+      "state": "ENABLED",
+      "http": {
+        "uri": "https://run.googleapis.com/v2/projects/project-41542e21-470f-4589-96d/locations/us-central1/jobs/pipeline-marts-hourly:run",
+        "method": "POST",
+        "headers": {
+          "Content-Type": "application/octet-stream",
+          "User-Agent": "Google-Cloud-Scheduler"
+        },
+        "body_base64": "e30="
+      },
+      "auth": {
+        "type": "oauth",
+        "service_account_email": "sa-scheduler@project-41542e21-470f-4589-96d.iam.gserviceaccount.com",
+        "scope": "https://www.googleapis.com/auth/cloud-platform"
+      },
+      "canary_cutover": true,
+      "cloud_run_job_target": {
+        "job_name": "pipeline-marts-hourly",
+        "api_version": "v2"
+      }
+    },
+    {
+      "name": "pipeline-daily-refresh",
+      "location": "us-central1",
+      "schedule": "0 2 * * *",
+      "time_zone": "UTC",
+      "state": "ENABLED",
+      "http": {
+        "uri": "https://us-central1-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/project-41542e21-470f-4589-96d/jobs/pipeline-run:run",
+        "method": "POST",
+        "headers": {
+          "Content-Type": "application/octet-stream",
+          "User-Agent": "Google-Cloud-Scheduler"
+        },
+        "body_base64": "e30="
+      },
+      "auth": {
+        "type": "oidc",
+        "service_account_email": "sa-scheduler@project-41542e21-470f-4589-96d.iam.gserviceaccount.com",
+        "audience": "https://us-central1-run.googleapis.com"
+      },
+      "canary_cutover": true,
+      "cloud_run_job_target": {
+        "job_name": "pipeline-run",
+        "api_version": "v1"
+      }
+    },
+    {
+      "name": "stripe-hourly-backfill",
+      "location": "us-central1",
+      "schedule": "25 * * * *",
+      "time_zone": "America/New_York",
+      "state": "ENABLED",
+      "http": {
+        "uri": "https://run.googleapis.com/v2/projects/project-41542e21-470f-4589-96d/locations/us-central1/jobs/stripe-backfill:run",
+        "method": "POST",
+        "headers": {
+          "Content-Type": "application/octet-stream",
+          "User-Agent": "Google-Cloud-Scheduler"
+        },
+        "body_base64": "e30="
+      },
+      "auth": {
+        "type": "oauth",
+        "service_account_email": "sa-scheduler@project-41542e21-470f-4589-96d.iam.gserviceaccount.com",
+        "scope": "https://www.googleapis.com/auth/cloud-platform"
+      },
+      "canary_cutover": false
+    },
+    {
+      "name": "typeform-hourly-ingest",
+      "location": "us-central1",
+      "schedule": "43 * * * *",
+      "time_zone": "UTC",
+      "state": "ENABLED",
+      "http": {
+        "uri": "https://bq-ingest-mjxxki4snq-uc.a.run.app/ingest-typeform",
+        "method": "POST",
+        "headers": {
+          "User-Agent": "Google-Cloud-Scheduler"
+        },
+        "body_base64": null
+      },
+      "auth": {
+        "type": "oidc",
+        "service_account_email": "sa-scheduler@project-41542e21-470f-4589-96d.iam.gserviceaccount.com",
+        "audience": "https://bq-ingest-mjxxki4snq-uc.a.run.app/ingest-typeform"
+      },
+      "canary_cutover": false
+    },
+    {
+      "name": "warehouse-healthcheck-hourly",
+      "location": "us-central1",
+      "schedule": "58 * * * *",
+      "time_zone": "America/New_York",
+      "state": "ENABLED",
+      "http": {
+        "uri": "https://bq-ingest-mjxxki4snq-uc.a.run.app/healthcheck-warehouse",
+        "method": "POST",
+        "headers": {
+          "User-Agent": "Google-Cloud-Scheduler"
+        },
+        "body_base64": null
+      },
+      "auth": {
+        "type": "oidc",
+        "service_account_email": "sa-scheduler@project-41542e21-470f-4589-96d.iam.gserviceaccount.com",
+        "audience": "https://bq-ingest-mjxxki4snq-uc.a.run.app"
+      },
+      "canary_cutover": false
+    },
+    {
+      "name": "typeform-backfill-daily",
+      "location": "us-central1",
+      "schedule": "15 5 * * *",
+      "time_zone": "UTC",
+      "state": "ENABLED",
+      "http": {
+        "uri": "https://run.googleapis.com/v2/projects/project-41542e21-470f-4589-96d/locations/us-central1/jobs/typeform-backfill:run",
+        "method": "POST",
+        "headers": {
+          "Content-Type": "application/octet-stream",
+          "User-Agent": "Google-Cloud-Scheduler"
+        },
+        "body_base64": "e30="
+      },
+      "auth": {
+        "type": "oauth",
+        "service_account_email": "sa-scheduler@project-41542e21-470f-4589-96d.iam.gserviceaccount.com",
+        "scope": "https://www.googleapis.com/auth/cloud-platform"
+      },
+      "canary_cutover": false,
+      "cloud_run_job_target": {
+        "job_name": "typeform-backfill",
+        "api_version": "v2"
+      }
+    },
+    {
+      "name": "calendly-backfill-daily",
+      "location": "us-central1",
+      "schedule": "0 3 * * *",
+      "time_zone": "UTC",
+      "state": "ENABLED",
+      "http": {
+        "uri": "https://run.googleapis.com/v2/projects/project-41542e21-470f-4589-96d/locations/us-central1/jobs/calendly-backfill:run",
+        "method": "POST",
+        "headers": {
+          "Content-Type": "application/octet-stream",
+          "User-Agent": "Google-Cloud-Scheduler"
+        },
+        "body_base64": "e30="
+      },
+      "auth": {
+        "type": "oauth",
+        "service_account_email": "sa-scheduler@project-41542e21-470f-4589-96d.iam.gserviceaccount.com",
+        "scope": "https://www.googleapis.com/auth/cloud-platform"
+      },
+      "canary_cutover": false,
+      "cloud_run_job_target": {
+        "job_name": "calendly-backfill",
+        "api_version": "v2"
+      }
+    },
+    {
+      "name": "fanbasis-backfill-daily",
+      "location": "us-central1",
+      "schedule": "0 5 * * *",
+      "time_zone": "UTC",
+      "state": "ENABLED",
+      "http": {
+        "uri": "https://run.googleapis.com/v2/projects/project-41542e21-470f-4589-96d/locations/us-central1/jobs/fanbasis-backfill:run",
+        "method": "POST",
+        "headers": {
+          "Content-Type": "application/octet-stream",
+          "User-Agent": "Google-Cloud-Scheduler"
+        },
+        "body_base64": "e30="
+      },
+      "auth": {
+        "type": "oauth",
+        "service_account_email": "sa-scheduler@project-41542e21-470f-4589-96d.iam.gserviceaccount.com",
+        "scope": "https://www.googleapis.com/auth/cloud-platform"
+      },
+      "canary_cutover": false,
+      "cloud_run_job_target": {
+        "job_name": "fanbasis-backfill",
+        "api_version": "v2"
+      }
+    },
+    {
+      "name": "dq-tests-daily",
+      "location": "us-central1",
+      "schedule": "30 5 * * *",
+      "time_zone": "UTC",
+      "state": "ENABLED",
+      "http": {
+        "uri": "https://run.googleapis.com/v2/projects/project-41542e21-470f-4589-96d/locations/us-central1/jobs/dq-tests:run",
+        "method": "POST",
+        "headers": {
+          "Content-Type": "application/octet-stream",
+          "User-Agent": "Google-Cloud-Scheduler"
+        },
+        "body_base64": "e30="
+      },
+      "auth": {
+        "type": "oauth",
+        "service_account_email": "sa-scheduler@project-41542e21-470f-4589-96d.iam.gserviceaccount.com",
+        "scope": "https://www.googleapis.com/auth/cloud-platform"
+      },
+      "canary_cutover": false,
+      "cloud_run_job_target": {
+        "job_name": "dq-tests",
+        "api_version": "v2"
+      }
+    },
+    {
+      "name": "fathom-backfill-daily",
+      "location": "us-central1",
+      "schedule": "0 4 * * *",
+      "time_zone": "UTC",
+      "state": "ENABLED",
+      "http": {
+        "uri": "https://run.googleapis.com/v2/projects/project-41542e21-470f-4589-96d/locations/us-central1/jobs/fathom-backfill:run",
+        "method": "POST",
+        "headers": {
+          "Content-Type": "application/octet-stream",
+          "User-Agent": "Google-Cloud-Scheduler"
+        },
+        "body_base64": "e30="
+      },
+      "auth": {
+        "type": "oauth",
+        "service_account_email": "sa-scheduler@project-41542e21-470f-4589-96d.iam.gserviceaccount.com",
+        "scope": "https://www.googleapis.com/auth/cloud-platform"
+      },
+      "canary_cutover": false,
+      "cloud_run_job_target": {
+        "job_name": "fathom-backfill",
+        "api_version": "v2"
+      }
+    },
+    {
+      "name": "calendly-invitee-drain-daily",
+      "location": "us-central1",
+      "schedule": "45 3 * * *",
+      "time_zone": "UTC",
+      "state": "ENABLED",
+      "http": {
+        "uri": "https://run.googleapis.com/v2/projects/project-41542e21-470f-4589-96d/locations/us-central1/jobs/calendly-invitee-drain:run",
+        "method": "POST",
+        "headers": {
+          "Content-Type": "application/octet-stream",
+          "User-Agent": "Google-Cloud-Scheduler"
+        },
+        "body_base64": "e30="
+      },
+      "auth": {
+        "type": "oauth",
+        "service_account_email": "sa-scheduler@project-41542e21-470f-4589-96d.iam.gserviceaccount.com",
+        "scope": "https://www.googleapis.com/auth/cloud-platform"
+      },
+      "canary_cutover": false,
+      "cloud_run_job_target": {
+        "job_name": "calendly-invitee-drain",
+        "api_version": "v2"
+      }
+    },
+    {
+      "name": "ghl-comprehensive-backfill-daily",
+      "location": "us-central1",
+      "schedule": "7 3 * * *",
+      "time_zone": "UTC",
+      "state": "ENABLED",
+      "http": {
+        "uri": "https://run.googleapis.com/v2/projects/project-41542e21-470f-4589-96d/locations/us-central1/jobs/ghl-comprehensive-backfill:run",
+        "method": "POST",
+        "headers": {
+          "Content-Type": "application/octet-stream",
+          "User-Agent": "Google-Cloud-Scheduler"
+        },
+        "body_base64": "e30="
+      },
+      "auth": {
+        "type": "oauth",
+        "service_account_email": "sa-scheduler@project-41542e21-470f-4589-96d.iam.gserviceaccount.com",
+        "scope": "https://www.googleapis.com/auth/cloud-platform"
+      },
+      "canary_cutover": false,
+      "cloud_run_job_target": {
+        "job_name": "ghl-comprehensive-backfill",
+        "api_version": "v2"
+      }
+    }
+  ]
+}
