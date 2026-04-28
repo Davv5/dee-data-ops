@@ -9,18 +9,18 @@ WORKLOG.md is the append-only audit log; grep it for history.
 
 # D-DEE Data Ops — present-moment snapshot
 
-_Last regenerated: 2026-04-27 (Gold-layer roadmap landed; Phase A complete; merge with ask-corpus v2 from 2026-04-26)_
+_Last regenerated: 2026-04-27 (Discovery Sprint inputs sharpened; roadmap superseded by PR #81)_
 
 ## Where we are
 
-- **Strategic Reset / Discovery Sprint Phase A: COMPLETE** ~11 days ahead of 2026-05-08 target. Final artifact: `docs/discovery/gold-layer-roadmap.md`. Reviewed and approved by David 2026-04-27.
-- **Phase B (Layer Build) reactivation imminent.** Architecture pattern proven for one playbook chapter (Funnel — Speed-to-Lead, shipped 2026-04-23). Roadmap ranks the next 5 chapters by value × feasibility.
-- **Mart architecture locked:** **one wide mart per playbook chapter** (`coverage-matrix.md` "Mart architecture commitment" cites `mart-naming.md` Rule 2). Grain split only when justified.
+- **Strategic Reset / Discovery Sprint Phase A: closing on PR #81.** Canonical Gold-layer roadmap lives on PR #81 (`Davv5/Phase-B` → main); it is grounded against the actual `2-dbt/models/marts/` tree and reclassifies the work into 🟡 fill placeholder / 🔵 rollup / 🟢 net-new / ⚪ already shipped. This session's earlier roadmap on `chore/triage-2026-04-23` was wrong (proposed duplicates of existing marts) and has been removed from the branch.
+- **Phase B direction (per PR #81):** highest-leverage move is `stg_fanbasis__transactions` → replace the placeholder CTE in `fct_revenue.sql:40–66`. `lead_journey`, `revenue_detail`, `sales_activity_detail`, `speed_to_lead_detail` already exist and auto-widen when Fanbasis staging lands. Net-new builds are limited (Fathom fact, Typeform-form dim, GHL stage-transition fact, refunds fact, retention/call-content marts).
+- **Mart architecture locked:** **one wide mart per playbook chapter** (`coverage-matrix.md` "Mart architecture commitment" cites `mart-naming.md` Rule 2). Consistent with PR #81; grain split only when justified.
 - **Owner model locked:** roles inferred from playbook chapter (SDR Manager / Sales Manager / Marketing Lead / Finance Lead / Sales Operations / D-DEE Leadership), not named individuals — team is too large for human-level routing.
-- **Methodology investment landed (2026-04-26):** `ask-corpus` v2 corpus research engine (planner / fan-out / fuse / rerank) merged onto the `chore/triage-2026-04-23` branch via PR #74. 11/13 active units complete; 126/126 tests pass. Plan: `docs/plans/2026-04-26-001-feat-corpus-research-engine-plan.md`. The separate feature branch `Davv5/Understanding-NotebookLM` is the design-review track and remains open.
-- **Foundation intact (do not rebuild):** BigQuery + dbt + 13 staging models + `(id, _ingested_at, payload)` raw-landing discipline. U1 / U2 / U3 stay shipped. `speed_to_lead_detail` mart feeds 15/15 Metabase cards.
+- **Methodology investment landed (2026-04-26):** `ask-corpus` v2 corpus research engine (planner / fan-out / fuse / rerank) merged onto `chore/triage-2026-04-23` via PR #74. 11/13 active units complete; 126/126 tests pass. Plan: `docs/plans/2026-04-26-001-feat-corpus-research-engine-plan.md`. Separate feature branch `Davv5/Understanding-NotebookLM` is the design-review track.
+- **Foundation intact (do not rebuild):** BigQuery + dbt + 13 staging models + `(id, _ingested_at, payload)` raw-landing discipline. U1 / U2 / U3 stay shipped. Existing marts (`lead_journey`, `revenue_detail`, `sales_activity_detail`, `speed_to_lead_detail`) cover contact / payment / booked-call / locked-metric grains today.
 - **GCP consolidation plan PAUSED at U3-complete.** `docs/plans/2026-04-23-001-feat-gtm-source-port-plan.md` U4a+ resumes when the trusted-GHL-copy decision lands.
-- **Current branch:** `chore/triage-2026-04-23` in `/Users/david/Documents/data ops`. Synced with origin via merge commit (Phase-A wrap × ask-corpus v2). AGENTS.md + `.agents/skills/` now tracked for Codex parity; `.obsidian/`, `.cabinet-meta`, `.repo.yaml` gitignored.
+- **Current branch:** `chore/triage-2026-04-23` in `/Users/david/Documents/data ops`. Synced with origin; gold-layer-roadmap.md removed; non-roadmap improvements remain. AGENTS.md + `.agents/skills/` tracked for Codex parity; `.obsidian/`, `.cabinet-meta`, `.repo.yaml` gitignored.
 - **Headline metric (locked 2026-04-19):** unchanged.
 
 ## Active plans
@@ -31,14 +31,16 @@ _Last regenerated: 2026-04-27 (Gold-layer roadmap landed; Phase A complete; merg
 
 ## Last 3 decisions (full entries in WORKLOG.md)
 
-- **2026-04-27** — Gold-layer roadmap landed; Phase A complete. 7 marts ranked across 3 tiers; `speed_to_lead_detail` extends in place; `funnel_booking_detail` is Tier B gated on GHL trusted-copy; Fanbasis staging is the highest-leverage unlock for three Tier-C marts. Owners modelled as roles, not names. (`grep -n "Gold-layer roadmap landed" WORKLOG.md`)
+- **2026-04-27** — Discovery Sprint inputs sharpened (architecture commitment in coverage-matrix; Owner-as-role column in business-area-map). Session's roadmap removed — proposed duplicates of existing marts because the rank ran without auditing the marts tree first. PR #81 is the canonical roadmap, grounded against the actual scaffold. (`grep -n "roadmap superseded" WORKLOG.md`)
 - **2026-04-26** — ask-corpus v2 corpus research engine: two-phase host-LLM JSON handshake (`--phase=retrieve` / `--phase=finalize`); quality-aware diversity guard (parity floor 0.6); 3 LAWs at launch (mart-naming = LAW 3); SKILL.md v2 voice contract. (`grep -n "ask-corpus v2" WORKLOG.md`)
 - **2026-04-24** — Strategic Reset: pause new build, run Discovery Sprint, rebuild Gold against ranked roadmap. Foundation sound; problem was visibility + prioritization. (`grep -n "Strategic Reset" WORKLOG.md`)
 
 ## Open threads
 
-- **Phase B kickoff candidates** (in order of leverage): (1) extend `speed_to_lead_detail` with Q3 setter columns + Q7 show/no-show columns — additive, parity-test-guarded; (2) Fanbasis staging via `staging-scaffold` against `Raw.fanbasis_transactions_txn_raw` — unblocks three Tier-C marts; (3) `funnel_booking_detail` via `warehouse-fct-scaffold` + `mart-collapse` once GHL trusted-copy decision lands.
-- **GHL trusted-copy decision** — single named blocker for Tier B. Choose between legacy blob (1,314 conversation rows) and Phase-2 (101 rows). Resolves 92% undercount + four empty entities + dual-source ambiguity in one move.
+- **PR #81** is the canonical Phase A closing roadmap. Land it as-is; PR #80's duplicate roadmap file should be dropped from PR #80 (leaving the agent-kit install) so #81 lands cleanly.
+- **PR from `chore/triage-2026-04-23` → main** — the non-roadmap work (architecture commitment, Owner column, worklog, state, AGENTS.md, .agents/skills/, .gitignore) plus the broader integration-branch contents (ask-corpus v2 from PR #74, etc.). Open after PR #81 + PR #80 settle to avoid roadmap-file conflicts.
+- **Phase B kickoff (per PR #81):** (1) `stg_fanbasis__transactions` → replace placeholder CTE in `fct_revenue.sql:40–66` (highest-leverage; auto-widens existing marts); (2) period-grain rollups on top of `lead_journey`, `revenue_detail`, `sales_activity_detail`; (3) net-new facts (`fct_calls_held` from Fathom; `fct_opportunity_stage_transitions` from GHL; `fct_refunds`); (4) net-new dim (`dim_typeform_form`); (5) net-new marts gated on vendor-support (`mart_retention_cohorts`, `mart_call_content_themes`).
+- **GHL trusted-copy decision** — choose between legacy blob (1,314 conversation rows) and Phase-2 (101 rows). Resolves 92% undercount + four empty entities + dual-source ambiguity in one move.
 - **`Davv5/Understanding-NotebookLM` design-review PR** — three commits ahead of main; open when David approves the v2 design.
 - **Empirical tuning of corpus-engine constants** — `DIVERSITY_RELEVANCE_THRESHOLD=0.30` and `QUALITY_PARITY_FLOOR=0.6` ship provisional. Lock after first production queries (3 known-correct-scope questions, top-5 must include the right scope).
 - **U13 corpus engine fixtures** — capture `nlm` fixtures (metabase-backup, engagement speed-to-lead) + 3-question smoke variants when David approves the design.
@@ -54,8 +56,9 @@ _Last regenerated: 2026-04-27 (Gold-layer roadmap landed; Phase A complete; merg
 
 ## Where to look (retrieval map)
 
-- **Gold-layer roadmap (final discovery artifact):** `docs/discovery/gold-layer-roadmap.md`
+- **Gold-layer roadmap (canonical):** PR #81 (`Davv5/Phase-B`). The on-disk copy was removed from `chore/triage-2026-04-23` to prevent duplicate-file conflict on merge.
 - **Mart architecture rule:** `coverage-matrix.md` "Mart architecture commitment" + `.claude/rules/mart-naming.md` Rule 2
+- **Existing wide marts (auto-widen on Fanbasis staging):** `2-dbt/models/marts/{lead_journey,revenue_detail,sales_activity_detail,speed_to_lead_detail}.sql`
 - **Corpus engine v2:** `.claude/skills/ask-corpus/scripts/` (engine) + `.claude/skills/ask-corpus/SKILL.md` (voice contract) + `.claude/skills/ask-corpus/SKILL-v1.md` (backup)
 - **Fast operating loop:** `docs/runbooks/operator-fast-loop.md`
 - **Shared portable kit:** `/Users/david/Documents/agent-kit`

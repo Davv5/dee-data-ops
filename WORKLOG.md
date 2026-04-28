@@ -11,28 +11,31 @@ Rolling log of what's been done on this project. Newest entries at the top. Tail
 
 ---
 
-## 2026-04-27 — Gold-layer roadmap landed; Phase A deliverable complete
+## 2026-04-27 — Discovery Sprint inputs sharpened; roadmap superseded by PR #81
 
 **What happened**
-- Diagnosed input quality before running the rank skill: `source-inventory.md`, `business-area-map.md`, and `coverage-matrix.md` were ~80% populated but missing two pre-conditions — committed mart architecture and per-question owner. Confirmed both inputs were already strong (per-source recommendations, blocker-class taxonomy, playbook-chapter tags) before adding the missing pieces.
-- `coverage-matrix.md` extended with a "Mart architecture commitment" section locking **one wide mart per playbook chapter** (six chapters → six marts); grain split only when justified. Cites `mart-naming.md` Rule 2.
-- `business-area-map.md` extended with an `Owner` column. After one round-trip with David clarifying his intent, owners are roles inferred from the playbook chapter (SDR Manager, Sales Manager, Marketing Lead, Finance Lead, Sales Operations, D-DEE Leadership, David / Operations) — not named individuals (team too large), and not `client-decision` placeholders (decisions are already encoded in the questions). The earlier misinterpretation produced a "Big decision #6" framed as a Week-0 ask, since removed.
-- `mart-roadmap-rank` skill executed. `docs/discovery/gold-layer-roadmap.md` landed with 7 ranked marts: `speed_to_lead_detail` (Tier A, shipped — extend in place), `funnel_booking_detail` (Tier B, single blocker: GHL trusted-copy), `attribution_detail` / `revenue_event_detail` / `closer_call_outcome` / `customer_lifecycle_detail` / `call_intelligence_detail` (Tier C, multi-blocker).
-- David reviewed and approved: "i reviewed it all and its a lot more clear."
-- Committed as `0786647`. Then merged origin's parallel work (PR #74 ask-corpus v2, plus origin's 2026-04-26 worklog/state entries) via merge commit. Resolved WORKLOG and project-state by hand to keep both 2026-04-26 sessions and the 2026-04-27 wrap.
+- Sharpened two of the three Discovery Sprint inputs that the rank skill consumes:
+  - `coverage-matrix.md` extended with a "Mart architecture commitment" section locking **one wide mart per playbook chapter** (six chapters → six marts); grain split only when justified. Cites `mart-naming.md` Rule 2.
+  - `business-area-map.md` extended with an `Owner` column. Owners are inferred roles from the playbook chapter (SDR Manager, Sales Manager, Marketing Lead, Finance Lead, Sales Operations, D-DEE Leadership, David / Operations) — not named individuals (team too large), and not `client-decision` placeholders (decisions are already encoded in the questions). One round-trip with David unwound an earlier "Big decision #6" misframing.
+- Ran `mart-roadmap-rank` and produced `docs/discovery/gold-layer-roadmap.md` with 7 ranked marts. **The roadmap was wrong on the central question** — it proposed building `attribution_detail`, `revenue_event_detail`, and `funnel_booking_detail` as net-new marts when those grains are already covered by existing marts (`lead_journey.sql`, `revenue_detail.sql`, `sales_activity_detail.sql`). The skill ran without auditing the actual `2-dbt/models/marts/` tree first; my fault for not grounding the rank in the existing scaffold.
+- Committed the artifacts anyway (`0786647`) plus housekeeping (worklog, state, AGENTS.md + .agents/skills/ tracked, .gitignore additions). Pulled origin (PR #74 ask-corpus v2) and resolved the WORKLOG / project-state merge conflict by hand (`a6eb584`).
+- **Discovered three competing roadmap drafts during pre-merge review:**
+  - PR #80 (`Davv5/eu7-install-and-roadmap`, 18:21Z): bundled agent-kit install + first-draft roadmap (171 lines).
+  - PR #81 (`Davv5/Phase-B`, 22:41Z): single-file roadmap (173 lines), reclassifies the work into 🟡 fill placeholder / 🔵 rollup of existing wide mart / 🟢 net-new build / ⚪ already shipped, grounded against the actual scaffold. **This is the canonical roadmap.**
+  - This session's version on `chore/triage-2026-04-23` (164 lines): not grounded against the marts directory; supersedes itself when measured against PR #81.
+- Removed the roadmap file from this branch so it doesn't land a duplicate/stale `gold-layer-roadmap.md` on main when this triage branch merges. The non-roadmap improvements remain.
 
 **Decisions**
-- **One wide mart per playbook chapter** (committed in `coverage-matrix.md`). Multiple business questions slice the same wide mart in BI rather than getting their own. Grain split only when a genuinely different grain emerges (Funnel splits into `speed_to_lead_detail` at booking-touch grain + `funnel_booking_detail` at booking grain).
-- **Owners are inferred roles, not named individuals.** Why: D-DEE team is large; role-level routing is the actionable unit; named individuals sit behind the role and are not tracked in this artifact. Schema-per-audience (`mart-naming.md` Rule 5) becomes the natural future split when audiences diverge — not now.
-- **Highest-leverage staging unlock named:** retarget `_fanbasis__sources.yml` to `project-41542e21-...` and add `stg_fanbasis__transactions`. Single ~2hr change moves three Tier-C marts (`attribution_detail`, `revenue_event_detail`, `closer_call_outcome`) toward buildable.
-- **Phase A complete ~11 days ahead of 2026-05-08 target.** Phase B reactivation gated on David's review of the roadmap, now received.
+- **One wide mart per playbook chapter** (committed in `coverage-matrix.md`). Consistent with PR #81's framing; the architecture commitment paragraph stays.
+- **Owners are inferred roles, not named individuals.** Why: D-DEE team is large; role-level routing is the actionable unit. Schema-per-audience (`mart-naming.md` Rule 5) becomes the natural future split when audiences diverge — not now.
 - **Track AGENTS.md + .agents/skills/** so Codex sessions get the same conventions and core skills Claude Code has. Gitignore `.obsidian/`, `.cabinet-meta`, `.repo.yaml` (per-machine local files).
+- **PR #81 is the canonical Phase A closing artifact.** This session's roadmap is removed; PR #81 merges as-is.
+- **Failure mode to remember:** running `mart-roadmap-rank` without auditing the existing `2-dbt/models/marts/` tree produces a roadmap that proposes duplicates of existing marts. The skill should be paired with a marts-tree audit before invocation, or the audit should be inlined as a pre-step in the skill itself.
 
 **Open threads**
-- **First Phase 2 work order:** extend `speed_to_lead_detail` in place with Q3 setter-performance columns + Q7 show/no-show columns. Pure additive change; existing `stl_headline_parity` test guards Q1's locked metric.
-- **First new mart** when the GHL trusted-copy decision lands: `funnel_booking_detail` via `warehouse-fct-scaffold` then `mart-collapse`.
-- **Schedule the Fanbasis staging unlock** (`staging-scaffold` against `Raw.fanbasis_transactions_txn_raw`) — it's not blocked on anything else and unblocks three Tier-C marts.
-- **Re-run roadmap** when the GHL trusted-copy decision lands, any 🔴 matrix cell flips to 🟡, or a new business question doesn't fit an existing chapter.
+- **PR #81 should land** as the canonical roadmap. PR #80's roadmap file should probably be dropped from PR #80 (leaving the agent-kit install) so PR #81 can land cleanly without conflicts; David's call.
+- **A small follow-up PR from `chore/triage-2026-04-23` → main** carries the non-roadmap improvements (architecture commitment, Owner column, worklog, state, AGENTS.md, .agents/skills/, .gitignore). Plus everything else accumulated on this triage branch (ask-corpus v2 from PR #74, etc.).
+- **Phase B kickoff direction is unchanged** from PR #81's framing: build `stg_fanbasis__transactions` and replace the placeholder CTE in `fct_revenue.sql` (the highest-leverage move). Period-grain rollups + a few net-new facts/dims (`fct_calls_held`, `dim_typeform_form`, `fct_opportunity_stage_transitions`, `fct_refunds`) follow.
 
 ## 2026-04-26 — ask-corpus v2 corpus research engine: Phase 2-4 landed on feature branch (planner / fan-out / fuse / rerank)
 
