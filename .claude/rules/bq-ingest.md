@@ -10,7 +10,7 @@ Load when working on any file under `services/bq-ingest/` (the Cloud Run Flask +
 
 Manual refreshes inside this service must respect upstream order. Never skip Core when chasing a stale Mart number; never touch a Mart without first refreshing the upstream Core. Marts always run last.
 
-This is enforced automatically by `dbt build` in the `2-dbt/` path (DAG ordering) and by `sources/marts/mart_models.py` in the bq-ingest path (it runs upstream models first, then `sql/marts.sql` and `sql/dims/*.sql`). The rule still matters when (a) refreshing one source's Core via `python -m ops.runner.cli run pipeline.<source>` outside the marts wrapper, (b) hitting a single `/refresh-<source>-models` route on `app.py`, or (c) reasoning about which layer to investigate when a number looks wrong.
+This is enforced automatically by `dbt build` in the `2-dbt/` path (DAG ordering) and by `services/bq-ingest/sources/marts/mart_models.py` in the bq-ingest path (it runs upstream models first, then `services/bq-ingest/sql/marts.sql` and `services/bq-ingest/sql/dims/*.sql` — note: the SQL files live under the package-root `sql/` tree, not under `sources/marts/sql/`; `mart_models.py`'s default `sql_file_path` resolves to a non-existent `sources/marts/sql/` and only works because callers pass the right path explicitly — pre-existing bug, see PR #102 review thread). The rule still matters when (a) refreshing one source's Core via `python -m ops.runner.cli run pipeline.<source>` outside the marts wrapper, (b) hitting a single `/refresh-<source>-models` route on `app.py`, or (c) reasoning about which layer to investigate when a number looks wrong.
 
 (Source: ported from `gtm-lead-warehouse/RUNBOOK.md` core rule #1 and the dropped `sources/marts/CLAUDE.md` "safe change order" line — both retired with PR #102 cleanup.)
 
@@ -25,3 +25,7 @@ If a future task needs LLM transcript enrichment:
 - The dropped tree's source code, if needed for reference, lives in the archived `heidyforero1/gtm-lead-warehouse@515c89a` snapshot.
 
 (Source: ported from the dropped `sources/fathom/CLAUDE.md` split-runtime note — retired with PR #102 cleanup.)
+
+## Lessons learned
+
+*(Populate as bq-ingest issues arise.)*
