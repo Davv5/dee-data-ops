@@ -9,61 +9,60 @@ WORKLOG.md is the append-only audit log; grep it for history.
 
 # D-DEE Data Ops — present-moment snapshot
 
-_Last regenerated: 2026-04-28 (post-PR #95: local-CI wrapper + ADC profile targets shipped after Phase B.4)_
+_Last regenerated: 2026-04-28 evening (post-PR #97 operational-health rule, PR #98 bq-ingest consolidation plan, plus four-PR hotfix chain on `heidyforero1/gtm-lead-warehouse` that brought transition snapshots online)._
 
 ## Where we are
 
-- **Phase B (Layer Build) is live.** Five feature tickets shipped today:
-  - PR #84 (`5776a7b`) — `stg_fanbasis__transactions` view + Stripe+Fanbasis union (Fanbasis: 466 rows / $170,712 gross / 9 refunds, Apr 2025 → Apr 2026)
-  - PR #86 (`9db0899`) — `bridge_identity_contact_payment` extended UNION + composite PK `(source_platform, payment_id)` + `tier_unmatched` refactored as anti-join (no payment can be silently dropped); 5 new bridge tests. **Match rates: Stripe 94.22%, Fanbasis 99.36%** in dev_david
-  - PR #88 (`1f5c73b`) — `fct_revenue` → `fct_payments` semantic rename
-  - PR #90 (`ac38fb6`) — `stg_fanbasis__refunds` event-grain staging + `fct_refunds` Fanbasis-only warehouse fact + `fanbasis_refund_parity` singular test. **9 refund events / $2,500 USD, 100% bridge-attributed** (8 email_exact + 1 billing_email_direct)
-  - PR #92 (`aae6f29`) — `revenue_detail` net-of-refunds extension: 4 new columns (`refunds_total_amount`, `refunds_total_amount_net`, `refunds_count`, `net_amount_after_refunds` with `CASE` branching by `source_platform` to defend against future Stripe arm) + `revenue_detail_refunds_parity` singular test. Verified locally: Fanbasis $162,445.73 → $159,945.73 net-of-refunds (delta $2,500 ✓); Stripe `sum_net_after_refunds == sum_net` (CASE branch returns net_amount).
-- **Existing wide marts auto-widened post-bridge:** `lead_journey` revenue rollups now include Fanbasis on next refresh; `sales_activity_detail` and `speed_to_lead_detail` are revenue-independent and unchanged.
-- **Local dev-loop tooling shipped (PRs #94 + #95).** New `dev_local` / `ci_local` profile targets (ADC method, no SA keyfile required) + `2-dbt/scripts/local-ci.sh` wrapper that mirrors the GH `dbt-ci.yml` workflow. `.env` defaults to `DBT_TARGET=dev_local`; switch to `dev` when a consolidated-project SA key is provisioned. GH Actions remains the merge gate — local CI is for the developer loop and emergency bypass.
-- **`ask-corpus` v2 engine** lives on main (PR #74). Routing rule + voice contract are the canonical query path; raw `notebook_query` calls are reserved for ad-hoc lookups.
+- **GHL transition snapshots are LIVE.** `Core.fct_pipeline_stage_snapshots` seeded today: **26,133 rows for 2026-04-28**, all four statuses captured (open / won / lost / abandoned). Daily 07:00 UTC cron compounds from here — first usable transition signal in ~7 days; stage-velocity at ~30. The earlier task framing (build `fct_opportunity_stage_transitions`) collapsed once the audit revealed the architecture *existed* in `bq-ingest` but had been silently failing.
+- **`bq-ingest` service redeployed.** Revision `bq-ingest-00076-wtl`, Python 3.13 (3.11 dropped from current GCP universal builder), memory bumped 512Mi → 1024Mi (clears the `run_models()` OOMs that had been hitting Fathom + Calendly). New `/routes` endpoint exposes registered Flask routes — single-curl post-deploy verification that the running image matches expected source.
+- **Operational-health rule lives on main.** `.claude/rules/operational-health.md` — distinguishes pausable extractor work (new builds, schema fills, vendor expansions) from non-pausable (operating deployed pipelines, snapshot integrity, memory limits, deploy-source freshness). Loud freshness gate replaces `|| true` in `dbt-nightly.yml`. Companion memory: `feedback_dont_dismiss_high_leverage_under_pause.md`.
+- **Phase B layer-build still on main** (PRs #84/#86/#88/#90/#92): `stg_fanbasis__transactions`, `bridge_identity_contact_payment`, `fct_payments` rename, `fct_refunds` Fanbasis-only event grain, `revenue_detail` net-of-refunds extension. Local-CI tooling (PRs #94/#95) remains the dev-loop bypass when GH Actions degrades.
+- **`ask-corpus` v2 engine** lives on main (PR #74). Routing rule + voice contract are the canonical query path.
 - **Foundation intact (do not rebuild):** BigQuery + dbt + 15 staging models + `(id, _ingested_at, payload)` raw-landing discipline. U1 / U2 / U3 stay shipped.
-- **GCP consolidation plan PAUSED at U3-complete.** `docs/plans/2026-04-23-001-feat-gtm-source-port-plan.md` U4a+ resumes when GHL trusted-copy decision lands.
 - **Headline metric (locked 2026-04-19):** unchanged.
 
 ## Active plans
 
-- **Sprint (closed):** `docs/plans/2026-04-24-strategic-reset.md` — Phase A complete; Phase B build is live.
+- **bq-ingest consolidation:** `docs/plans/2026-04-28-bq-ingest-consolidation-plan.md` — move service source from `heidyforero1/gtm-lead-warehouse` (which David doesn't actively push to — root cause of today's silent-deploy drift) into `dee-data-ops/services/bq-ingest/`. ~1.2 MB / 41 Python files. Plan estimates 2.5–3 hours of fresh-context work. **This is the next session.**
 - **Methodology (on main):** `docs/plans/2026-04-26-001-feat-corpus-research-engine-plan.md` — corpus engine v2; 11/13 active units shipped.
 - **Paused (cutover):** `docs/plans/2026-04-23-001-feat-gtm-source-port-plan.md` — U4a+ resumes when GHL trusted-copy decision lands.
 
 ## Last 3 decisions
 
-- **2026-04-28** — Phase B.4 ships: `revenue_detail` extended with net-of-refunds columns. `net_amount_after_refunds` branches `CASE WHEN source_platform = 'stripe' THEN net_amount ELSE net_amount - refunds_total_amount END` because Stripe's net is already net of refunds at staging (`amount_captured_minor - amount_refunded_minor`) while Fanbasis's is net of fees only. Mechanical branching beats doc-only future-Claude warnings; parity test gates per source_platform regardless. Destination: PR #92 (`aae6f29`).
-- **2026-04-28** — Phase B.3 ships: `fct_refunds` is Fanbasis-only at event grain. Stripe arm omitted because `stg_stripe__charges.amount_refunded_minor` is at charge-grain (would lose temporal fidelity); Stripe is also banned at D-DEE so the asymmetry matches reality. Contact attribution via the bridge joined on the parent payment's `(source_platform, payment_id)` — refunds inherit the parent's contact, not re-matched. Destination: PR #90 (`ac38fb6`).
-- **2026-04-28** — Local-CI tooling lands. New `dev_local` / `ci_local` profile targets use `method: oauth` (ADC) so a developer can run dbt without an SA keyfile; the `2-dbt/scripts/local-ci.sh` wrapper mirrors GH `dbt-ci.yml` (provision per-PR dataset → `dbt build --target {ci|ci_local}`). Driven by today's GH Actions `degraded_performance` incident — David pushed back on a passive "wait it out" recommendation, prompting the bypass + then the codified pattern. GH remains the merge gate; local CI is dev-loop + emergency bypass. Destinations: PR #94 (`69804be`) + #95 (`611b5f0`). Cross-session pattern: `feedback_local_ci_bypass.md` memory.
+- **2026-04-28 evening** — Brought GHL transition snapshots online via four-PR hotfix chain to `heidyforero1/gtm-lead-warehouse`: PR #1 (drop active-only WHERE filter + add `/routes`), #3 (pin Python 3.13 — 3.11 unavailable in current GCP universal builder, 3.14 broke protobuf), #4 (NULL-cast `assigned_to_user_id` since `Core.fct_ghl_opportunities` doesn't carry it — function had never end-to-end-run on the real schema). Production now on revision `00076-wtl`. Companion: `dee-data-ops` PR #97 lands operational-health rule + loud freshness gate.
+- **2026-04-28 evening** — Operational-health rule articulates the principle that emerged from the audit: the Strategic Reset extractor pause was silently destroying data on operational pipelines (snapshot 404s, OOMs, vestigial Cloud Run Jobs masquerading as healthy). Pausable vs not-pausable distinction codified; freshness gate goes loud. Memory: `feedback_dont_dismiss_high_leverage_under_pause.md`.
+- **2026-04-28 evening** — bq-ingest consolidation plan staged in dee-data-ops PR #98. Move target: `dee-data-ops/services/bq-ingest/`. Stale local clones (`~/Documents/{fanbasis-ingest,gtm,gtm-lead-warehouse}`) get deleted once the new-home deploy proves clean. After several days of operation: archive `heidyforero1/gtm-lead-warehouse`.
 
 ## Open threads
 
-- **Next Phase B candidates** (pick from these, none currently in flight):
-  - **`fct_opportunity_stage_transitions`** — first confirm raw landing carries stage-change events with timestamps. Blocker class: `dbt-staging` audit, then warehouse-fct-scaffold.
-  - **`dim_typeform_form`** — blocked on Typeform `form_id` gap (every response has NULL `form_id` upstream — U9 extractor work).
-  - **Period-grain rollups** — `revenue_detail_by_week`, `lead_journey_by_month`, etc. on top of existing wide marts. Premature at current scale.
-- **Float64-for-money tech debt (Fanbasis)** — `stg_fanbasis__transactions` and `stg_fanbasis__refunds` cast amount fields to `float64`; should be `numeric` to avoid FP rounding drift on aggregation. PR #92's parity test uses $0.01 tolerance to absorb this; cleanup PR when refund volume justifies.
-- **GHL trusted-copy decision** — single named blocker for several Tier B/refresh marts. Choose between legacy blob (1,314 conversation rows) and Phase-2 (101 rows). Resolves 92% undercount + four empty entities + dual-source ambiguity in one move.
-- **GCP IAM hygiene (cosmetic, not blocking).** `GCP_SA_KEY` in repo secrets carries `ingest@dee-data-ops.iam.gserviceaccount.com`; the kit-purpose `sa-transform@project-41542e21-470f-4589-96d.iam.gserviceaccount.com` is the right home for dbt-CI auth. Local-equivalent SA key for the consolidated project is also unprovisioned; until it lands, ADC via `dev_local` / `ci_local` is the working path (this is no longer a blocker).
+- **bq-ingest consolidation** (top of list) — execute the plan above. Until done, code changes to bq-ingest still go through the `gtm-lead-warehouse` PR flow.
+- **Snapshot architecture follow-ups:** (a) extend `Core.fct_ghl_opportunities` upstream to surface `assigned_to_user_id` (currently NULL-cast in the snapshot); (b) once `Core.fct_pipeline_stage_snapshots` has ≥2 daily partitions, swap GHL freshness signal from `MAX(_ingested_at)` (misleading because of MERGE-by-id) to `MAX(snapshot_date)` to avoid first-nightly false alarm.
+- **Vestigial Cloud Run Jobs** (`ghl-incremental-v2`, `calendly-incremental-v2`, `ghl-backfill-v2`, etc.) — not invoked by active schedulers; their last-run dates produce false signals in any health check that doesn't know they're vestigial. Delete or label.
+- **Pre-existing stale PRs in dee-data-ops:** #50 (Metabase Track-E v1.3.1 polish, 2026-04-22) + #44 (Metabase startup curl hardening, 2026-04-22). Both predate the Metabase retirement / dabi pivot. Close or evaluate.
+- **Float64-for-money tech debt (Fanbasis)** — `stg_fanbasis__transactions` and `stg_fanbasis__refunds` cast amounts to `float64`; should be `numeric`. PR #92's parity test absorbs the drift via $0.01 tolerance for now.
+- **GHL trusted-copy decision** — single named blocker for several Tier B / refresh marts (legacy blob 1,314 vs Phase-2 101 conversation rows).
+- **GCP IAM hygiene (cosmetic, not blocking).** ADC via `dev_local` / `ci_local` is the working path; SA key for consolidated project still unprovisioned.
 - **Fathom → GHL contact join key** — attendee email reliability. Affects future `fct_calls_held`.
 - **Empirical tuning of corpus-engine constants** — `DIVERSITY_RELEVANCE_THRESHOLD=0.30` + `QUALITY_PARITY_FLOOR=0.6` ship provisional. Lock after first production queries.
-- **`bq-ingest` service repair**, **Typeform `form_id` gap**, **GHL `messages` / `users` / `tasks` 0-row upstream**, **Fathom transcript landing**, **Stripe staleness** — all paused per Strategic Reset; revisit on cutover resume.
+- **Strategic-Reset-paused threads:** Typeform `form_id` upstream gap, GHL `messages` / `users` / `tasks` 0-row upstream, Fathom transcript landing, Stripe staleness. Re-evaluate per the new operational-health rule (some may move from "paused" to "not-pausable").
 - **Week-0 client asks** — unchanged (Fanbasis docs, SLA thresholds, access verification).
 
 ## Where to look
 
-- **Canonical roadmap (on main):** `docs/discovery/gold-layer-roadmap.md`
+- **bq-ingest consolidation plan:** `docs/plans/2026-04-28-bq-ingest-consolidation-plan.md`
+- **Operational-health rule:** `.claude/rules/operational-health.md` (worked-examples #1-4 cover today's audit)
+- **bq-ingest source (today):** `heidyforero1/gtm-lead-warehouse` repo. Local working copy: `~/Documents/gtm-lead-warehouse` (current main; **other local clones at `fanbasis-ingest` and `gtm` are stale — do not deploy from them**)
+- **bq-ingest production:** Cloud Run service `bq-ingest` in `project-41542e21-470f-4589-96d`, region `us-central1`, revision `bq-ingest-00076-wtl`. URL: `https://bq-ingest-mjxxki4snq-uc.a.run.app`. Verify routes: `curl /routes`. Seed snapshot ad-hoc: `curl -X POST /snapshot-pipeline-stages`.
+- **Live snapshot table:** `project-41542e21-470f-4589-96d.Core.fct_pipeline_stage_snapshots`, partitioned by `snapshot_date`, clustered by `(pipeline_id, status)`.
+- **Canonical roadmap:** `docs/discovery/gold-layer-roadmap.md`
 - **Phase A → B ADR:** `docs/decisions/2026-04-27-phase-a-to-b-transition.md`
 - **Mart architecture commitment:** `docs/discovery/coverage-matrix.md` "Mart architecture commitment" + `.claude/rules/mart-naming.md` Rule 2
-- **Phase B artifacts (on main):** `2-dbt/models/staging/fanbasis/{stg_fanbasis__transactions,stg_fanbasis__refunds}.sql` + `_fanbasis__models.yml`; `2-dbt/models/warehouse/facts/{fct_payments,fct_refunds}.sql`; `2-dbt/models/warehouse/bridges/bridge_identity_contact_payment.sql` + `_bridges__{models.yml,docs.md}`; `2-dbt/models/marts/revenue_detail.sql` + `_marts__{models.yml,docs.md}`; `2-dbt/tests/{bridge_payment_count_parity,bridge_match_rate_floor,fanbasis_refund_parity,revenue_detail_refunds_parity}.sql`
-- **Existing wide marts (auto-widened post-bridge):** `2-dbt/models/marts/{lead_journey,revenue_detail,sales_activity_detail,speed_to_lead_detail}.sql`
-- **Local dev loop:** `2-dbt/scripts/local-ci.sh` (wrapper mirroring GH `dbt-ci.yml`); `2-dbt/profiles.yml` (`dev_local` / `ci_local` ADC targets); `2-dbt/README.md` "Local CI" section; cross-session pattern at memory `feedback_local_ci_bypass.md`.
-- **Data-engineer agent + LAW skills:** `~/.claude/agents/data-engineer.md` owns engagement lifecycle; specialist seams via `altimate-{sql-review,data-parity,schema-migration,dbt-unit-tests}` skills. Discoverability rule: `.claude/rules/use-data-engineer-agent.md`. Hooks: PreToolUse(Write|Edit) → `pre-sql-altimate-review.sh`; PostToolUse(Write|Edit) → `post-sql-qa-baseline.sh`.
-- **Corpus engine v2:** `.claude/skills/ask-corpus/scripts/` (engine) + `.claude/skills/ask-corpus/SKILL.md` (voice contract) + `SKILL-v1.md` (backup)
+- **Phase B artifacts (on main):** `2-dbt/models/staging/fanbasis/{stg_fanbasis__transactions,stg_fanbasis__refunds}.sql`; `2-dbt/models/warehouse/facts/{fct_payments,fct_refunds}.sql`; `2-dbt/models/warehouse/bridges/bridge_identity_contact_payment.sql`; `2-dbt/models/marts/{lead_journey,revenue_detail,sales_activity_detail,speed_to_lead_detail}.sql`; `2-dbt/tests/{bridge_payment_count_parity,bridge_match_rate_floor,fanbasis_refund_parity,revenue_detail_refunds_parity}.sql`
+- **Local dev loop:** `2-dbt/scripts/local-ci.sh` + `2-dbt/profiles.yml` (`dev_local` / `ci_local` ADC targets) + `2-dbt/README.md` "Local CI" section.
+- **Data-engineer agent + LAW skills:** `~/.claude/agents/data-engineer.md`. Specialist seams via `altimate-{sql-review,data-parity,schema-migration,dbt-unit-tests}`. Discoverability rule: `.claude/rules/use-data-engineer-agent.md`.
+- **Corpus engine v2:** `.claude/skills/ask-corpus/scripts/` + `SKILL.md`
 - **Fast operating loop:** `docs/runbooks/operator-fast-loop.md`
-- **Shared portable kit:** `/Users/david/Documents/agent-kit` (installed globally via `~/.claude/agents/data-engineer.md` symlink + 16 `~/.claude/skills/<kit-name>` symlinks; project-imported via `import-agent-kit.sh --symlink`)
+- **Shared portable kit:** `/Users/david/Documents/agent-kit`
 - **Codex parity:** `AGENTS.md` + `.agents/skills/{ask-corpus,skill-creator,worklog}/`
 - **Sprint artifacts:** `docs/discovery/{source-inventory,source-shapes,staging-models,gap-analysis,insights-summary,business-area-map,coverage-matrix,gold-layer-roadmap}.md`
 - **Memories (auto-loaded):** see `MEMORY.md`
@@ -74,5 +73,5 @@ _Last regenerated: 2026-04-28 (post-PR #95: local-CI wrapper + ADC profile targe
 
 ## _meta
 
-- Last regen: 2026-04-28 (post-PR #95 merge)
-- WORKLOG: skipped — PR #94 (local CI tooling) and #95 (review follow-ups) are tooling-only, fully captured in PR descriptions + commit messages. The cross-session operational pattern (when to bypass GH Actions with local CI) lives in `feedback_local_ci_bypass.md` memory. The "Local dev env stale" thread is now retired (workaround became the default path); the GCP IAM hygiene thread absorbs the residual SA-key-for-consolidated-project follow-up. No residual content needing WORKLOG entry.
+- Last regen: 2026-04-28 evening (post-PRs #97 + #98 + four-PR `gtm-lead-warehouse` hotfix chain + production deploy of revision `bq-ingest-00076-wtl`).
+- WORKLOG: skipped. Today's narrative arc (audit → three silent failures → fix chain → snapshots live → consolidation plan staged) is captured by destinations: PR descriptions for the six PRs (#1/#2/#3/#4 on `gtm-lead-warehouse`, #97/#98 on `dee-data-ops`); rule body of `.claude/rules/operational-health.md` (worked-examples #1-4); plan doc at `docs/plans/2026-04-28-bq-ingest-consolidation-plan.md`; cross-session memory `feedback_dont_dismiss_high_leverage_under_pause.md`. No residual narrative needs WORKLOG.
