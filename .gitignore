@@ -27,7 +27,12 @@ logs/
 # Editor
 .vscode/
 .idea/
+.obsidian/
 *.swp
+
+# Local repo-registry / cabinet tooling (per-machine)
+.cabinet-meta
+.repo.yaml
 
 # Claude Code agent worktrees (ephemeral, per-track)
 .claude/worktrees/
