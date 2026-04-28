@@ -1,9 +1,24 @@
 {% docs bridge_identity_contact_payment__overview %}
 
-Payment-centric identity bridge: every Stripe charge gets exactly one
-row, with the best-available match to `dim_contacts` + diagnostic
-metadata. `fct_revenue` picks `contact_sk` up by left-joining this
-bridge on `payment_id`.
+Payment-centric identity bridge: every payment (Stripe charge + Fanbasis
+transaction) gets exactly one row, with the best-available match to
+`dim_contacts` + diagnostic metadata. `fct_revenue` picks `contact_sk`
+up by left-joining this bridge on `(source_platform, payment_id)`.
+
+### Why a composite PK
+
+The bridge unions Stripe + Fanbasis. A bare `payment_id` join is
+ambiguous because the two providers issue ids in independent
+namespaces — there is no guarantee a Stripe `ch_*` id can never
+collide with a Fanbasis transaction id. Keying on
+`(source_platform, payment_id)` makes the join deterministic and
+matches `fct_revenue.payment_sk`, which is already hashed over the
+same pair.
+
+Stripe at D-DEE is historical-only (memory
+`project_stripe_historical_only.md`); Fanbasis is the live forward-going
+contributor. Both arms ride the same tier ladder so the match-rate
+target applies to the unioned bridge, not per-source.
 
 ### Why a bridge (not widened columns on dim_contacts or fct_revenue)
 
@@ -28,6 +43,13 @@ tied at the highest observed score for a payment. The `qualify
 row_number()` still picks one, but the diagnostic flag fires so mart
 owners can decide whether to trust the pick or suppress the row.
 
+### Source-side identity columns
+
+| `source_platform` | Email column | Phone column |
+|---|---|---|
+| `stripe` | `stg_stripe__charges.billing_email` | `stg_stripe__charges.billing_phone` |
+| `fanbasis` | `stg_fanbasis__transactions.fan_email` | `stg_fanbasis__transactions.fan_phone` |
+
 ### Gmail canonical normalization
 
 For emails in `gmail.com` / `googlemail.com`: drop dots from the
@@ -44,10 +66,20 @@ case-sensitive is the safer default given provider-side variance.
 
 ### Target match rate
 
-≥ 70%. If `bridge_status = 'matched'` / `count(*)` drops below that
-threshold on the Stripe side, the tier set needs retuning before
-`fct_revenue` is trusted for reporting. Escalate to David before
-shipping a mart that depends on `contact_sk` resolution at lower
-rates.
+≥ 70% per source — a **tuning trigger**, not a ship gate. Enforced by
+`bridge_match_rate_floor.sql` (severity = `warn`); a new payment
+processor can legitimately land below 70% during a contact-backfill
+catch-up window.
+
+Hard ship gates remain:
+
+- `bridge_payment_count_parity` — every staging payment row appears in
+  the bridge (no silent drops)
+- `dbt_utils.unique_combination_of_columns` — composite PK
+  `(source_platform, payment_id)` is unique
+
+If the warn fires and persists past a backfill window, retune the tier
+set or backfill upstream contact data before treating that source's
+`fct_revenue` rows as report-grade — and escalate to David.
 
 {% enddocs %}
