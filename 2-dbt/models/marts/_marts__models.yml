@@ -180,8 +180,8 @@ models:
           - not_null
       - name: net_amount_after_refunds
         description: |
-          `net_amount - refunds_total_amount`. For Stripe rows this equals `net_amount` because Stripe net is already net of refunds at staging
-          (`amount_captured_minor - amount_refunded_minor`) and `fct_refunds` is Fanbasis-only today. If `fct_refunds` extends to Stripe, the
-          calculation in `revenue_detail.sql` must be revisited.
+          Net of refunds. Branches by `source_platform`: Stripe rows return `net_amount` directly because Stripe net is already net of refunds
+          at staging (`amount_captured_minor - amount_refunded_minor`); Fanbasis (and any future non-Stripe arm) rows return
+          `net_amount - refunds_total_amount`. Mechanical branching keeps the math correct even if `fct_refunds` extends to Stripe later.
         tests:
           - not_null

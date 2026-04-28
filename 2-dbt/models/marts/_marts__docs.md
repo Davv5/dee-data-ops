@@ -116,13 +116,20 @@ is lower than Stripe's dashboard — eroding trust. Every payment stays visible;
 
 ## Net-of-refunds asymmetry
 
-`net_amount_after_refunds = net_amount - refunds_total_amount` is correct today
-because `fct_refunds` is Fanbasis-only and `fct_payments.net_amount` for Stripe
-rows is already net of refunds at the staging layer (`amount_captured_minor -
-amount_refunded_minor`). If `fct_refunds` ever extends to Stripe, the formula
-in `revenue_detail.sql` will double-subtract on Stripe rows — fix it at the
-same time. Singular test `revenue_detail_refunds_parity.sql` asserts the
-mart's refund total matches `fct_refunds` exactly per source_platform.
+The two payment sources arrive with different refund semantics, so
+`net_amount_after_refunds` branches by `source_platform`:
+
+- **Stripe** rows return `net_amount` directly. `stg_stripe__charges` already
+  computes `amount_captured_minor - amount_refunded_minor` at staging, so
+  `fct_payments.net_amount` is already net of refunds for Stripe.
+- **Fanbasis** (and any future non-Stripe arm) returns
+  `net_amount - refunds_total_amount`. Fanbasis's `net_amount` is net of fees
+  only, so the refund is subtracted here.
+
+Mechanical branching keeps the math correct even if `fct_refunds` extends
+to Stripe later — no doc-only future-Claude trap. Singular test
+`revenue_detail_refunds_parity.sql` asserts the mart's refund total matches
+`fct_refunds` exactly per source_platform regardless.
 
 ## DQ flag semantics
 

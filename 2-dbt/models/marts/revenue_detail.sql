@@ -9,13 +9,19 @@
 -- the "transparency" signal for Page 3 of the dashboard. Do NOT filter them.
 --
 -- Net-of-refunds: refund events from `fct_refunds` are aggregated per
--- parent payment and exposed alongside `net_amount`. The precomputed
--- `net_amount_after_refunds = net_amount - refunds_total_amount` is
--- correct TODAY because `fct_refunds` is Fanbasis-only and
--- `fct_payments.net_amount` for Stripe rows is already net of refunds
--- at the staging layer (`amount_captured_minor - amount_refunded_minor`).
--- If `fct_refunds` ever extends to Stripe, this calculation will
--- double-subtract on Stripe rows — revisit the formula at the same time.
+-- parent payment and exposed alongside `net_amount`.
+-- `net_amount_after_refunds` branches on `source_platform` because the
+-- two upstream payment sources arrive with different refund semantics:
+--   - Stripe: `fct_payments.net_amount` is ALREADY net of refunds at
+--     staging (`amount_captured_minor - amount_refunded_minor` in
+--     `stg_stripe__charges`), so subtracting `fct_refunds` would
+--     double-count.
+--   - Fanbasis: `fct_payments.net_amount` is net of FEES only, so the
+--     refund is subtracted here.
+-- Branching mechanically keeps the math correct even if `fct_refunds`
+-- extends to Stripe in the future. The companion parity test
+-- (`revenue_detail_refunds_parity`) gates `refunds_total_amount`
+-- against `fct_refunds` per source_platform regardless.
 
 with
 
@@ -157,18 +163,22 @@ final as (
             else 'clean'
         end                         as attribution_quality_flag,
 
-        -- Net-of-refunds (see header comment for Stripe-asymmetry note).
-        -- Defaults to 0 when no refund events exist — never NULL — so BI
-        -- aggregations don't need to coalesce.
+        -- Net-of-refunds (see header comment for the source_platform
+        -- branching rationale). Defaults to 0 when no refund events
+        -- exist — never NULL — so BI aggregations don't need to coalesce.
         coalesce(refunds_per_payment.refunds_total_amount,     0)
                                     as refunds_total_amount,
         coalesce(refunds_per_payment.refunds_total_amount_net, 0)
                                     as refunds_total_amount_net,
         coalesce(refunds_per_payment.refunds_count,            0)
                                     as refunds_count,
-        payments.net_amount
-            - coalesce(refunds_per_payment.refunds_total_amount, 0)
-                                    as net_amount_after_refunds,
+        case
+            when payments.source_platform = 'stripe'
+                then payments.net_amount
+            else
+                payments.net_amount
+                - coalesce(refunds_per_payment.refunds_total_amount, 0)
+        end                         as net_amount_after_refunds,
 
         current_timestamp()         as mart_refreshed_at
 
