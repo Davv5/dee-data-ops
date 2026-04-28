@@ -11,6 +11,24 @@ Rolling log of what's been done on this project. Newest entries at the top. Tail
 
 ---
 
+## 2026-04-28 (night) — Step 4 deploy: bq-ingest now serves from `services/bq-ingest/`
+
+**What happened**
+- Built new Cloud Run revision via `gcloud run deploy bq-ingest --source services/bq-ingest --region us-central1 --project project-41542e21-470f-4589-96d --no-traffic --tag step4 --memory=1024Mi`. New revision `bq-ingest-00085-qar`, Buildpack autodetect (no Procfile/app.yaml/.gcloudignore), Python 3.13 from `services/bq-ingest/.python-version`.
+- Parity check passed byte-equal between the `step4`-tagged URL (`https://step4---bq-ingest-mjxxki4snq-uc.a.run.app`) and the prior live revision (`bq-ingest-00076-wtl`): identical 22 routes from `/routes`, identical `{"ok":true,"service":"fanbasis-ingest"}` from `/`.
+- Promoted via `gcloud run services update-traffic --to-revisions=bq-ingest-00085-qar=100`. Old revision retained at 0% as rollback target.
+- Confirmed `calendly-invitee-drain` Cloud Run Job has been failing daily 5+ consecutive days (2026-04-24 through 2026-04-28, all exit 1) — pre-existing latent dispatch bug (round-2 reviewer's hypothesis confirmed), NOT introduced by the move.
+
+**Decisions**
+- **Used `--no-traffic --tag step4` instead of default 100% deploy.** The plan's "verify /routes parity before routing traffic" requires a tagged URL the new revision serves at while live traffic stays on the old revision. `--no-traffic --tag` is the right shape for that workflow; default `gcloud run deploy` shifts traffic immediately.
+- **Kept the stale `service: 'fanbasis-ingest'` brand string.** Round-2 review of PR #104 deferred the flip on the rationale that changing it would break byte-equal parity. Parity is now done; brand-string flip moves to a follow-up cleanup PR alongside other Step-4-window work (calendly_invitee_drain dispatch fix, RUNBOOK Looker rewrite, CWD-fragile shell scripts).
+- **Did NOT bundle latent-bug fixes into the deploy session.** The plan said "First deploy from new home with `/routes` parity check" — that is what shipped. Bundling the dispatch fix would have meant a code change with no parity baseline (the old revision has the bug too). Cleaner to land the deploy first, then a focused cleanup PR.
+
+**Open threads**
+- **Cleanup PR(s) post-Step-4:** flip brand string; fix `ops/runner/tasks.py:71` `backfill.calendly_invitee_drain` dispatch (or remove if the job was never load-bearing); restore or document `ops/env/triage/`; rewrite stale Looker Studio + prod-target sections of `services/bq-ingest/RUNBOOK.md`; address the 6 CWD-fragile shell scripts.
+- **Step 5 (optional):** Cloud Build trigger watching `services/bq-ingest/**`. Audit reframed this as deploy-provenance / build-reproducibility, not stale-clone defense.
+- **Step 6 (after several days clean):** archive `heidyforero1/gtm-lead-warehouse`, delete the three stale local clones at `~/Documents/{fanbasis-ingest,gtm,gtm-lead-warehouse}`.
+
 ## 2026-04-27 — Discovery Sprint inputs sharpened; mart-roadmap-rank scaffold-audit failure mode logged
 
 **What happened**
