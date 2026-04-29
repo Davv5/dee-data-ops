@@ -29,7 +29,7 @@ D-DEE v1 has exactly five sources — two ingested via custom Python, three via 
 |------------|---------------------------------------------------|------------------|------------------------------------------------------------------------------------|
 | GHL        | Python extractor + Cloud Run Jobs                 | `raw_ghl`        | Primary CRM; identity-spine anchor. Hot (1-min) + cold (15-min). Track W.         |
 | Calendly   | Python extractor + Cloud Run Job (1-min cadence)  | `raw_calendly`   | Replaced Fivetran connector (Track X, 2026-04-22). Fivetran paused, not deleted.  |
-| Fanbasis   | Python extractor + GitHub Actions                 | `raw_fanbasis`   | **Week-0 deferred** — scoped but not wired in v1 cut                               |
+| Fanbasis   | Cloud Run Flask service (`bq-ingest`)             | `Raw.fanbasis_transactions_txn_raw` | Custom poller in `services/bq-ingest/sources/fanbasis/` (consolidated 2026-04-28, PR #102). The original v1 GHA skeleton at `1-raw-landing/fanbasis/` is retired (tombstone README). |
 | Typeform   | Fivetran managed connector                        | `raw_typeform`   | No repo-local extractor; managed in Fivetran UI                                    |
 | Stripe     | Fivetran managed connector                        | `raw_stripe`     | No repo-local extractor; managed in Fivetran UI                                    |
 
@@ -52,9 +52,7 @@ Fivetran-managed sources follow the **same raw-dataset contract** (`raw_<source>
 │   ├── README.md               # per-source doc index
 │   └── requirements.txt        # pinned Python deps
 └── fanbasis/
-    ├── extract.py
-    ├── README.md
-    └── requirements.txt
+    └── README.md               # tombstone — extractor moved to services/bq-ingest/sources/fanbasis/
 ```
 
 One source = one `1-raw-landing/<source>/` directory. Do not split a single source across multiple packages.

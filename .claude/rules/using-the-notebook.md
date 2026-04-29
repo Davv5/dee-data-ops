@@ -38,6 +38,27 @@ When a rule or model is informed by the corpus, embed the source title in the fi
   (source: "Metabase Self-Hosted Operations Guide", Metabase Craft notebook)
 ```
 
+### Corpus citation vs empirical anchor — two distinct grounding styles
+
+A rule can be grounded in two different kinds of source. Use the format that matches:
+
+- **Corpus citation** (the form above) — when the source is a NotebookLM notebook entry. Embed the title and tag the notebook. Tells the reader "this rule is methodology-grounded; verify against the corpus if you doubt it."
+- **Empirical anchor** — when the source is an in-repo incident, a PR review, a bug, or a specific session's lesson. Use the form `**Empirical anchor (YYYY-MM-DD).** <one-paragraph narrative of what happened, what failed, what cost was paid>`. Tells the reader "this rule was paid for in real failure; the cost is recoverable in the linked PR / WORKLOG entry."
+
+Both can coexist in the same rule when the principle is corpus-grounded *and* the specific shape was sharpened by an incident:
+
+```markdown
+> **`QUALIFY ROW_NUMBER() OVER (...) = 1` in staging is a code smell.**
+> (source: "[AE] The Order in which I Model Data" — Joshua Kim, Medium "last tip")
+
+**Empirical anchor (2026-04-19).** The mart-naming incident — three rollups
+named with non-corpus-canonical suffixes — caused the rule to be split out
+of `data-modeling-process.md` into its own `mart-naming.md` after the corpus
+sharpened a directionally-right naming intuition.
+```
+
+Don't substitute one for the other. Empirical anchors without corpus citation drift toward "things we said once"; corpus citations without empirical anchors are easy to ignore under deadline pressure.
+
 ## Adding a new methodology notebook
 
 When a new craft area becomes relevant (e.g., "dlthub" for ingestion, "great-expectations" for DQ), add an entry to `methodology:` in `.claude/corpus.yaml`:

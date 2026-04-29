@@ -14,7 +14,7 @@ origin: conversation on 2026-04-26 (no prior requirements doc; brief was given i
 If you're opening this plan in a new Claude session, do these in order **before touching anything**:
 
 1. Read `CLAUDE.md` (repo conventions) and `.claude/state/project-state.md` for the current snapshot.
-2. Confirm auto-loaded memory includes `feedback_ship_over_ceremony.md` and `feedback_maximum_safe_speed.md`. This work is **Phase A docs/methodology investment** — direct main-session execution, no plan-architect/track-executor pipeline.
+2. Confirm auto-loaded memory includes `feedback_multi_agent_orchestration.md` (supersedes `feedback_ship_over_ceremony.md` 2026-04-27) and `feedback_maximum_safe_speed.md`. Multi-agent pipelines are leverage when fanning out independent work; main-session execution remains the default for solo build steps.
 3. Read this plan in full — especially **Key Technical Decisions**, **High-Level Technical Design**, and **Phased Delivery**.
 4. Skim the upstream architecture this plan is modeled on: `~/.claude/plugins/cache/last30days-skill/last30days/3.1.0/scripts/lib/{pipeline,planner,fusion,rerank}.py`. The patterns ported here are taken from those files.
 5. Confirm which unit you're executing. Default: the next unchecked `- [ ]` in Implementation Units order.

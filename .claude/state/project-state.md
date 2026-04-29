@@ -9,7 +9,7 @@ WORKLOG.md is the append-only audit log; grep it for history.
 
 # D-DEE Data Ops — present-moment snapshot
 
-_Last regenerated: 2026-04-28 night (post-Step-4 deploy: bq-ingest now serves from `services/bq-ingest/`)._
+_Last regenerated: 2026-04-28 late-night (post-reconciliation-sweep: 7 stale plan/scope/rule artifacts retired, new `pivot-discipline.md` rule added)._
 
 ## Where we are
 
@@ -34,9 +34,9 @@ _Last regenerated: 2026-04-28 night (post-Step-4 deploy: bq-ingest now serves fr
 
 ## Last 3 decisions
 
-- **2026-04-28 night (latest)** — Step 4 deploy complete. New revision `bq-ingest-00085-qar` serves 100% traffic from `services/bq-ingest/`. Used `--no-traffic --tag step4` for the parity check (byte-equal /routes + /), then promoted with `update-traffic --to-revisions=...=100`. Old revision retained at 0% for rollback. Confirmed `calendly-invitee-drain` Job was already failing daily for 5 days pre-deploy (latent dispatch bug, not move-induced).
+- **2026-04-28 late-night (latest)** — Reconciliation sweep + `pivot-discipline.md` rule. Closed 7 stale plan-debt artifacts caused by un-walked pivots: retired `1-raw-landing/fanbasis/` skeleton (tombstone README pointing at `services/bq-ingest/sources/fanbasis/`); updated `ingest.md` v1 inventory; refreshed `CLAUDE.local.md` to reflect dabi as BI direction + Stripe-banned + Fanbasis live; added FROZEN banner to archived V1 scope; stripped Grok-in-loop from `2026-04-24-strategic-reset.md`; updated GTM source-port plan paused-banner. New rule `.claude/rules/pivot-discipline.md` requires same-session walk of superseded docs when a pivot memory is saved.
+- **2026-04-28 night** — Step 4 deploy complete. New revision `bq-ingest-00085-qar` serves 100% traffic from `services/bq-ingest/`. Used `--no-traffic --tag step4` for the parity check (byte-equal /routes + /), then promoted with `update-traffic --to-revisions=...=100`. Old revision retained at 0% for rollback. Confirmed `calendly-invitee-drain` Job was already failing daily for 5 days pre-deploy (latent dispatch bug, not move-induced).
 - **2026-04-28 night** — PR #104 merged (Step 3 pointer updates). Two parallel reviewers found 6 issues; 5 fixed, 2 deferred to a post-Step-4 cleanup window with rationale. New `.claude/rules/bq-ingest.md` ports the two facts from dropped per-source CLAUDE.md files.
-- **2026-04-28 evening** — PR #102 merged (Step 2 code move, 91 net files). Adversarial review dropped 9 per-source `CLAUDE.md` files; round-2 confirmed and surfaced the Step 3 + Step 4 punch lists.
 
 ## Open threads
 
@@ -48,6 +48,7 @@ _Last regenerated: 2026-04-28 night (post-Step-4 deploy: bq-ingest now serves fr
 - **Vestigial Cloud Run Jobs** (`ghl-incremental-v2`, `calendly-incremental-v2`, `ghl-backfill-v2`) — not invoked by active schedulers; produce false signals. Delete or label.
 - **Pre-existing stale PRs in dee-data-ops:** #50 + #44 (Metabase, both predate dabi pivot). Close or evaluate.
 - **Float64-for-money tech debt (Fanbasis)** — `stg_fanbasis__transactions` and `stg_fanbasis__refunds` cast amounts to `float64`; should be `numeric`. PR #92's parity test absorbs the drift via $0.01 tolerance for now.
+- **`fct_calls_booked` SK gaps** — `assigned_user_sk` + `pipeline_stage_sk` are still hardcoded `cast(null as string)` at `2-dbt/models/warehouse/facts/fct_calls_booked.sql:70-71`. The `opportunities` + `pipeline_stages` CTEs are defined but unused; the join axis (`stg_calendly__event_invitees.invitee_email_norm`) DOES now exist (`contact_sk` resolves through it). Backlogged data-modeling work; matters when SDR/AE attribution slices ship.
 - **GHL trusted-copy decision** — single named blocker for several Tier B / refresh marts.
 - **GCP IAM hygiene (cosmetic, not blocking).** ADC via `dev_local` / `ci_local` is the working path; SA key for consolidated project still unprovisioned.
 - **Fathom → GHL contact join key** — attendee email reliability. Affects future `fct_calls_held`.
@@ -82,9 +83,11 @@ _Last regenerated: 2026-04-28 night (post-Step-4 deploy: bq-ingest now serves fr
 - **Engagement context / locked metric:** `CLAUDE.local.md` (gitignored overlay)
 - **Portable conventions:** `CLAUDE.md` + `.claude/rules/*.md`
 - **Routing rule for end-of-session:** `.claude/rules/worklog.md`
+- **Pivot-discipline rule (new 2026-04-28):** `.claude/rules/pivot-discipline.md` — required walk of superseded docs when a strategic-pivot memory is saved
 - **Full history:** `grep -n "^## " WORKLOG.md`
 
 ## _meta
 
-- Last regen: 2026-04-28 night (post-Step-4 deploy).
-- WORKLOG: appending one entry. Step 4 was a production deploy with no code diff — Cloud Run revision history is part of the audit log but the *narrative* (parity-check evidence, decision to defer the brand-string flip, latent calendly_invitee_drain bug confirmed pre-existing) belongs in WORKLOG since no PR description carries it.
+- Last regen: 2026-04-28 late-night (post-reconciliation-sweep + new `pivot-discipline.md` rule).
+- WORKLOG: skipped for this session — the reconciliation PR description will carry the narrative (which 7 artifacts were retired, why, and how the new rule prevents recurrence). Per `.claude/rules/worklog.md` routing table: PR description captures shipped work; the rule file captures the convention; both replace a WORKLOG entry. Skip-reason recorded here.
+- Earlier _meta entry (Step 4 deploy): the prior regen captured Step 4 production-deploy narrative — that entry's WORKLOG note was correctly appended at session end.

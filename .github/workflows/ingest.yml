@@ -1,9 +1,12 @@
-# Ingestion workflow for sources not covered by Fivetran.
+# Manual GHL emergency-backstop ingest workflow.
 #
-# Track W (2026-04-22): GHL ingest has moved to Cloud Run Jobs + Cloud Scheduler
-# for sub-5-min freshness. The scheduled cron for GHL is DISABLED here.
-# GHL still runs via workflow_dispatch for manual backfills.
-# Fanbasis cron (week-0-deferred) is unchanged.
+# Track W (2026-04-22): GHL ingest moved to Cloud Run Jobs + Cloud Scheduler
+# for sub-5-min freshness. This workflow is retained as the manual-dispatch
+# emergency backstop — flip to it if Cloud Scheduler is paused / Cloud Run Jobs
+# are degraded. No `schedule:` trigger — the cron used to fire only Fanbasis,
+# and Fanbasis ingestion was consolidated into `services/bq-ingest/` (PR #102,
+# 2026-04-28). See `1-raw-landing/fanbasis/README.md` (tombstone) for the
+# new location.
 #
 # Secrets model (post Track J Secret Manager migration, 2026-04-20):
 #
@@ -15,22 +18,17 @@
 #   (secrets.GCP_SA_KEY) must hold `roles/secretmanager.secretAccessor` on
 #   both secrets.
 #
-#   Remaining GitHub repo secrets (Settings → Secrets → Actions):
+#   Remaining GitHub repo secret (Settings → Secrets → Actions):
 #     GCP_SA_KEY        — JSON keyfile for the ingest/deploy service account (NOT base64; paste the raw JSON)
-#     FANBASIS_API_KEY  — Fanbasis API token (week-0-deferred source; migration to SM scoped separately)
 #
-# Rollback path: to revert GHL to GHA cron, restore the `schedule:` block
-# below and revert the `if:` guard on the Run extractor step. Also pause the
-# Cloud Scheduler jobs: `gcloud scheduler jobs pause ghl-hot --location=us-central1`
+# Rollback path: to revert GHL to GHA cron, restore a `schedule:` block here
+# and pause the Cloud Scheduler jobs:
+# `gcloud scheduler jobs pause ghl-hot --location=us-central1`.
 # See 1-raw-landing/deploy/ghl-extractor/terraform/README.md for full rollback steps.
 
 name: Ingest
 
 on:
-  # Fanbasis only: daily at 06:00 UTC (≈02:00 ET).
-  # GHL removed from schedule: Track W moved GHL to Cloud Run Jobs + Cloud Scheduler.
-  schedule:
-    - cron: '0 6 * * *'
   workflow_dispatch:
 
 permissions:
@@ -47,7 +45,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        source: [ghl, fanbasis]
+        # Do NOT re-add `fanbasis` here — Fanbasis ingestion was consolidated
+        # into `services/bq-ingest/sources/fanbasis/` on 2026-04-28 (PR #102).
+        # See `1-raw-landing/fanbasis/README.md` (tombstone) for the new home.
+        source: [ghl]
 
     env:
       GCP_PROJECT_ID_DEV: dee-data-ops
@@ -55,7 +56,6 @@ jobs:
       # Secret Manager (via _load_secret in 1-raw-landing/ghl/extract.py) rather
       # than read from env vars. Unset in local dev so .env values apply.
       GCP_SECRET_MANAGER_PROJECT: dee-data-ops-prod
-      FANBASIS_API_KEY: ${{ secrets.FANBASIS_API_KEY }}
 
     steps:
       - uses: actions/checkout@v4
@@ -76,11 +76,8 @@ jobs:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
 
       - name: Run extractor
-        # Track W: GHL cron is handled by Cloud Run Jobs + Cloud Scheduler.
-        # On the daily 06:00 UTC schedule this step skips GHL (schedule runs
-        # Fanbasis only). GHL still runs when triggered by workflow_dispatch
-        # (manual backfill / emergency path).
-        if: matrix.source != 'ghl' || github.event_name == 'workflow_dispatch'
+        # Track W: GHL production cron runs on Cloud Run Jobs + Cloud Scheduler.
+        # This step is the workflow_dispatch-only emergency backstop.
         run: python 1-raw-landing/${{ matrix.source }}/extract.py
 
       - name: Slack notify on failure

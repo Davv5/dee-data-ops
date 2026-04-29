@@ -46,6 +46,11 @@
             "command": "\"/Users/david/Documents/agent-kit/hooks/post-sql-qa-baseline.sh\"",
             "timeout": 30,
             "async": true
+          },
+          {
+            "type": "command",
+            "command": "\"/Users/david/Documents/data ops/.claude/scripts/post-pivot-memory-reminder.sh\"",
+            "timeout": 10
           }
         ]
       }
