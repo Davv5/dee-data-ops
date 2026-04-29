@@ -16,31 +16,43 @@ clean-targets:
   - "logs"
 
 # Layer-level configs. Schema assignments are routed through the
-# generate_schema_name macro: prod → these names as-is (staging/warehouse/marts
-# inside project-41542e21-470f-4589-96d, post-U2 retarget 2026-04-23);
-# dev/ci → consolidated into target.schema (dev_<user> or ci).
+# generate_schema_name macro: prod → these names as-is, dev/ci →
+# consolidated into target.schema (dev_<user> or ci).
+#
+# Y1 cutover (2026-04-29): schema names capitalized to match the
+# consolidated project's actual datasets (STG, Core, Marts) — pre-existing
+# from bq-ingest's marts.sql / Core SQL writers. dbt-built tables coexist
+# in these datasets alongside bq-ingest-written tables (different table
+# names, no conflict).
 models:
   dee_data_ops:
     staging:
       +materialized: view
-      +schema: staging
+      +schema: STG
     warehouse:
       +materialized: table
-      +schema: warehouse
+      +schema: Core
       dimensions:
-        +schema: warehouse
+        +schema: Core
       facts:
-        +schema: warehouse
+        +schema: Core
       bridges:
-        +schema: warehouse
+        +schema: Core
     marts:
       +materialized: table
-      +schema: marts
+      +schema: Marts
 
 seeds:
   dee_data_ops:
-    +schema: staging
+    +schema: STG
     ghl_sdr_roster:
       +quote_columns: false
     validation:
-      +schema: validation
+      +schema: STG
+
+# Snapshots route to Core (the warehouse dataset) — SCD-Type-2 dim
+# snapshots like `dim_ghl_users_scd2` already live there, so dbt
+# snapshots are consistent with the existing convention.
+snapshots:
+  dee_data_ops:
+    +target_schema: Core
