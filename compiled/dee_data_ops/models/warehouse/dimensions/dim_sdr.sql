@@ -35,7 +35,7 @@ snapshot_history as (
         user_id,
         dbt_valid_from                                          as active_from,
         dbt_valid_to                                            as active_to
-    from `project-41542e21-470f-4589-96d`.`snapshots`.`dim_users_snapshot`
+    from `project-41542e21-470f-4589-96d`.`Core`.`dim_users_snapshot`
 
 ),
 
