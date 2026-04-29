@@ -4,10 +4,12 @@ name: Publish dbt docs
 # then publishes 2-dbt/target/ to the gh-pages branch. Served at
 # https://davv5.github.io/dee-data-ops/ (GitHub Pages source: gh-pages root).
 #
-# Auth model: GCP_SA_KEY_PROD is the prod-read-only SA keyfile. Docs
-# generation only executes read metadata queries (`dbt docs generate`
-# compiles the manifest + catalog from information_schema), so the SA does
-# not need write grants.
+# Auth model: Workload Identity Federation (WIF) to
+# `sa-transform@project-41542e21-470f-4589-96d.iam.gserviceaccount.com`.
+# Docs generation only executes read metadata queries
+# (`dbt docs generate` compiles the manifest + catalog from
+# information_schema). Migrated from `credentials_json` 2026-04-29 with
+# the prod auth cutover.
 
 on:
   push:
@@ -17,6 +19,7 @@ on:
 
 permissions:
   contents: write  # peaceiris/actions-gh-pages pushes to gh-pages
+  id-token: write  # for google-github-actions/auth WIF
 
 concurrency:
   group: dbt-docs
@@ -36,10 +39,11 @@ jobs:
       - name: Install deps
         run: pip install -r requirements.txt
 
-      - name: Authenticate to GCP
+      - name: Authenticate to GCP (via WIF)
         uses: google-github-actions/auth@v2
         with:
-          credentials_json: ${{ secrets.GCP_SA_KEY_PROD }}
+          workload_identity_provider: projects/535993952532/locations/global/workloadIdentityPools/github-actions/providers/github-oidc
+          service_account: sa-transform@project-41542e21-470f-4589-96d.iam.gserviceaccount.com
 
       - name: dbt deps
         working-directory: 2-dbt
