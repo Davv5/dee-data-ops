@@ -22,13 +22,8 @@ _Last regenerated: 2026-04-29 morning (post-PR-#107/#108 deploy + cleanup-PR #11
 - **Phase B layer-build still on main** (PRs #84/#86/#88/#90/#92): Fanbasis staging, identity-contact-payment bridge, payments/refunds rename, revenue_detail net-of-refunds. Local-CI tooling (PRs #94/#95) remains the dev-loop bypass.
 - **`ask-corpus` v2 engine** lives on main (PR #74).
 - **Foundation intact (do not rebuild):** BigQuery + dbt + 15 staging models + `(id, _ingested_at, payload)` raw-landing discipline.
+- **bq-ingest consolidation Steps 1–4 shipped** (`docs/plans/2026-04-28-bq-ingest-consolidation-plan.md`); Steps 5/6 in Open threads. **Methodology corpus engine v2** is on main (11/13 units shipped, `docs/plans/2026-04-26-001-feat-corpus-research-engine-plan.md`). **GTM source-port plan paused** (`docs/plans/2026-04-23-001-feat-gtm-source-port-plan.md`) — U4a+ resumes when GHL trusted-copy decision lands.
 - **Headline metric (locked 2026-04-19):** unchanged.
-
-## Active plans
-
-- **bq-ingest consolidation:** `docs/plans/2026-04-28-bq-ingest-consolidation-plan.md` — Steps 1–4 shipped. **Next: Step 5 (optional Cloud Build trigger watching `services/bq-ingest/**`).** Step 6 (archive `heidyforero1/gtm-lead-warehouse` + delete stale local clones) waits ~several days of clean operation.
-- **Methodology (on main):** `docs/plans/2026-04-26-001-feat-corpus-research-engine-plan.md` — corpus engine v2; 11/13 active units shipped.
-- **Paused (cutover):** `docs/plans/2026-04-23-001-feat-gtm-source-port-plan.md` — U4a+ resumes when GHL trusted-copy decision lands.
 
 ## Last 3 decisions
 
@@ -44,7 +39,7 @@ _Last regenerated: 2026-04-29 morning (post-PR-#107/#108 deploy + cleanup-PR #11
 - **Step 6 (after a few days of clean operation)** — archive `heidyforero1/gtm-lead-warehouse` + delete stale local clones at `~/Documents/{fanbasis-ingest,gtm,gtm-lead-warehouse}`.
 - **bq-ingest pre-existing deferred follow-ups (per audit §"Deferred follow-ups"):** Cloud Run Jobs image rebuild path, `1-raw-landing/` consolidation, secret hygiene (pin all to versions, rename `Secret`), orphan SQL audit (5 spec-only files), services/ polyrepo precedent.
 - **Snapshot architecture follow-ups:** (a) extend `Core.fct_ghl_opportunities` upstream to surface `assigned_to_user_id`; (b) once `Core.fct_pipeline_stage_snapshots` has ≥2 daily partitions, swap GHL freshness signal from `MAX(_ingested_at)` to `MAX(snapshot_date)`.
-- **Calendly drain follow-ups (deferred from PR #110 review):** advisory lock on concurrent drain Jobs (operator manual + scheduled trigger can race); `mode` column on `calendly_backfill_state` to distinguish backfill vs incremental run_ids (the 30-min quiescence guard mitigates but doesn't eliminate the incremental race).
+- **Calendly drain follow-ups (deferred from PR #110 review):** (a) advisory lock on concurrent drain Jobs — operator manual + scheduled trigger can race on the same run_id; (b) `mode` column on `calendly_backfill_state` to distinguish backfill (3hr Job timeout) vs hourly-incremental (60min request timeout) run_ids — the 60-min quiescence guard closes the hourly race but backfills with invitee fan-out >60min still race; (c) FAILED runs are silently abandoned by `_find_drainable_run_id` (filters `status IN ('PENDING','RUNNING')` only) — needs an explicit re-discovery path or operator alert.
 - **Vestigial Cloud Run Jobs** (`ghl-incremental-v2`, `calendly-incremental-v2`, `ghl-backfill-v2`) — not invoked by active schedulers; produce false signals. Delete or label.
 - **Pre-existing stale PRs in dee-data-ops:** #50 + #44 (Metabase, both predate dabi pivot). Close or evaluate.
 - **Float64-for-money tech debt (Fanbasis)** — `stg_fanbasis__transactions` and `stg_fanbasis__refunds` cast amounts to `float64`; should be `numeric`.

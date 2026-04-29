@@ -15,18 +15,23 @@ from sources.calendly.calendly_pipeline import (
 )
 
 # Quiescence window: a scheduled_events row that JUST flipped to COMPLETED may
-# still belong to a parent process winding down post-completion (e.g. emitting
-# its final invitee writes). Excluding rows whose updated_at is within this
-# window prevents the drain from racing the live parent. Also excludes the
-# hourly /ingest-calendly path: at the end of an hourly cycle scheduled_events
-# is COMPLETED but invitee fan-out may still be in progress in the same
-# request — the drain should let it finish naturally.
-_QUIESCENCE_INTERVAL_MINUTES = 30
+# still belong to a parent process winding down post-completion (the hourly
+# /ingest-calendly path writes scheduled_events=COMPLETED while invitee
+# fan-out is still in progress in the same request). 60 min covers Cloud
+# Run's max HTTP request timeout, closing the hourly race.
+#
+# Backfill Cloud Run Jobs (timeout_seconds=10800 / 3hr) can still race the
+# drain after invitee fan-out exceeds 60 min post-COMPLETED. Mitigation for
+# that path is the `mode` column on calendly_backfill_state — tracked in
+# project-state Open threads as a follow-up; the current 60-min guard is
+# the right tradeoff for daily-cadence drain operation.
+_QUIESCENCE_INTERVAL_MINUTES = 60
 
 
 def _find_drainable_run_id() -> Optional[str]:
     """Find the oldest run_id whose scheduled_events backfill COMPLETED at
-    least 30 minutes ago, but whose invitee work is still PENDING/RUNNING.
+    least _QUIESCENCE_INTERVAL_MINUTES ago, but whose invitee work is still
+    PENDING/RUNNING.
 
     Returns None when there is nothing to drain. The drain Job is meant to
     clean up stuck invitee work from a *prior* run, so it is a no-op when no
@@ -40,10 +45,11 @@ def _find_drainable_run_id() -> Optional[str]:
     drain would race the live parent, and (b) FAILED/PARTIAL_FAILED runs
     typically need operator attention, not auto-drain.
 
-    Quiescence guard: scheduled_events.updated_at must be older than 30 min.
-    Closes the race with the hourly /ingest-calendly path which writes
-    scheduled_events=COMPLETED at end-of-cycle while invitee fan-out may
-    still be running in the same request.
+    Quiescence guard: scheduled_events.updated_at must be older than
+    _QUIESCENCE_INTERVAL_MINUTES. Closes the race with the hourly
+    /ingest-calendly path which writes scheduled_events=COMPLETED at
+    end-of-cycle while invitee fan-out may still be running in the same
+    request.
 
     Orders ASC by scheduled_done_at so the oldest backlog drains first. Daily
     cadence + LIMIT 1 means each invocation drains one run_id; FIFO order
@@ -86,22 +92,30 @@ def _find_drainable_run_id() -> Optional[str]:
     return rows[0]["run_id"]
 
 
-def _validate_explicit_run_id(run_id: str) -> None:
-    """Verify an operator-supplied run_id has terminal scheduled_events AND
-    pending invitees before handing off to run_invitee_drain.
+def _validate_explicit_run_id(run_id: str) -> bool:
+    """Verify an operator-supplied run_id is safe to drain.
 
-    Without this check, a typo'd or non-existent run_id causes a 3-hour
-    Cloud-Run-timeout (the very failure mode the discovery path was designed
-    to prevent — see _find_drainable_run_id docstring). Worse, run_invitee_drain
-    unconditionally writes RUNNING state at calendly_pipeline.py:2148 before
-    checking scheduled state, so the next discovery query then re-finds the
-    bogus run_id.
+    Returns True when there is work to drain (caller should proceed),
+    False when the run_id is COMPLETED with no pending invitees (caller
+    should no-op cleanly — same exit as the discovery path).
+
+    Raises RuntimeError when the run_id config is invalid (no state, or
+    scheduled_events not COMPLETED). Without this check, a typo'd or
+    non-existent run_id causes a 3-hour Cloud-Run-timeout — the very
+    failure mode the discovery path was designed to prevent.
+
+    Operator-recovery note: returning False (rather than raising) when
+    invitee state is empty preserves the manual-state-clear escape hatch.
+    Operators may DELETE FROM ... WHERE run_id=? to clear corrupt state
+    and re-trigger; this validator should not punish that recovery path
+    with an error when the cleanup left valid (COMPLETED, no-pending) state.
     """
     query = f"""
     WITH scheduled AS (
-      SELECT status, updated_at
+      SELECT status
       FROM `{PROJECT_ID}.{DATASET}.{CALENDLY_STATE_TABLE}`
       WHERE run_id = @run_id AND entity_type = 'scheduled_events'
+      LIMIT 1
     ),
     invitees AS (
       SELECT
@@ -134,20 +148,23 @@ def _validate_explicit_run_id(run_id: str) -> None:
             f"explicit run_id {run_id!r} has scheduled_events.status="
             f"{scheduled_status!r} (expected 'COMPLETED') — refusing to drain"
         )
-    if pending_count == 0:
-        raise RuntimeError(
-            f"explicit run_id {run_id!r} has no PENDING/RUNNING invitees — nothing to drain"
-        )
+    return pending_count > 0
 
 
-def main() -> int:
+def main() -> None:
     ensure_tables()
 
     explicit_run_id = os.getenv("CALENDLY_INVITEE_DRAIN_RUN_ID")
     run_models_after = os.getenv("CALENDLY_RUN_MODELS_AFTER", "false").lower() == "true"
 
     if explicit_run_id:
-        _validate_explicit_run_id(explicit_run_id)
+        has_work = _validate_explicit_run_id(explicit_run_id)
+        if not has_work:
+            print(
+                "calendly-invitee-drain: outcome=no_op "
+                f"reason=explicit_run_id_completed_no_pending run_id={explicit_run_id}"
+            )
+            return
         run_id = explicit_run_id
         print(f"calendly-invitee-drain: outcome=using_explicit run_id={run_id}")
     else:
@@ -157,7 +174,7 @@ def main() -> int:
                 "calendly-invitee-drain: outcome=no_op "
                 "reason=no_quiescent_completed_run_with_pending_invitees"
             )
-            return 0
+            return
         run_id = discovered
         print(f"calendly-invitee-drain: outcome=discovered run_id={run_id}")
 
@@ -171,24 +188,40 @@ def main() -> int:
         run_models_after=run_models_after,
     )
 
-    final_status = result.get("status", "UNKNOWN")
+    # run_invitee_drain returns nested status — there is no top-level
+    # 'status' key. The terminal invitee status sits at
+    # result['results']['event_invitees']['status']; the parent backfill's
+    # status sits at result['scheduled_status']. Both must be COMPLETED for
+    # the run to be considered fully successful.
+    invitee_result = result.get("results", {}).get("event_invitees", {}) or {}
+    invitee_status = invitee_result.get("status", "UNKNOWN")
+    scheduled_status = result.get("scheduled_status", "UNKNOWN")
+
     print(
         "calendly-invitee-drain: outcome=drained "
         f"run_id={run_id} "
-        f"status={final_status} "
-        f"pages_processed={result.get('pages_processed')} "
-        f"rows_upserted={result.get('rows_upserted')} "
-        f"failed_events={result.get('failed_events')}"
+        f"scheduled_status={scheduled_status} "
+        f"invitee_status={invitee_status} "
+        f"pages_processed={invitee_result.get('pages_processed')} "
+        f"rows_upserted={invitee_result.get('rows_upserted')} "
+        f"failed_events={invitee_result.get('failed_events')}"
     )
 
-    # Cloud Run Jobs alerting keys off exit code, not stdout. Non-COMPLETED
-    # outcomes (PARTIAL_FAILED, PAUSED_LIMIT_REACHED) signal stuck or
-    # incomplete work that needs operator attention; surface them as exit 1
-    # so monitoring can fire instead of treating the Job as green.
-    if final_status != "COMPLETED":
-        return 1
-    return 0
+    # Cloud Run Jobs alerting via the runner CLI dispatch path keys off
+    # whether `run_task_safe` caught an exception (ok=False), NOT off main()'s
+    # return value (the int return is wrapped into payload['result'] and
+    # discarded). So non-COMPLETED outcomes must RAISE, not return non-zero,
+    # to surface as Job failures. The script-direct path
+    # (`if __name__ == '__main__': sys.exit(main())`) also propagates the
+    # exception → sys.exit traceback → exit 1.
+    if invitee_status != "COMPLETED" or scheduled_status != "COMPLETED":
+        raise RuntimeError(
+            "calendly-invitee-drain finished with non-COMPLETED status — "
+            f"scheduled_status={scheduled_status!r} "
+            f"invitee_status={invitee_status!r}. "
+            "Operator action required (PARTIAL_FAILED or PAUSED_LIMIT_REACHED)."
+        )
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()
