@@ -67,3 +67,8 @@ logs/
 .claude/corpus.yaml.example
 .worktrees
 .claude/scheduled_tasks.lock
+
+# bq-ingest service runtime artifacts (created by capture_cloud_baseline.sh
+# and validate_marts.sh — operational snapshots, not source)
+services/bq-ingest/ops/cloud/baseline/
+services/bq-ingest/.claude/VALIDATION.md

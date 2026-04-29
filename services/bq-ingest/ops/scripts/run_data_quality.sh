@@ -4,4 +4,4 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
-exec python3 data_quality.py
+exec python3 -m sources.shared.data_quality
