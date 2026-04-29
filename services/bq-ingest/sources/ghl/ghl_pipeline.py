@@ -712,12 +712,19 @@ def fetch_entity_page(
 
     if contacts_incremental:
         # Override payload: POST /contacts/search expects a filters body, not query params.
-        # dateUpdated field name confirmed in /contacts/search response schema.
+        # Operator must be "gt" (not "gte") and value must be epoch milliseconds (int),
+        # not an ISO-8601 string — LeadConnector returns 422 for the documented-but-rejected
+        # "gte" form and for ISO string values on date fields. Pattern matches the working
+        # production usage in accounting-qs/compete-iq's GHL client.
         payload_params_base = {
             GHL_LOCATION_PARAM: GHL_LOCATION_ID,
             "pageLimit": GHL_PAGE_LIMIT,
             "filters": [
-                {"field": "dateUpdated", "operator": "gte", "value": updated_after.isoformat()}
+                {
+                    "field": "dateUpdated",
+                    "operator": "gt",
+                    "value": int(updated_after.astimezone(timezone.utc).timestamp() * 1000),
+                }
             ],
             "sort": [{"field": "dateUpdated", "direction": "asc"}],
         }
