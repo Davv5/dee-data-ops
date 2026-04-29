@@ -11,15 +11,12 @@
 # manifest is uploaded to an artifact store, a follow-up PR can switch
 # this to `--select state:modified+ --defer` for faster deploys.
 #
-# Required repo secrets:
-#   GCP_SA_KEY_PROD — JSON keyfile for the prod service account
-#                     (project: project-41542e21-470f-4589-96d, post-U2
-#                     consolidation 2026-04-23). Needs BigQuery Data Editor
-#                     on staging/warehouse/marts datasets and BigQuery
-#                     Job User on the project. The `_PROD` suffix names
-#                     the deploy lane, not a distinct GCP project —
-#                     dev/ci/prod now share one GCP project during the
-#                     post-U2 transition.
+# Authenticates via Workload Identity Federation (WIF) to
+# `sa-transform@project-41542e21-470f-4589-96d.iam.gserviceaccount.com`
+# (post-U2 consolidation 2026-04-23). The SA holds BigQuery Data Editor
+# + Job User + User on the consolidated project. The legacy
+# `GCP_SA_KEY_PROD` secret is being decommissioned in the same cutover
+# (2026-04-29); see `.claude/rules/operational-health.md` for narrative.
 
 name: dbt Deploy (prod)
 
@@ -59,11 +56,12 @@ jobs:
       - name: Install deps
         run: pip install -r requirements.txt
 
-      - name: Authenticate to GCP (prod)
+      - name: Authenticate to GCP (prod, via WIF)
         id: auth
         uses: google-github-actions/auth@v2
         with:
-          credentials_json: ${{ secrets.GCP_SA_KEY_PROD }}
+          workload_identity_provider: projects/535993952532/locations/global/workloadIdentityPools/github-actions/providers/github-oidc
+          service_account: sa-transform@project-41542e21-470f-4589-96d.iam.gserviceaccount.com
 
       - name: dbt deps
         env:

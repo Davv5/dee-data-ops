@@ -10,8 +10,13 @@
 #
 # Also exposed via workflow_dispatch for on-demand reruns.
 #
-# Required repo secrets:
-#   GCP_SA_KEY_PROD — same prod service-account keyfile as dbt-deploy.yml
+# Authenticates via Workload Identity Federation (WIF) to
+# `sa-transform@project-41542e21-470f-4589-96d.iam.gserviceaccount.com`.
+# No SA keys; the org policy
+# `constraints/iam.disableServiceAccountKeyCreation` blocks key
+# creation by design. The pool/provider live in the consolidated
+# project — see `.claude/rules/operational-health.md` for the cutover
+# narrative (2026-04-29).
 
 name: dbt Nightly
 
@@ -45,11 +50,12 @@ jobs:
       - name: Install deps
         run: pip install -r requirements.txt
 
-      - name: Authenticate to GCP (prod)
+      - name: Authenticate to GCP (prod, via WIF)
         id: auth
         uses: google-github-actions/auth@v2
         with:
-          credentials_json: ${{ secrets.GCP_SA_KEY_PROD }}
+          workload_identity_provider: projects/535993952532/locations/global/workloadIdentityPools/github-actions/providers/github-oidc
+          service_account: sa-transform@project-41542e21-470f-4589-96d.iam.gserviceaccount.com
 
       - name: dbt deps
         env:
