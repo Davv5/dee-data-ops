@@ -4,20 +4,15 @@ Daily ops, incident response, backfills, validation gates. Written for the sole 
 
 **Python version note:** the service pins `3.13` in `.python-version`, while the rest of the dee-data-ops repo (root `pyproject.toml`, `AGENTS.md`) targets `py311`. The split is intentional — GCP Cloud Run universal builder `universal_builder_20260414_RC00` dropped 3.11, so bq-ingest's Buildpack deploys must use 3.13. See `.claude/rules/operational-health.md` for the originating incident. The dbt project under `2-dbt/` and the `1-raw-landing/` extractors stay on 3.11 since they don't deploy via Cloud Run.
 
-**Heritage:** this code was consolidated from `heidyforero1/gtm-lead-warehouse` into `services/bq-ingest/` per `docs/plans/2026-04-28-bq-ingest-consolidation-plan.md` (PR #102). **Several sections below carry stale guidance from the original repo** that has not yet been rewritten:
-
-- **BI surface (core rule #3, "Looker Studio operations" section).** The repo's actual BI direction is dabi (per memory `project_bi_direction_dabi.md` and `CLAUDE.local.md`); Metabase retired post-cutover; Looker Studio was never adopted. Treat the Looker references as historical until rewritten.
-- **`dbt build --target prod` references (Phase 3 cutover paragraph).** This repo blocks `--target prod` locally via a `.claude/settings.json` hook (per `CLAUDE.md`); production goes through CI on merge to `main`. Do not run `--target prod` locally.
-
-Full rewrite of stale sections is sequenced after Step 4.
+**Heritage:** this code was consolidated from `heidyforero1/gtm-lead-warehouse` into `services/bq-ingest/` per `docs/plans/2026-04-28-bq-ingest-consolidation-plan.md` (PR #102). The consolidated tree is canonical; the original repo is no longer load-bearing.
 
 ## Core rules (non-negotiable)
 
 1. **Safe change order: Raw → Core → Marts.** Never skip steps. Never touch a mart without first refreshing the upstream Core.
 2. **All Python runs in Cloud Run Jobs.** Not local shell. (Dev loops + debug queries are fine locally; production schedules are not.)
-3. **Looker Studio reports read from `Marts` only.** Point charts at `Raw` or wide `Core` only for debugging.
+3. **BI consumers read from `Marts` only.** dabi (the current BI direction — Kim's generative-BI recipe per memory `project_bi_direction_dabi.md`) queries `Marts`. Other consumers (notebooks, ad-hoc analysis) point at `Raw` or wide `Core` only for debugging, never for live deliverables.
 4. **Before any release, the validation gates pass.** See § Validation gates below.
-5. **Never commit directly to `main`.** Always branch → PR → CI → merge.
+5. **Never commit directly to `main`.** Always branch → PR → CI → merge. **Never run `dbt build --target prod` locally** — `.claude/settings.json` hook blocks it; production deploys go through GitHub Actions on merge to `main`.
 
 ## Daily rhythm
 
@@ -63,7 +58,7 @@ ops/scripts/validate_marts.sh                      # Mart-layer schema + cardina
 
 Canonical manifest of what runs where: `ops/cloud/jobs.yaml`.
 
-**Phase 3 cutover:** `run_mart_models.sh` flips from imperative SQL runner to `dbt build --target prod --select marts` — after the 14-day FARM_FINGERPRINT parity window proves the dbt ports are byte-for-byte equivalent. Legacy runner retires only after parity gate passes.
+**Mart refresh path:** `run_mart_models.sh` runs the imperative SQL pipeline at `services/bq-ingest/sql/marts.sql` + `services/bq-ingest/sql/dims/*.sql` via `sources/marts/mart_models.py`. The `2-dbt/` project under the repo root holds the dbt models and runs through CI on merge to `main` (never `--target prod` locally). The two paths coexist and both write into `Marts` — see `.claude/rules/bq-ingest.md` for the refresh-order rule.
 
 ## Incident response
 
@@ -86,17 +81,17 @@ Canonical manifest of what runs where: `ops/cloud/jobs.yaml`.
 
 ### Mart looks wrong
 
-Walk the identity spine. Every mart attribution leak has a named diagnostic — see `ARCHITECTURE.md` § "Known attribution leaks."
+Walk the identity spine. Per-source debug enters via `fct_fanbasis_payment_line.match_status` / `match_method` for payment-grain leaks, `dim_golden_contact.attribution_gap_reason` for lead-grain leaks. Reproduce in BigQuery by filtering one `golden_contact_key` and tracing GHL → Calendly → Fanbasis through the bridge.
 
-### Looker dashboard blank
+### dabi answer is empty / wrong
 
-1. Check `mart_refreshed_at` on the mart powering the dashboard.
+1. Check `mart_refreshed_at` on the mart powering the question.
 2. If stale, force a refresh: `POST /refresh-marts` on `app.py` or `./ops/scripts/run_mart_models.sh`.
-3. If fresh but empty, check Looker's date filter (UTC vs local-time confusion is common).
+3. If fresh but the answer's wrong, reproduce the underlying SQL in BigQuery against the same mart — the issue is upstream (dim mismatch, attribution gap) not a dabi rendering problem. See § "When someone says 'this number is wrong'" above.
 
 ## Backfills
 
-Detailed per-source guidance: `docs/runbooks/BACKFILL_RUNBOOK.md`.
+Per-source extractor runbooks: `docs/runbooks/calendly-cloud-run-extractor.md`, `docs/runbooks/ghl-cloud-run-extractor.md`. Other sources (Fanbasis, Fathom, Typeform) follow the generic Cloud Run Jobs pattern below.
 
 Hot path:
 
@@ -121,13 +116,13 @@ Before adding new matcher methods (new email canonicalization, new phone rule, e
 ./ops/scripts/run_identity_gap_analysis.sh
 ```
 
-Details: `docs/runbooks/IDENTITY_RESOLUTION_RUNBOOK.md`.
+The script writes a coverage report; the `2-dbt/models/warehouse/bridges/` identity-resolution layer is the modeling source of truth.
 
 ## Per-source guardrails
 
-- **Calendly** — `docs/runbooks/CALENDLY_GUARDRAILS.md`. Webhook idempotency, invitee dedupe, object gates, run caps.
-- **GHL comprehensive backfill** — `docs/runbooks/GHL_COMPREHENSIVE_BACKFILL.md`. Multi-entity backfill sequencing (messages, notes, tasks, call logs, forms).
-- **Fathom enrichment lane** — `docs/runbooks/CLOUD_RUN_SETUP.md`. Vertex AI LLM analysis; separate deploy from main ingest lane.
+- **Calendly** — `docs/runbooks/calendly-cloud-run-extractor.md`. Webhook idempotency, invitee dedupe via `_process_invitees_for_backfill_run`, run caps, the daily `calendly-invitee-drain` Cloud Run Job pattern (see also `services/bq-ingest/sources/calendly/calendly_invitee_drain.py`).
+- **GHL comprehensive backfill** — `docs/runbooks/ghl-cloud-run-extractor.md`. Multi-entity backfill sequencing (messages, notes, tasks, call logs, forms); hot/cold split (1-min hot, 15-min cold) per Track W.
+- **Fathom** — core SQL ingestion only. The original gtm-lead-warehouse `enrichment/fathom/` LLM lane (Gemini transcript analysis) was deliberately dropped during consolidation and must NOT be recreated under `services/bq-ingest/`. See `.claude/rules/bq-ingest.md` §"Fathom: core SQL only" for rationale and the sibling-service pattern if LLM enrichment is ever reintroduced.
 
 ## Cloud baseline capture (before destructive ops)
 
@@ -141,36 +136,33 @@ This writes a timestamped snapshot of `gcloud run jobs list`, `gcloud scheduler 
 
 ## Branch + PR workflow
 
-Full detail: `docs/runbooks/PR_WORKFLOW.md`.
-
-Hot path:
-
 ```bash
 git checkout main && git pull origin main
-git checkout -b feature/<short-description>
+git checkout -b <topic-branch>
 # ... make changes ...
 git add <specific files>
 git commit -m "<imperative tense, what changed, why>"
-git push -u origin feature/<short-description>
+git push -u origin <topic-branch>
 gh pr create
 ```
 
-Branch protection on `main`: 1 review required; `ci` status check required (added Phase 4). No direct pushes.
+**Branch protection on `main` is deferred** (per `CLAUDE.local.md`: GitHub Free tier doesn't support branch protection on private personal repos; revisit when CI workflow lands or on Pro upgrade). Discipline is operator-side: no direct pushes to `main`, always go through a PR.
 
 ## Agent execution rules
 
-Full detail: `docs/runbooks/AGENT_EXECUTION_RULES.md`. The two rules you cannot break:
+The two rules you cannot break (also in `CLAUDE.md`):
 
 1. **No `python ingest/<source>/extract.py` from local shell against production BigQuery.** Ingest scripts run in Cloud Run Jobs only.
-2. **No `dbt build --target prod` from local shell.** Production deploys through GitHub Actions only. (Phase 1 adds a `.claude/settings.json` hook that blocks this command pattern.)
+2. **No `dbt build --target prod` from local shell.** Production deploys through GitHub Actions only. The `.claude/settings.json` hook blocks this command pattern.
 
-## Looker Studio operations
+## BI surface notes (dabi)
 
-- Data source: BigQuery, dataset `Marts` (same GCP project as Core).
-- Service account needs `BigQuery Data Viewer` on `Marts` + job user on the project.
-- Prefer pre-built mart tables over blended Looker sources. Business logic goes in SQL, not in Studio calculated fields.
+- Source dataset: BigQuery `Marts` (same GCP project as `Core`).
+- Service account: dabi reads via the project's BI service account; needs `BigQuery Data Viewer` on `Marts` + Job User on the project.
+- Modeling discipline: pre-built mart tables, not generative-time joins. Business logic lives in `services/bq-ingest/sql/marts.sql` + `services/bq-ingest/sql/dims/*.sql` and the `2-dbt/models/marts/` SQL — not in dabi prompts.
+- See memory `project_bi_direction_dabi.md` and `joshua-data.medium.com/generative-bi-en` (Kim's generative-BI recipe) for context.
 
-## Dashboard specs (design-time references)
+## Dashboard specs (design-time references, retained for historical context)
 
 - `docs/dashboards/executive/SPEC.md`
 - `docs/dashboards/marketing/SPEC.md`
