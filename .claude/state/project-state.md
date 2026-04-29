@@ -9,13 +9,13 @@ WORKLOG.md is the append-only audit log; grep it for history.
 
 # D-DEE Data Ops — present-moment snapshot
 
-_Last regenerated: 2026-04-29 mid-day (post PR-#118/#119/#120 merges — GHL contacts 422 fix + pagination fix + Fanbasis money NUMERIC)._
+_Last regenerated: 2026-04-29 mid-day (post PR-#118/#119/#120 merges + bq-ingest redeploy)._
 
 ## Where we are
 
-- **GHL contacts ingest is fixed end-to-end.** PR #118 swapped the `/contacts/search` filter from `gte`+ISO to `gt`+epoch_ms (the 422 cause). PR #119 fixed page-2+ pagination by routing through `searchAfter` array cursoring (matches the verified vendor contract from compete-iq's production client). Both changes verified by `dbt parse` + adversarial review; live proof-of-life is the next hourly Cloud Run Job execution.
-- **Fanbasis money columns are NUMERIC end-to-end** (PR #120). `stg_fanbasis__{transactions,refunds}` cast amounts as NUMERIC; `fct_payments` Stripe arm also flipped to NUMERIC for UNION ALL type-symmetry; `release_gate_revenue_detail` thresholds use `numeric '0.05'` literals. CI dbt build passed; closes the long-standing float64-money tech debt.
-- **`bq-ingest` runs revision `bq-ingest-00087-zah` at 100% traffic** (deployed 2026-04-29 morning). Old `bq-ingest-00085-qar` retained at 0% as rollback. PR #118/#119/#120 changes will deploy on next push.
+- **`bq-ingest` runs revision `bq-ingest-00093-xiv` at 100% traffic.** Deployed 2026-04-29 mid-day from `services/bq-ingest/` after PR #118 + #119 merged; tagged URL `https://pagination-fix---bq-ingest-mjxxki4snq-uc.a.run.app` retained for diagnostic continuity. `/routes` parity check passed byte-equal (22 routes) against prior revision before promotion. Old `bq-ingest-00087-zah` retained at 0% as rollback. **Earlier "fixed end-to-end" claim in the prior regen was premature** — code on main is not the same as live; always redeploy after a behavioral PR (operational-health.md "stale-deploy drift").
+- **GHL contacts ingest fixed in code AND live.** PR #118 swapped the `/contacts/search` filter from `gte`+ISO to `gt`+epoch_ms. PR #119 fixed page-2+ pagination via `searchAfter` array cursoring (matches the vendor contract from compete-iq's production client). Live proof-of-life is the next hourly `ghl-hourly-ingest` execution (HH:20 UTC).
+- **Fanbasis money columns are NUMERIC in code** (PR #120). `stg_fanbasis__{transactions,refunds}` cast amounts as NUMERIC; `fct_payments` Stripe arm also flipped for UNION-ALL type-symmetry; `release_gate_revenue_detail` thresholds use `numeric '0.05'`/`numeric '0.10'` literals. CI dbt build passed; **takes effect on next prod dbt build** (typically nightly).
 - **bq-ingest consolidation Steps 1–4 shipped** (PRs #100/#102/#104 + 2026-04-28 deploy). `dee-data-ops` is the production deploy origin; `gtm-lead-warehouse` is no longer load-bearing.
 - **`bq-ingest` requires authenticated invocation.** `curl -H "Authorization: Bearer $(gcloud auth print-identity-token)" ...`
 - **GHL transition snapshots remain LIVE.** `Core.fct_pipeline_stage_snapshots` compounds daily at 07:00 UTC. First usable transition signal in ~5 days.
@@ -59,7 +59,7 @@ _Last regenerated: 2026-04-29 mid-day (post PR-#118/#119/#120 merges — GHL con
 - **bq-ingest consolidation plan:** `docs/plans/2026-04-28-bq-ingest-consolidation-plan.md`
 - **Operational-health rule:** `.claude/rules/operational-health.md`
 - **bq-ingest source (canonical):** `services/bq-ingest/` in this repo.
-- **bq-ingest production:** Cloud Run service `bq-ingest`, revision `bq-ingest-00087-zah` (deployed 2026-04-29 morning). URL: `https://bq-ingest-mjxxki4snq-uc.a.run.app`. PR #118/#119 (GHL contacts) deploy on next redeploy.
+- **bq-ingest production:** Cloud Run service `bq-ingest`, revision `bq-ingest-00093-xiv` (deployed 2026-04-29 mid-day, includes PR #118 + #119). URL: `https://bq-ingest-mjxxki4snq-uc.a.run.app`. Tagged URL `https://pagination-fix---bq-ingest-mjxxki4snq-uc.a.run.app` resolves to the same revision.
 - **Redeploy command (durable):** `gcloud run deploy bq-ingest --source services/bq-ingest --region us-central1 --project project-41542e21-470f-4589-96d --memory=1024Mi`. Add `--no-traffic --tag <name>` for parity workflows.
 - **Cloud Run Jobs redeploy** (separate image): `cd services/bq-ingest && ops/scripts/deploy_runtime_stack.sh` rebuilds `fanbasis-python-runner:latest` AND updates Jobs from `ops/cloud/jobs.yaml`.
 - **bq-ingest service rules:** `.claude/rules/bq-ingest.md` (path-scoped to `services/bq-ingest/**`).
