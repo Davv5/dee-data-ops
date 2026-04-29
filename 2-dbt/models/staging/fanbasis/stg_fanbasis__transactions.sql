@@ -30,9 +30,9 @@ parsed as (
     select
         cast(json_value(payload_json, '$.id') as string)                                  as payment_id,
 
-        cast(json_value(payload_json, '$.amount') as float64)                             as gross_amount,
-        cast(json_value(payload_json, '$.net_amount') as float64)                         as net_amount,
-        cast(json_value(payload_json, '$.fee_amount') as float64)                         as fee_amount,
+        cast(json_value(payload_json, '$.amount') as numeric)                             as gross_amount,
+        cast(json_value(payload_json, '$.net_amount') as numeric)                         as net_amount,
+        cast(json_value(payload_json, '$.fee_amount') as numeric)                         as fee_amount,
         'usd'                                                                             as currency,
 
         json_value(payload_json, '$.product.title')                                       as product_title,

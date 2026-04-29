@@ -7,8 +7,10 @@
 --   (c) accidental fan-out if the pre-aggregation is removed and the
 --       refunds CTE joins payments at refund-grain instead of payment-grain.
 --
--- $0.01 tolerance per source_platform is the float64-money floor — see
--- the float64 tech-debt note in `.claude/state/project-state.md`.
+-- Money columns through fct_refunds and revenue_detail are NUMERIC end-to-end
+-- (Fanbasis-only refund path). Tolerance kept at $0.01 as a precision floor
+-- in case downstream summation introduces rounding via mixed-type arithmetic;
+-- with both sides NUMERIC this is effectively exact.
 -- Returns one row per offending source_platform; test passes when zero
 -- rows return.
 

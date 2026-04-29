@@ -63,10 +63,10 @@ parsed as (
         -- silently misattribute the contact otherwise).
         parent_payment_id                                             as payment_id,
 
-        cast(json_value(refund_json, '$.amount') as float64)          as refund_amount,
-        cast(json_value(refund_json, '$.amount_gross') as float64)    as refund_amount_net,
-        cast(json_value(refund_json, '$.fee') as float64)             as refund_fee,
-        cast(json_value(refund_json, '$.refund_cost') as float64)     as refund_total_cost,
+        cast(json_value(refund_json, '$.amount') as numeric)          as refund_amount,
+        cast(json_value(refund_json, '$.amount_gross') as numeric)    as refund_amount_net,
+        cast(json_value(refund_json, '$.fee') as numeric)             as refund_fee,
+        cast(json_value(refund_json, '$.refund_cost') as numeric)     as refund_total_cost,
         'usd'                                                         as currency,
 
         cast(json_value(refund_json, '$.created_at') as timestamp)    as refunded_at,
