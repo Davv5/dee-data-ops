@@ -82,7 +82,9 @@ Release gate:
 - `ops/scripts/run_phase1_release_gate.sh` runs the Phase 1 deterministic revenue release gate and exits non-zero on any hard failure.
 - `pipeline.full` now fail-closes on the same Phase 1 release gate in the scheduled Cloud Run job path.
 
-To add another source:
-1. Copy [ops/env/triage/_template.env](env/triage/_template.env). _(Note: the `ops/env/triage/` directory did not exist in the source repo at consolidation time and was not part of the moved tree. The triage scripts that glob it (`run_pipeline_triage.sh`, `run_pipeline_triage_all.sh`) currently exit non-zero on missing config. Tracked as a Step 4 follow-up in `docs/plans/2026-04-28-bq-ingest-consolidation-plan.md` and PR #102 review.)_
-2. Fill source endpoint, tables, and optional scheduler/secret fields.
+To add a per-source triage config:
+1. Copy [ops/env/triage/_template.env](env/triage/_template.env) to `ops/env/triage/<source>.env`.
+2. Fill in source endpoint, tables, and optional scheduler/secret fields. The template documents every variable.
 3. Run `ops/scripts/run_pipeline_triage.sh --source <name>`.
+
+`run_pipeline_triage_all.sh` iterates over every `*.env` in the directory (excluding `_template.env`). Until at least one source-specific config exists, the all-script exits non-zero with "No triage source configs found" — that's by design; the validate-marts ERR-trap path needs at least one configured source to do useful diagnosis.

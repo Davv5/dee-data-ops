@@ -33,7 +33,7 @@ _Last regenerated: 2026-04-29 morning (post-PR-#107/#108 deploy + cleanup-PR #11
 
 ## Open threads
 
-- **Cleanup PR(s) post-Step-4 — remaining items** (a + b shipped in PR #110): (c) restore or document `ops/env/triage/` (triage scripts exit non-zero on missing config); (d) RUNBOOK rewrite of stale Looker Studio core rule + prod-target paragraph; (e) the 6 CWD-fragile shell-script paths.
+- **Cleanup PR(s) post-Step-4 — remaining item** (a + b shipped in PR #110; c + d shipped in cleanup-docs PR): (e) the 6 CWD-fragile shell-script paths.
 - **`/ingest-fathom` BigQuery query timeout (NEW 2026-04-29).** PR #107 fixed the FileNotFoundError; subsequent invocation reaches `client.query(stmt).result()` in `fathom_pipeline.py:669` and hangs past the gunicorn worker timeout (~180s). Affects daily `/ingest-fathom` scheduler. Investigation: which fathom-models statement is slow / does `_resolve_dq_sql_file` resolve the right SQL / is there a missing partition filter on a large scan?
 - **Step 5 (optional)** — Cloud Build trigger watching `services/bq-ingest/**`. Reframed by audit as deploy provenance / build reproducibility, not stale-clone defense.
 - **Step 6 (after a few days of clean operation)** — archive `heidyforero1/gtm-lead-warehouse` + delete stale local clones at `~/Documents/{fanbasis-ingest,gtm,gtm-lead-warehouse}`.
