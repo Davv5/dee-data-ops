@@ -329,7 +329,11 @@ def _split_sql_statements(sql_text: str) -> List[str]:
 
 def refresh_models_from_file(sql_file_path: Optional[str] = None) -> int:
     if sql_file_path is None:
-        sql_file_path = str(Path(__file__).resolve().parent / "sql" / "models.sql")
+        candidate_path = Path(__file__).resolve().parent / "sql" / "models.sql"
+        if candidate_path.exists():
+            sql_file_path = str(candidate_path)
+        else:
+            sql_file_path = str(Path(__file__).resolve().parents[2] / "sql" / "models.sql")
     sql_text = Path(sql_file_path).read_text(encoding="utf-8")
     statements = _split_sql_statements(sql_text)
     for stmt in statements:

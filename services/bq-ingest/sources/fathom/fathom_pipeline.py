@@ -649,7 +649,11 @@ def read_state(run_id: str, entity_type: str, workspace_id: str) -> Optional[Dic
 
 def run_models(sql_file_path: Optional[str] = None) -> int:
     if sql_file_path is None:
-        sql_file_path = str(Path(__file__).resolve().parent / "sql" / "fathom_models.sql")
+        candidate_path = Path(__file__).resolve().parent / "sql" / "fathom_models.sql"
+        if candidate_path.exists():
+            sql_file_path = str(candidate_path)
+        else:
+            sql_file_path = str(Path(__file__).resolve().parents[2] / "sql" / "fathom_models.sql")
 
     sql_text = Path(sql_file_path).read_text(encoding="utf-8")
     lines: List[str] = []
