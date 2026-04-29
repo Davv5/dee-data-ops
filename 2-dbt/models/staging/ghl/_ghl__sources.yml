@@ -3,41 +3,49 @@ version: 2
 sources:
   - name: ghl
     description: >
-      Raw landing zone for GoHighLevel v2 API data. Post-U2 (2026-04-23)
-      staging reads from the consolidated project's Phase-2 per-object
-      tables in `raw_ghl.ghl__<obj>_raw`. These tables are populated by
-      GTM's `bq-ingest` Cloud Run service + `ghl-incremental-v2` Cloud Run
-      Job.
+      Raw landing zone for GoHighLevel v2 API data. Reads from per-entity
+      VIEWS in `raw_ghl_v2`, each filtering the live single-table
+      `Raw.ghl_objects_raw` by `entity_type` and aliasing
+      `ingested_at AS _ingested_at` to match the legacy column shape.
+      `Raw.ghl_objects_raw` is populated by `bq-ingest` Cloud Run service
+      (consolidated 2026-04-28, see `services/bq-ingest/`).
 
-      Column-rename shim (U3): the Phase-2 tables use columns
+      Schema-level history (2026-04-29 cutover): originally `schema:
+      raw_ghl` pointed at per-entity tables `raw_ghl.ghl__<obj>_raw`.
+      Those tables stopped receiving writes 2026-04-19 when the bq-ingest
+      service was retargeted to the union table `Raw.ghl_objects_raw`.
+      The cutover here repoints staging at the new views without dropping
+      the legacy tables (preserved as historical reference; clean up at
+      Phase 6).
+
+      Column shape (unchanged for downstream): the views expose
       `(entity_id, _ingested_at, payload_json, location_id, partition_date,
       event_ts, updated_at_ts, source, backfill_run_id, is_backfill)`.
-      Merge's staging models expect `(id, _ingested_at, payload)`. The
-      column-rename happens in each staging model's `source` CTE; this
-      YAML routes the physical table name via per-table `identifier:`
-      overrides so source(...) calls in SQL stay unchanged.
+      Staging models continue to read `entity_id`, `_ingested_at`,
+      `payload_json` and rename to `(id, _ingested_at, payload)` in their
+      source CTEs.
 
-      Row-coverage gaps from U1 preflight §7:
-        - contacts:            15,888 rows (healthy)
-        - opportunities:       25,959 rows (healthy)
-        - pipelines:           36 rows    (healthy)
-        - conversations:       101 rows   (GAP — 1,314 in legacy blob)
-        - messages:            0          (GAP — not in blob either)
-        - users:               0          (GAP — not in blob either)
-        - outbound_call_logs:  100 rows   (low, not staged today)
-
-      The conversations / messages / users gaps flow into staging as
-      reduced row counts. They may break U4a plumbing parity against a
-      frozen `dee-data-ops-prod` baseline; if so, swap conversations to a
-      blob-shim against `Raw.ghl_objects_raw` (1,314 rows) and accept
-      messages/users as empty (no upstream source has them right now).
-      Diagnosis belongs to U4a, not U3.
-    schema: raw_ghl
+      Coverage notes (2026-04-29):
+        - contacts:            16,031 rows in union (covered)
+        - opportunities:       26,156 rows (covered)
+        - conversations:       1,572 rows  (covered; legacy had 101 rows)
+        - pipelines:           36 rows     (covered)
+        - messages:            0 rows in union — bq-ingest does NOT poll
+                               messages currently. Legacy had 17,971 rows
+                               but they're not in the union; freshness is
+                               disabled below until ingestion is re-enabled.
+        - users:               0 rows on both paths; freshness disabled.
+    schema: raw_ghl_v2
     config:
       loaded_at_field: _ingested_at
     tables:
       - name: users
         identifier: ghl__users_raw
+        # Freshness disabled: 0 rows on both legacy + union paths;
+        # bq-ingest does not poll users. Re-enable when the upstream
+        # extraction lands; see Strategic-Reset-paused threads in
+        # `.claude/state/project-state.md`.
+        freshness: null
         description: >
           One row per GHL user (agency + account scope). ~16 rows expected;
           0 rows present in `raw_ghl.ghl__users_raw` as of U1 preflight —
@@ -132,17 +140,22 @@ sources:
 
       - name: messages
         identifier: ghl__messages_raw
+        # Freshness disabled: bq-ingest does not poll messages currently
+        # (the live service's GHL_OBJECT_TYPES env doesn't include
+        # `messages`). Legacy `raw_ghl.ghl__messages_raw` holds 17,971
+        # historical rows but stopped writing 2026-04-19; the union table
+        # has 0 rows under entity_type='messages'. Re-enable freshness
+        # when message ingestion is re-enabled — see Strategic-Reset
+        # paused threads.
+        freshness: null
         description: >
           One row per GHL message, fanned out from `conversations` via
           `/conversations/{id}/messages`. Per-touch SDR attribution lives here
-          (`userId`). **0 rows** present in either `raw_ghl.ghl__messages_raw`
-          or `Raw.ghl_objects_raw` as of U1 preflight — the upstream
-          extraction path for messages is not landing anywhere. Staging
-          passes zero rows through until upstream fix (not in U3 scope).
-        config:
-          freshness:
-            warn_after: {count: 36, period: hour}
-            error_after: {count: 48, period: hour}
+          (`userId`). **0 rows** in `Raw.ghl_objects_raw` (the live source);
+          17,971 historical rows in legacy `raw_ghl.ghl__messages_raw`,
+          last write 2026-04-19. The bq-ingest service does not currently
+          poll messages — staging passes zero rows through until upstream
+          fix. Out of scope for the source-drift cutover.
         columns:
           - name: entity_id
             description: GHL message id.
