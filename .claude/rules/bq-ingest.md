@@ -36,6 +36,16 @@ Per-source `*_RUN_MODELS_AFTER_INCREMENTAL` env vars (CALENDLY/FATHOM/GHL/etc.) 
 
 **Empirical anchor (2026-04-29).** `FATHOM_RUN_MODELS_AFTER_INCREMENTAL=true` was set on the live bq-ingest service for some prior reason. Hourly `/ingest-fathom` calls hit `run_models()` which exceeded ~180s (sum of `bridge_fathom_contact_match_candidates` 80-130s + BQML model retrain 70-100s + ML.PREDICT + enriched/diagnostics). The fathom hourly scheduler had been failing with 500s for 5+ days. Fix: flip the env-var to `false` (or remove the override; in-code default already `false`). Same architectural rule applies to `CALENDLY_RUN_MODELS_AFTER_INCREMENTAL` etc. — verify each is `false` on the service or that the corresponding source's `run_models()` is fast enough to fit the worker budget. A prototype SQL split into hourly + daily files was attempted and reverted because `marts.sql` reads tables from across the full file — splitting broke the marts hourly refresh contract.
 
+## GHL `/contacts/search` uses `searchAfter` scroll, NOT page-mode
+
+The contacts-incremental path in `sources/ghl/ghl_pipeline.py` deliberately overrides `pagination_mode` from `"page"` (the entry in `ENTITY_DEFAULT_PAGINATION`) to `"scroll"` for `POST /contacts/search`. The vendor contract is:
+
+- **Request cursor:** body field `searchAfter` (a JSON array, not a string).
+- **Response cursor:** each contact carries its own `searchAfter` array (no `meta` block).
+- **Filter:** `{field: "dateUpdated", operator: "gt", value: <epoch_ms_int>}` — *not* `gte`, *not* ISO string.
+
+**Empirical anchor (2026-04-29).** This contract was reverse-engineered from `accounting-qs/compete-iq`'s production GHL client after LeadConnectorHQ rejected our prior `gte`+ISO filter with HTTP 422 (PR #118 fixed the filter; PR #119 fixed the pagination cursor that would have silently truncated each 2h window to ~100 rows). Three independent community references list the documented operator enum as `eq, not_eq, contains, not_contains, exists, not_exists, range, nested` — none mention `gt`, but compete-iq's working code confirms it. The `ENTITY_DEFAULT_PAGINATION['contacts'] = 'page'` entry is *intentionally* still set for the GET `/contacts/` paths; do NOT "clean up" the contacts-incremental scroll override or the `_derive_pagination` scroll-branch's `searchAfter`-then-`sort` probe-order — both are vendor-contract carve-outs, not inconsistencies.
+
 ## Lessons learned
 
-*(Populate as bq-ingest issues arise.)*
+- **2026-04-29 (PRs #118/#119, deployed as `bq-ingest-00093-xiv`).** The 422 had been silently failing every hourly `/ingest-ghl` call for an unknown duration — `parse_object_types()` defaults to a list with `contacts` first, so contacts failed first every hour. The route returned HTTP 200 because per-entity failures were absorbed inside the loop (`ghl_pipeline.py:1211-1224`). Cloud Scheduler showed green; no monitoring caught it. Surfaced only when a separate audit (`*_RUN_MODELS_AFTER_INCREMENTAL` cleanup) made per-entity statuses visible in the JSON response. **Defense:** the operational-health rule's true-signal table is right — `MAX(_ingested_at) FROM Raw.ghl__contacts_raw` is the only reliable freshness signal. The `/ingest-ghl` HTTP 200 is a false signal because per-entity failures don't propagate.
