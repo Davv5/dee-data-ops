@@ -2,13 +2,27 @@
 -- Speed-to-Lead denominator source — every confirmed booking, including
 -- bookings that never landed on a GHL opportunity.
 --
--- Caveat on contact_sk: `stg_calendly__events` carries no invitee email
--- (invitee records are a sibling Calendly table, owed as
--- `stg_calendly__event_invitees` per Track C's open threads). Until the
--- invitee staging lands, `contact_sk` resolves to NULL; the relationships
--- test auto-excludes NULLs, and the mart layer tolerates unmatched events.
--- When invitee staging ships, widen the join here — do not widen
--- `dim_contacts`.
+-- contact_sk resolution: `stg_calendly__event_invitees.invitee_email_norm`
+-- → `dim_contacts.email_norm` → `contact_sk`. Bookings whose invitee email
+-- doesn't match a GHL contact resolve to NULL contact_sk (the relationships
+-- test auto-excludes NULLs). Do not widen `dim_contacts` here.
+--
+-- assigned_user_sk + pipeline_stage_sk are *diagnostic* attribution — they
+-- represent which SDR GHL believes owns the booking, NOT the headline
+-- Speed-to-Lead numerator (which sources first-touch identity from
+-- raw_ghl.conversations / fct_outreach, independent of opportunity state).
+-- The selected opportunity is the most-recent one for the contact whose
+-- `opportunity_created_at <= booked_at` ("active opp at booking time"),
+-- with `opportunity_id desc` as the deterministic tiebreaker on ties.
+-- If no opp pre-existed the booking, both SKs are NULL. The strict `<=`
+-- boundary is sub-second sensitive: if the GHL "Booked" workflow creates
+-- an opp T+50ms after the Calendly booking event, the fact selects the
+-- *prior* opp on this contact (or NULL) — by design, since this column
+-- represents the SDR who owned the contact *before* the booking, not the
+-- workflow-created opp. This rule replaces three divergent rules that were
+-- coexisting in marts (sales_activity_detail used "latest opp by created_at"
+-- with a broken time filter; lead_journey used "latest opp by updated_at");
+-- follow-up PR will collapse the marts to consume these SKs from the fact.
 
 with
 
@@ -28,16 +42,12 @@ contacts as (
 
     select
         contact_sk,
+        contact_id,
         email_norm
     from {{ ref('dim_contacts') }}
 
 ),
 
--- Diagnostic join to the opportunity layer: when the booked Calendly event
--- eventually lands on a GHL opportunity (by invitee email) the resulting
--- opportunity carries assigned_user_id + pipeline_stage_id we surface on
--- the fact. Today the join axis doesn't exist (no invitee email on events),
--- so these columns are NULL; structure preserved for forward compatibility.
 opportunities as (
 
     select
@@ -45,8 +55,18 @@ opportunities as (
         contact_id,
         assigned_user_id,
         pipeline_id,
-        pipeline_stage_id
+        pipeline_stage_id,
+        opportunity_created_at
     from {{ ref('stg_ghl__opportunities') }}
+
+),
+
+users as (
+
+    select
+        user_id,
+        user_sk
+    from {{ ref('dim_users') }}
 
 ),
 
@@ -60,15 +80,50 @@ pipeline_stages as (
 
 ),
 
+-- Resolve booking → contact_id, plus the active opp at booking time.
+booking_contact as (
+
+    select
+        events.event_id,
+        events.booked_at,
+        contacts.contact_sk,
+        contacts.contact_id
+    from events
+    left join invitees
+        on invitees.event_id = events.event_id
+    left join contacts
+        on contacts.email_norm = invitees.invitee_email_norm
+
+),
+
+opportunity_at_booking as (
+
+    select
+        booking_contact.event_id,
+        opportunities.assigned_user_id,
+        opportunities.pipeline_id,
+        opportunities.pipeline_stage_id
+    from booking_contact
+    left join opportunities
+        on opportunities.contact_id = booking_contact.contact_id
+       and opportunities.opportunity_created_at <= booking_contact.booked_at
+    qualify row_number() over (
+        partition by booking_contact.event_id
+        order by opportunities.opportunity_created_at desc,
+                 opportunities.opportunity_id desc
+    ) = 1
+
+),
+
 final as (
 
     select
         {{ dbt_utils.generate_surrogate_key(['events.event_id']) }}
                                                                 as booking_sk,
 
-        contacts.contact_sk                                     as contact_sk,
-        cast(null as string)                                    as assigned_user_sk,
-        cast(null as string)                                    as pipeline_stage_sk,
+        booking_contact.contact_sk                              as contact_sk,
+        users.user_sk                                           as assigned_user_sk,
+        pipeline_stages.pipeline_stage_sk                       as pipeline_stage_sk,
 
         events.event_id                                         as calendly_event_id,
         events.event_type_id,
@@ -91,10 +146,15 @@ final as (
         events.is_deleted
 
     from events
-    left join invitees
-      on invitees.event_id = events.event_id
-    left join contacts
-      on contacts.email_norm = invitees.invitee_email_norm
+    left join booking_contact
+        on booking_contact.event_id = events.event_id
+    left join opportunity_at_booking
+        on opportunity_at_booking.event_id = events.event_id
+    left join users
+        on users.user_id = opportunity_at_booking.assigned_user_id
+    left join pipeline_stages
+        on pipeline_stages.pipeline_id = opportunity_at_booking.pipeline_id
+       and pipeline_stages.stage_id    = opportunity_at_booking.pipeline_stage_id
 
 )
 

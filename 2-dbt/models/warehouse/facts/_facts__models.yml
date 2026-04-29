@@ -4,13 +4,18 @@ models:
   - name: fct_calls_booked
     description: >
       Grain: one row per Calendly booking event — the Speed-to-Lead
-      denominator source. Source: `stg_calendly__events`. Today
-      `contact_sk`, `assigned_user_sk`, and `pipeline_stage_sk` resolve
-      to NULL: the invitee-email axis (required for GHL contact join)
-      lives in a sibling Calendly table not yet in staging — see
-      Track C open threads. Columns retain the contract so the mart
-      layer can compile today; backfill happens at invitee-staging
-      drop-in, not by changing the fact shape.
+      denominator source. Source: `stg_calendly__events`. `contact_sk`
+      resolves through `stg_calendly__event_invitees.invitee_email_norm`
+      → `dim_contacts.email_norm`; bookings without a matching GHL
+      contact resolve to NULL contact_sk (relationships test
+      auto-excludes NULLs). `assigned_user_sk` + `pipeline_stage_sk`
+      resolve via the most-recent GHL opportunity for the contact whose
+      `opportunity_created_at <= booked_at` ("active opp at booking
+      time") — *diagnostic* attribution only. The headline Speed-to-Lead
+      numerator sources first-touch identity from
+      `raw_ghl.conversations` / `fct_outreach`, independent of
+      opportunity state. Bookings whose contact has no pre-booking
+      opportunity resolve to NULL on both attribution SKs.
     columns:
       - name: booking_sk
         description: Surrogate key over Calendly `event_id`.
@@ -18,19 +23,27 @@ models:
           - unique
           - not_null
       - name: contact_sk
-        description: FK to `dim_contacts.contact_sk`. Nullable pending invitee staging.
+        description: FK to `dim_contacts.contact_sk`. Nullable when the booking's invitee email doesn't match a GHL contact.
         tests:
           - relationships:
               to: ref('dim_contacts')
               field: contact_sk
       - name: assigned_user_sk
-        description: FK to `dim_users.user_sk`. Nullable — resolved via GHL opportunity, not Calendly.
+        description: >
+          FK to `dim_users.user_sk`. Resolved via the most-recent GHL
+          opportunity for the contact whose
+          `opportunity_created_at <= booked_at`. NULL when the contact
+          has no pre-booking opportunity. Diagnostic attribution only —
+          not on the Speed-to-Lead numerator path.
         tests:
           - relationships:
               to: ref('dim_users')
               field: user_sk
       - name: pipeline_stage_sk
-        description: FK to `dim_pipeline_stages.pipeline_stage_sk`. Nullable.
+        description: >
+          FK to `dim_pipeline_stages.pipeline_stage_sk`. Resolved from
+          the same active-opp-at-booking-time as `assigned_user_sk`.
+          Nullable on the same condition.
         tests:
           - relationships:
               to: ref('dim_pipeline_stages')
