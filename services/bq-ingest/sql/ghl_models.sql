@@ -800,35 +800,14 @@ SELECT
 FROM candidate_calls
 WHERE rn = 1;
 
--- MART: daily speed-to-lead KPI table for Looker Studio
-CREATE OR REPLACE TABLE `project-41542e21-470f-4589-96d.Marts.mrt_speed_to_lead_daily` AS
-SELECT
-  DATE(booked_at) AS booking_date,
-  COUNT(*) AS total_bookings_matched_to_contact,
-  COUNTIF(speed_to_lead_minutes IS NOT NULL) AS bookings_with_outbound_call,
-  COUNTIF(speed_to_lead_minutes IS NULL) AS bookings_without_outbound_call,
-  ROUND(AVG(speed_to_lead_minutes), 2) AS avg_speed_to_lead_minutes,
-  ROUND(APPROX_QUANTILES(speed_to_lead_minutes, 100)[OFFSET(50)], 2) AS median_speed_to_lead_minutes,
-  ROUND(APPROX_QUANTILES(speed_to_lead_minutes, 100)[OFFSET(90)], 2) AS p90_speed_to_lead_minutes,
-  COUNTIF(speed_to_lead_minutes <= 1) AS sla_within_1m,
-  COUNTIF(speed_to_lead_minutes <= 5) AS sla_within_5m,
-  COUNTIF(speed_to_lead_minutes <= 15) AS sla_within_15m,
-  COUNTIF(speed_to_lead_minutes <= 60) AS sla_within_60m
-FROM `project-41542e21-470f-4589-96d.Core.fct_speed_to_lead_booking_to_call`
-GROUP BY booking_date
-ORDER BY booking_date DESC;
-
--- MART: current overall speed-to-lead KPI snapshot for Looker Studio scorecards
-CREATE OR REPLACE TABLE `project-41542e21-470f-4589-96d.Marts.mrt_speed_to_lead_overall` AS
-SELECT
-  CURRENT_TIMESTAMP() AS refreshed_at,
-  COUNT(*) AS total_bookings_matched_to_contact,
-  COUNTIF(speed_to_lead_minutes IS NOT NULL) AS bookings_with_outbound_call,
-  COUNTIF(speed_to_lead_minutes IS NULL) AS bookings_without_outbound_call,
-  ROUND(AVG(speed_to_lead_minutes), 2) AS avg_speed_to_lead_minutes,
-  ROUND(APPROX_QUANTILES(speed_to_lead_minutes, 100)[OFFSET(50)], 2) AS median_speed_to_lead_minutes,
-  ROUND(APPROX_QUANTILES(speed_to_lead_minutes, 100)[OFFSET(90)], 2) AS p90_speed_to_lead_minutes,
-  ROUND(100 * SAFE_DIVIDE(COUNTIF(speed_to_lead_minutes <= 5), COUNT(*)), 2) AS pct_within_5m,
-  ROUND(100 * SAFE_DIVIDE(COUNTIF(speed_to_lead_minutes <= 15), COUNT(*)), 2) AS pct_within_15m,
-  ROUND(100 * SAFE_DIVIDE(COUNTIF(speed_to_lead_minutes <= 60), COUNT(*)), 2) AS pct_within_60m
-FROM `project-41542e21-470f-4589-96d.Core.fct_speed_to_lead_booking_to_call`;
+-- NOTE: `Marts.mrt_speed_to_lead_daily` and `Marts.mrt_speed_to_lead_overall`
+-- previously had legacy 11-column / no-trigger-type definitions HERE in
+-- ghl_models.sql. They were removed 2026-04-29 because `marts.sql` is the
+-- canonical owner of those marts (17 columns sourced from `Marts.fct_speed_to_lead`,
+-- including lead-magnet/trigger-type splits the legacy version lacked).
+-- Keeping both definitions caused a schema-flip race: model.ghl wrote the
+-- legacy schema, then model.marts overwrote with the canonical schema in
+-- the same hourly Job — leaving the table briefly in legacy form, and
+-- permanently in legacy form for any operator running `model.ghl`
+-- standalone outside the marts wrapper. See `.claude/state/project-state.md`
+-- and `.claude/rules/bq-ingest.md` for the full architectural decision.
