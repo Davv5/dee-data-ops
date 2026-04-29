@@ -51,13 +51,22 @@ dee_data_ops:
 
     prod:
       type: bigquery
-      method: service-account
+      # `method: oauth` uses Application Default Credentials, which the
+      # google-github-actions/auth@v2 step writes via Workload Identity
+      # Federation (sets GOOGLE_APPLICATION_CREDENTIALS to the temp creds
+      # file). Migrated from `method: service-account` 2026-04-29 because
+      # the consolidated GCP project enforces
+      # `constraints/iam.disableServiceAccountKeyCreation` — there's no SA
+      # key to point at. ADC also covers the local-dev case if/when an
+      # operator runs `dbt --target prod` locally with
+      # `gcloud auth application-default login` set up against the
+      # consolidated project.
+      method: oauth
       project: "{{ env_var('GCP_PROJECT_ID_PROD', 'project-41542e21-470f-4589-96d') }}"
       # In prod, models route to staging/warehouse/marts via generate_schema_name.
       # This dataset is the fallback for anything without a +schema: config —
       # keep it at "marts" so the fallback lands in the customer-facing layer.
       dataset: marts
-      keyfile: "{{ env_var('BQ_KEYFILE_PATH_PROD') }}"
       threads: 4
       timeout_seconds: 300
       location: US
