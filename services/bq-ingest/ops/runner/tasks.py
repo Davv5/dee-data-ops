@@ -106,10 +106,23 @@ def run_marts_with_dependencies() -> Dict[str, Any]:
     """
     Closes the freshness gap by refreshing high-frequency upstream models
     immediately before rebuilding marts.
+
+    Order matters: Calendly first (independent), Fathom second (independent
+    Core layer; the LLM-classifier-derived tables stay outside this hourly
+    path), GHL third (its `mrt_speed_to_lead_daily` mart at the end of
+    `ghl_models.sql` joins fresh `Core.fct_calendly_*` so Calendly must be
+    fresh first), then Marts (consumes all of the above via marts.sql).
+
+    GHL was added 2026-04-29 to support removing
+    `GHL_RUN_MODELS_AFTER_INCREMENTAL=true` from the bq-ingest service
+    without dropping speed-to-lead refresh cadence — see
+    `.claude/rules/bq-ingest.md` §"Hourly HTTP path skips heavy model
+    refresh" for the architectural rule.
     """
-    print("Pre-refreshing Mart dependencies (Calendly/Fathom)...", flush=True)
+    print("Pre-refreshing Mart dependencies (Calendly/Fathom/GHL)...", flush=True)
     calendly_result = run_task("model.calendly")
     fathom_result = run_task("model.fathom")
+    ghl_result = run_task("model.ghl")
 
     print("Dependencies refreshed. Rebuilding Marts...", flush=True)
     marts_result = run_task("model.marts")
@@ -117,6 +130,7 @@ def run_marts_with_dependencies() -> Dict[str, Any]:
         "dependencies": {
             "model.calendly": calendly_result,
             "model.fathom": fathom_result,
+            "model.ghl": ghl_result,
         },
         "model.marts": marts_result,
     }
