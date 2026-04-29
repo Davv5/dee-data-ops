@@ -56,7 +56,7 @@ delta as (
 
 select *
 from delta
-where revenue_pct_delta > 0.05
+where revenue_pct_delta > numeric '0.05'
     or mart_count < 1350
     or mart_count > 1494
-    or unmatched_share > 0.10
+    or unmatched_share > numeric '0.10'

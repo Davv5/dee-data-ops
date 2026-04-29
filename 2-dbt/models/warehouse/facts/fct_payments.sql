@@ -18,9 +18,9 @@ stripe_payments as (
         charge_id                                             as payment_id,
         'stripe'                                              as source_platform,
 
-        amount_minor          / 100.0                         as gross_amount,
-        (amount_captured_minor - coalesce(amount_refunded_minor, 0))
-            / 100.0                                           as net_amount,
+        cast(amount_minor as numeric) / 100                   as gross_amount,
+        cast(amount_captured_minor - coalesce(amount_refunded_minor, 0) as numeric)
+            / 100                                             as net_amount,
         currency,
 
         description                                           as product,
