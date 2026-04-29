@@ -9,13 +9,14 @@ WORKLOG.md is the append-only audit log; grep it for history.
 
 # D-DEE Data Ops — present-moment snapshot
 
-_Last regenerated: 2026-04-29 mid-day (post PR-#118/#119/#120 merges + bq-ingest redeploy)._
+_Last regenerated: 2026-04-29 afternoon (post PR-#118 through #124 — full session capture)._
 
 ## Where we are
 
-- **`bq-ingest` runs revision `bq-ingest-00093-xiv` at 100% traffic.** Deployed 2026-04-29 mid-day from `services/bq-ingest/` after PR #118 + #119 merged; tagged URL `https://pagination-fix---bq-ingest-mjxxki4snq-uc.a.run.app` retained for diagnostic continuity. `/routes` parity check passed byte-equal (22 routes) against prior revision before promotion. Old `bq-ingest-00087-zah` retained at 0% as rollback. **Earlier "fixed end-to-end" claim in the prior regen was premature** — code on main is not the same as live; always redeploy after a behavioral PR (operational-health.md "stale-deploy drift").
-- **GHL contacts ingest fixed in code AND live.** PR #118 swapped the `/contacts/search` filter from `gte`+ISO to `gt`+epoch_ms. PR #119 fixed page-2+ pagination via `searchAfter` array cursoring (matches the vendor contract from compete-iq's production client). Live proof-of-life is the next hourly `ghl-hourly-ingest` execution (HH:20 UTC).
-- **Fanbasis money columns are NUMERIC in code** (PR #120). `stg_fanbasis__{transactions,refunds}` cast amounts as NUMERIC; `fct_payments` Stripe arm also flipped for UNION-ALL type-symmetry; `release_gate_revenue_detail` thresholds use `numeric '0.05'`/`numeric '0.10'` literals. CI dbt build passed; **takes effect on next prod dbt build** (typically nightly).
+- **`bq-ingest` runs revision `bq-ingest-00093-xiv` at 100% traffic.** Deployed 2026-04-29 mid-day after PR #118 + #119 merged; `/routes` parity passed byte-equal (22 routes) before promotion. Old `bq-ingest-00087-zah` retained at 0% as rollback. **Live proof-of-life confirmed:** 17:20 UTC `/ingest-ghl` tick served from `00093-xiv` and returned HTTP 200; the 16:20 tick (still on `00081-4dl`) was the last one running the broken code.
+- **GHL contacts ingest is live-fixed.** PR #118 swapped the `/contacts/search` filter from `gte`+ISO to `gt`+epoch_ms. PR #119 fixed page-2+ pagination via `searchAfter` array cursoring (matches compete-iq's production client). The `bq-ingest.md` rule now carries the empirical anchor + a "do NOT clean up the contacts-incremental scroll override" note (PR #122).
+- **`fct_calls_booked.{assigned_user_sk,pipeline_stage_sk}` are wired** (PR #123). Strategy: most-recent opp where `opportunity_created_at <= booked_at`, with `opportunity_id desc` as deterministic tiebreaker. Diagnostic attribution only — Speed-to-Lead numerator still sources first-touch identity from `raw_ghl.conversations`/`fct_outreach`. Effective on next nightly `dbt build --target prod`.
+- **Fanbasis money columns are NUMERIC in code** (PR #120). `stg_fanbasis__{transactions,refunds}` cast amounts as NUMERIC; `fct_payments` Stripe arm also flipped for UNION-ALL type-symmetry; `release_gate_revenue_detail` thresholds use `numeric '0.05'`/`numeric '0.10'` literals. **Takes effect on next prod dbt build** (typically nightly).
 - **bq-ingest consolidation Steps 1–4 shipped** (PRs #100/#102/#104 + 2026-04-28 deploy). `dee-data-ops` is the production deploy origin; `gtm-lead-warehouse` is no longer load-bearing.
 - **`bq-ingest` requires authenticated invocation.** `curl -H "Authorization: Bearer $(gcloud auth print-identity-token)" ...`
 - **GHL transition snapshots remain LIVE.** `Core.fct_pipeline_stage_snapshots` compounds daily at 07:00 UTC. First usable transition signal in ~5 days.
@@ -27,7 +28,7 @@ _Last regenerated: 2026-04-29 mid-day (post PR-#118/#119/#120 merges + bq-ingest
 
 ## Last 3 decisions
 
-- **2026-04-29 mid-day (latest)** — Three PRs shipped closing two long-standing tech-debt threads: PR #118 + #119 (GHL contacts 422 + page-2+ pagination via searchAfter array — full vendor-contract alignment with compete-iq's production pattern), and PR #120 (Fanbasis money → NUMERIC, including Stripe-arm UNION ALL type-symmetry and release-gate threshold hardening). All three landed via the producer + adversarial-reviewer pairing pattern from `.claude/rules/use-data-engineer-agent.md`. Investigation of the `ghl-identity-sync` chained-command thread found it intentional and benign (single GHL API call per 2hr to refresh `custom_field_definitions`); thread closed without code change.
+- **2026-04-29 afternoon (latest)** — Seven-PR session closed three long-standing tech-debt threads. PRs #118 + #119 fixed the GHL contacts 422 + page-2+ pagination (full vendor-contract alignment with compete-iq's production pattern), then deployed as `bq-ingest-00093-xiv` after a deploy gap was caught by adversarial review (PR #121's regen had claimed "fixed end-to-end" while the live revision still ran broken code — corrected by PR #122 which also added the bq-ingest.md empirical anchor). PR #120 flipped Fanbasis money columns to NUMERIC end-to-end. PR #123 wired `fct_calls_booked.{assigned_user_sk,pipeline_stage_sk}` via "active opp at booking time" with deterministic tiebreaker. PR #124 closed post-#123 state drift. Producer + adversarial-reviewer pairing per `use-data-engineer-agent.md` ran on every code PR; the cumulative review (correctness-reviewer) caught the deploy gap that single-PR reviews missed.
 - **2026-04-29 morning** — Merged PRs #107/#108/#110/#111/#112/#113/#114/#115/#116/#117. Redeployed `bq-ingest` to revision `00087-zah`. Closed `/ingest-fathom` timeout via env-var removal. Added `model.ghl` to `run_marts_with_dependencies` (PR #115). Removed legacy `Marts.mrt_speed_to_lead_*` writes from `ghl_models.sql` (PR #117).
 - **2026-04-28 late-night** — Reconciliation sweep + `pivot-discipline.md` rule. Closed 7 stale plan-debt artifacts caused by un-walked pivots; new rule requires same-session walk of superseded docs when a pivot memory is saved.
 
@@ -84,6 +85,6 @@ _Last regenerated: 2026-04-29 mid-day (post PR-#118/#119/#120 merges + bq-ingest
 
 ## _meta
 
-- Last regen: 2026-04-29 mid-day (post PR-#118/#119/#120 merges).
-- WORKLOG: skipped — all session output captured by the three PR descriptions (#118, #119, #120) and the worktree-cleanup investigation log lives in `/Users/david/Documents/data ops/.tmp/worktree-salvage-2026-04-29/`. Per `.claude/rules/worklog.md` routing table: PR descriptions capture shipped work, this regen captures present state; both replace a WORKLOG entry.
+- Last regen: 2026-04-29 afternoon (post-#118 through #124, full session capture).
+- WORKLOG: skipped — all session output captured by the seven PR descriptions (#118-#124), the bq-ingest.md empirical anchor (#122), and the worktree-cleanup investigation log at `.tmp/worktree-salvage-2026-04-29/`. Per `.claude/rules/worklog.md` routing table: PR descriptions + rule-file edits capture the shipped narrative; this regen captures present state.
 - Earlier _meta entries (PR #107/#108 morning, Step 4 deploy, reconciliation sweep) — narratives carried by their respective PR descriptions and rule files.
