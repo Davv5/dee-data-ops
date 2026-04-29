@@ -563,10 +563,15 @@ def _derive_pagination(
     if pagination_mode == "scroll":
         if not items:
             return None, False
-        last_sort = items[-1].get("sort")
-        if not isinstance(last_sort, list) or not last_sort:
+        # /opportunities/search returns each item with `sort` as the cursor array;
+        # /contacts/search returns each item with `searchAfter`. Probe both.
+        last = items[-1]
+        cursor_array = last.get("searchAfter")
+        if not isinstance(cursor_array, list) or not cursor_array:
+            cursor_array = last.get("sort")
+        if not isinstance(cursor_array, list) or not cursor_array:
             return None, False
-        next_cursor = json.dumps(last_sort, separators=(",", ":"))
+        next_cursor = json.dumps(cursor_array, separators=(",", ":"))
         has_more = len(items) >= GHL_PAGE_LIMIT
         return (next_cursor if has_more else None), has_more
 
@@ -641,6 +646,10 @@ def fetch_entity_page(
     if contacts_incremental:
         method = "POST"
         request_url = f"{GHL_API_BASE.rstrip('/')}/contacts/search"
+        # /contacts/search paginates by `searchAfter` array (each contact carries one),
+        # not by page number or by `startAfterId`. Use scroll mode so _derive_pagination
+        # extracts the cursor from items[-1].searchAfter.
+        pagination_mode = "scroll"
 
     # For entities whose locationId lives in the URL path (e.g. custom_field_definitions),
     # do not add it as a query/body param — the path resolution already included it.
@@ -687,7 +696,11 @@ def fetch_entity_page(
     elif pagination_mode == "cursor":
         if next_cursor:
             payload_params_base[GHL_CURSOR_PARAM] = next_cursor
-    elif pagination_mode == "scroll":
+    elif pagination_mode == "scroll" and not contacts_incremental:
+        # Opportunities-style scroll: sort spec comes from env var, cursor is searchAfter.
+        # Contacts-incremental also uses scroll for cursor handling but supplies its own
+        # contacts-specific sort below; skip this block to avoid coupling to the
+        # opportunities env var and to avoid double-parsing next_cursor.
         try:
             sort_spec = json.loads(GHL_SCROLL_SORT_OPPORTUNITIES)
             if not isinstance(sort_spec, list):
@@ -729,7 +742,15 @@ def fetch_entity_page(
             "sort": [{"field": "dateUpdated", "direction": "asc"}],
         }
         if next_cursor:
-            payload_params_base["startAfterId"] = next_cursor
+            try:
+                sa = json.loads(next_cursor)
+                if not isinstance(sa, list):
+                    raise ValueError("contacts searchAfter cursor must be a JSON array")
+            except Exception as exc:
+                raise RuntimeError(
+                    f"Invalid contacts_incremental next_cursor format: {next_cursor!r}"
+                ) from exc
+            payload_params_base["searchAfter"] = sa
 
     if GHL_AUTH_SCHEME == "bearer":
         auth_values = [f"Bearer {GHL_ACCESS_TOKEN}"]
