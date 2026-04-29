@@ -26,6 +26,16 @@ If a future task needs LLM transcript enrichment:
 
 (Source: ported from the dropped `sources/fathom/CLAUDE.md` split-runtime note — retired with PR #102 cleanup.)
 
+## Hourly HTTP path skips heavy model refresh; Cloud Run Job context owns it
+
+Per-source `*_RUN_MODELS_AFTER_INCREMENTAL` env vars (CALENDLY/FATHOM/GHL/etc.) gate whether the hourly HTTP `/ingest-<source>` route calls `run_models()` inline after fetching new data. **These should be `false` on the bq-ingest Cloud Run service** (the in-code default). Reasons:
+
+- The bq-ingest service has a 300s Cloud Run request timeout (default), and the gunicorn worker timeout is shorter still. Heavy model refreshes (>180s) hang the worker and produce 5xx for the hourly scheduler.
+- The `pipeline-marts-hourly` Cloud Run Job already runs `model.<source>` via `run_marts_with_dependencies` (see `ops/runner/tasks.py:106-122`) before refreshing marts. Cloud Run **Jobs** have multi-hour timeouts (`timeout_seconds: 10800`) — that's where slow refreshes belong.
+- The hourly HTTP endpoint's job is to land new Raw data (cheap); model refresh is downstream and runs on the marts cadence.
+
+**Empirical anchor (2026-04-29).** `FATHOM_RUN_MODELS_AFTER_INCREMENTAL=true` was set on the live bq-ingest service for some prior reason. Hourly `/ingest-fathom` calls hit `run_models()` which exceeded ~180s (sum of `bridge_fathom_contact_match_candidates` 80-130s + BQML model retrain 70-100s + ML.PREDICT + enriched/diagnostics). The fathom hourly scheduler had been failing with 500s for 5+ days. Fix: flip the env-var to `false` (or remove the override; in-code default already `false`). Same architectural rule applies to `CALENDLY_RUN_MODELS_AFTER_INCREMENTAL` etc. — verify each is `false` on the service or that the corresponding source's `run_models()` is fast enough to fit the worker budget. A prototype SQL split into hourly + daily files was attempted and reverted because `marts.sql` reads tables from across the full file — splitting broke the marts hourly refresh contract.
+
 ## Lessons learned
 
 *(Populate as bq-ingest issues arise.)*
