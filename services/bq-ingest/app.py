@@ -39,7 +39,7 @@ FANBASIS_PAGE = int(os.getenv("FANBASIS_PAGE", "1"))
 
 @app.route("/", methods=["GET"])
 def health():
-    return jsonify({"ok": True, "service": "fanbasis-ingest"}), 200
+    return jsonify({"ok": True, "service": "bq-ingest"}), 200
 
 
 @app.route("/routes", methods=["GET"])
