@@ -1,0 +1,22 @@
+
+    
+    
+
+with all_values as (
+
+    select
+        source_platform as value_field,
+        count(*) as n_records
+
+    from `project-41542e21-470f-4589-96d`.`Core`.`bridge_identity_contact_payment`
+    group by source_platform
+
+)
+
+select *
+from all_values
+where value_field not in (
+    'stripe','fanbasis'
+)
+
+

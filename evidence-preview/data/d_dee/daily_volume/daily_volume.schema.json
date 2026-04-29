@@ -1,1 +1,0 @@
-[{"name":"booking_date","evidenceType":"date","typeFidelity":"precise"},{"name":"lead_source","evidenceType":"string","typeFidelity":"precise"},{"name":"bookings","evidenceType":"number","typeFidelity":"precise"}]

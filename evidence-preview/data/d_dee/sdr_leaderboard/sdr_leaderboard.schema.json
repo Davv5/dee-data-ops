@@ -1,1 +1,0 @@
-[{"name":"sdr","evidenceType":"string","typeFidelity":"precise"},{"name":"bookings","evidenceType":"number","typeFidelity":"precise"},{"name":"within_5min","evidenceType":"number","typeFidelity":"precise"},{"name":"pct_within_5min","evidenceType":"number","typeFidelity":"precise"},{"name":"median_mins","evidenceType":"number","typeFidelity":"precise"}]
