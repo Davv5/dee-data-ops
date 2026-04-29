@@ -153,8 +153,10 @@ final as (
         fact.attribution_era,
         fact.era_flag,
 
-        -- Pipeline (NULL in dev — fct_calls_booked.pipeline_stage_sk is stubbed
-        -- as NULL until the GHL opportunity stage-sync ships in a later track)
+        -- Pipeline state at booking time. fct_calls_booked.pipeline_stage_sk
+        -- resolves via the most-recent GHL opp whose
+        -- `opportunity_created_at <= booked_at`; NULL when the contact has no
+        -- pre-booking opportunity (see fct_calls_booked.sql header).
         ps.pipeline_name,
         ps.stage_name,
         ps.is_booked_stage,
