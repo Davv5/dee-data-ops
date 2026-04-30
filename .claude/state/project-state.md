@@ -9,7 +9,7 @@ WORKLOG.md is the append-only audit log; grep it for history.
 
 # D-DEE Data Ops — present-moment snapshot
 
-_Last regenerated: 2026-04-30 early morning UTC (post-PR-#133 merge + Y3 audit PR #132 multi-revision in flight)._
+_Last regenerated: 2026-04-30 mid-day UTC (post-PR-#135 in-flight + `bq-ingest-00099-jez` deploy fixing GHL `users` polling)._
 
 ## Where we are
 
@@ -62,7 +62,7 @@ _Last regenerated: 2026-04-30 early morning UTC (post-PR-#133 merge + Y3 audit P
 
 ## Where to look
 
-- **bq-ingest production:** Cloud Run service `bq-ingest`, revision `bq-ingest-00083-5kk` (deployed 2026-04-29 evening, includes PRs #118 + #119 + #127). URL: `https://bq-ingest-mjxxki4snq-uc.a.run.app`. `bq-ingest-00093-xiv` retained at 0% as rollback.
+- **bq-ingest production:** Cloud Run service `bq-ingest`, revision `bq-ingest-00099-jez` (deployed 2026-04-30 mid-day; env-var-only update adding `users`/`tags` to `GHL_OBJECT_TYPES`). URL: `https://bq-ingest-mjxxki4snq-uc.a.run.app`. Rollback options: `bq-ingest-00084-dfl` (PR #133 dead-surface retirement, prior to env fix), `bq-ingest-00093-xiv` (PR #127 GHL contacts fix, tag `pagination-fix`).
 - **WIF setup:** Pool `github-actions`, provider `github-oidc` in project `project-41542e21-470f-4589-96d` (location global). SA `sa-transform@project-41542e21-470f-4589-96d` bound via `roles/iam.workloadIdentityUser`. Workflows: `dbt-{nightly,deploy,docs}.yml` use `workload_identity_provider:` instead of `credentials_json:`.
 - **Y1 schema cutover:** dbt prod targets `STG`/`Core`/`Marts` (capitalized) datasets. Snapshots → `Core` (project-level `+target_schema: Core` in dbt_project.yml). Seeds → `STG`.
 - **`raw_ghl_v2` views:** Per-entity views over `Raw.ghl_objects_raw`; created out-of-band 2026-04-29. Each view filters by `entity_type` and aliases `ingested_at AS _ingested_at`. dbt sources YAML's `schema: raw_ghl_v2`.
