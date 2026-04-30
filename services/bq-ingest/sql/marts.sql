@@ -1564,7 +1564,7 @@ outbound_call_rollup AS (
 -- Needed here because GHL opportunities payloads carry userId but never userName/email.
 ghl_user_name_map AS (
   SELECT user_id, user_name FROM (
-    SELECT 'leBv9MtltaKdfSijVEhb' AS user_id, 'Houssam Bentouati'  AS user_name
+    SELECT 'leBv9MtltaKdfSijVEhb' AS user_id, 'aariz menon'        AS user_name
     UNION ALL SELECT '1D4ZUkV07gGJ25YtUolz', 'Houssam Bentouati'
     UNION ALL SELECT 'c5ujVqeYHGi1WnmlvtWu', 'Marco Branco'
     UNION ALL SELECT '7rCcXXi8tFdihhDvTTM3', 'Mitchell Naude'
@@ -1575,7 +1575,7 @@ ghl_user_name_map AS (
     UNION ALL SELECT 'ILX9jpFp7ycNbWgakiYR', 'Kevin Maya'
     UNION ALL SELECT 'XKcL1lmTZn8LFHiUwtn1', 'Jake Lynch'
     UNION ALL SELECT 'YyBgSVqB1wQoFj8tAe40', 'Stanley Macauley'
-    UNION ALL SELECT 'BKc6beDhtuW1GFp0wI',   'Ethan Gerstenberg'
+    UNION ALL SELECT 'BKc6beDhtuJIW1Gfp0wI', 'Ethan Gerstenberg'
     -- Oct5Tz6ZVUaDkqXC3yHL: 292 older events, not in GHL team list — likely deleted account
   )
 ),
