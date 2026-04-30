@@ -48,6 +48,20 @@ models:
           - relationships:
               to: ref('dim_pipeline_stages')
               field: pipeline_stage_sk
+      - name: selected_opportunity_id
+        description: >
+          GHL `opportunity_id` of the active-opp-at-booking-time row the
+          fact selected (the same row that produced `assigned_user_sk`
+          and `pipeline_stage_sk`). Nullable on the same condition (no
+          pre-booking opp). Provides marts a single deterministic join
+          axis back to `stg_ghl__opportunities` without re-implementing
+          the selection rule. NOT unique within this fact — a single opp
+          can be the selected opp for multiple bookings on the same
+          contact.
+        tests:
+          - relationships:
+              to: ref('stg_ghl__opportunities')
+              field: opportunity_id
       - name: calendly_event_id
         description: Raw Calendly event id (`uri`). Natural key for traceability.
         tests:

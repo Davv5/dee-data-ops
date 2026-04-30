@@ -59,17 +59,24 @@ GHL opportunity or made it to a booked pipeline stage. Per
 GHL booked-stage count (~1,825) measure different things; the fact
 here is authoritative on "did a booking event happen?"
 
-### Pending join axes
+### Diagnostic attribution columns
 
-- `contact_sk`: needs `stg_calendly__event_invitees` (invitee email)
-  to email-join `dim_contacts`. Owed in Track C follow-on.
-- `assigned_user_sk` / `pipeline_stage_sk`: resolve via the booked
-  opportunity in GHL. Needs the invitee-email → opportunity match
-  first (same dependency).
+`assigned_user_sk` / `pipeline_stage_sk` / `selected_opportunity_id`
+resolve via the most-recent GHL opportunity for the contact whose
+`opportunity_created_at <= booked_at` ("active opp at booking time"),
+with `opportunity_id desc` as the deterministic tiebreaker. All three
+emit NULL when the contact has no pre-booking opp; `relationships`
+tests auto-exclude nulls.
 
-Until those land, the three FK columns emit NULL and the
-`relationships` tests auto-exclude nulls. When they ship, widen the
-join here — do not widen `dim_contacts`.
+These columns are *diagnostic* — not on the Speed-to-Lead numerator
+path. The headline metric sources first-touch identity from
+`fct_outreach`, independent of opportunity state.
+
+`selected_opportunity_id` is the canonical join axis for marts
+that need opp-level outcome data (`status`, `lost_reason_id`,
+`last_status_change_at`, etc.) — join through it instead of
+re-implementing the selection rule. See
+`docs/plans/2026-04-30-mart-collapse-fct-sks-plan.md`.
 
 {% enddocs %}
 
