@@ -658,6 +658,32 @@ def fetch_entity_page(
         payload_params_base[GHL_LOCATION_PARAM] = GHL_LOCATION_ID
     cursor_from_url = False
 
+    # /users/search has a different request contract than every other GHL endpoint:
+    # - REQUIRES `companyId` query param (parent agency UUID, not locationId)
+    # - REJECTS `page` query param ("property page should not exist")
+    # - Pagination is via `skip` + `limit`, but D-DEE has ~16 users so a single call
+    #   with limit=100 covers all of them; we wire pagination_mode='none' here
+    #   to skip the page/skip/cursor logic entirely and just send a single GET.
+    # If user count ever exceeds 100, this needs to be widened to skip+limit
+    # pagination — see _ghl__sources.yml coverage note for the canonical signal.
+    # Empirical anchor: 422 from /users/search on 2026-04-30 surfaced this contract;
+    # see `.claude/rules/bq-ingest.md` Lessons-Learned for the diagnostic path.
+    if canonical_entity_type == "users":
+        pagination_mode = "none"
+        company_id = os.getenv("GHL_COMPANY_ID")
+        if not company_id:
+            raise RuntimeError(
+                "GHL_COMPANY_ID env var required for entity_type=users. "
+                "Set on the bq-ingest service env (canonical value lives in "
+                "services/bq-ingest/ops/cloud/jobs.yaml ghl-backfill job)."
+            )
+        payload_params_base["companyId"] = company_id
+        # Explicit limit — pagination_mode='none' skips the default `limit`
+        # branch at line ~699, but /users/search applies its own server-side
+        # default (typically 25-50) which would silently truncate as the user
+        # count grows past that. Match identity_pipeline.py:1253 reference.
+        payload_params_base["limit"] = GHL_PAGE_LIMIT
+
     # GHL often returns nextPageUrl containing page/startAfter/startAfterId tokens.
     # Preserve those query params instead of treating the whole URL as one cursor.
     if pagination_mode == "page" and next_cursor and next_cursor.startswith(("http://", "https://")):
