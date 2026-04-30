@@ -678,6 +678,11 @@ def fetch_entity_page(
                 "services/bq-ingest/ops/cloud/jobs.yaml ghl-backfill job)."
             )
         payload_params_base["companyId"] = company_id
+        # Explicit limit — pagination_mode='none' skips the default `limit`
+        # branch at line ~699, but /users/search applies its own server-side
+        # default (typically 25-50) which would silently truncate as the user
+        # count grows past that. Match identity_pipeline.py:1253 reference.
+        payload_params_base["limit"] = GHL_PAGE_LIMIT
 
     # GHL often returns nextPageUrl containing page/startAfter/startAfterId tokens.
     # Preserve those query params instead of treating the whole URL as one cursor.
