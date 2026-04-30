@@ -7,7 +7,12 @@
 -- (2026-04-23). They are floors, not ceilings — new data landing is fine.
 --
 -- Excluded:
---  - stg_ghl__messages / stg_ghl__users (0 rows in raw, known upstream gap)
+--  - stg_ghl__messages — RETIRED 2026-04-30 (Bug #2 cleanup, PR #3); the
+--    `entity_type='messages'` source filtered on a non-existent entity type.
+--    fct_outreach now reads Core.fct_ghl_outbound_calls +
+--    Core.fct_ghl_conversations directly.
+--  - stg_ghl__users had 0 rows pre-2026-04-30; users polling restored
+--    by PR #138 (16 rows now flowing).
 --  - stg_typeform__responses zero-check relies on the blob too, included
 --
 -- Returns zero rows when all shims are producing data; any row = regression.
