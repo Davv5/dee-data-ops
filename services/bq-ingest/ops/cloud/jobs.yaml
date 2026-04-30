@@ -339,6 +339,7 @@
         "BQ_GHL_RAW_TABLE": "ghl_objects_raw",
         "BQ_GHL_STATE_TABLE": "ghl_backfill_state",
         "GHL_LOCATION_ID": "yDDvavWJesa03Cv3wKjt",
+        "GHL_COMPANY_ID": "oUXHwWLAMHoOyX6xpVOS",
         "GHL_OBJECT_TYPES": "contacts,opportunities,forms,form_submissions,pipelines,pipeline_stages,outbound_call_logs,conversations,users,tags",
         "GHL_ENDPOINT_TAGS": "/locations/yDDvavWJesa03Cv3wKjt/tags",
         "GHL_PAGINATION_TAGS": "none",
