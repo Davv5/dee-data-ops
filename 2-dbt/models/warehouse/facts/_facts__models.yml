@@ -48,7 +48,7 @@ models:
           - relationships:
               to: ref('dim_pipeline_stages')
               field: pipeline_stage_sk
-      - name: selected_opportunity_id
+      - name: booking_time_opportunity_id
         description: >
           GHL `opportunity_id` of the booking-time-active opp; canonical
           mart join axis. NULL when no pre-booking opp exists. NOT for

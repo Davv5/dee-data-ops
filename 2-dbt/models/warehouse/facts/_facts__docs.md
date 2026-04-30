@@ -61,7 +61,7 @@ here is authoritative on "did a booking event happen?"
 
 ### Diagnostic attribution columns
 
-`assigned_user_sk` / `pipeline_stage_sk` / `selected_opportunity_id`
+`assigned_user_sk` / `pipeline_stage_sk` / `booking_time_opportunity_id`
 resolve via the most-recent GHL opportunity for the contact whose
 `opportunity_created_at <= booked_at` ("active opp at booking time"),
 with `opportunity_id desc` as the deterministic tiebreaker. All three
@@ -73,9 +73,9 @@ These columns are *diagnostic* — not on the Speed-to-Lead numerator
 path. The headline metric sources first-touch identity from
 `fct_outreach`, independent of opportunity state.
 
-#### `selected_opportunity_id` — what it IS for, what it ISN'T
+#### `booking_time_opportunity_id` — what it IS for, what it ISN'T
 
-`selected_opportunity_id` is the canonical join axis for marts that
+`booking_time_opportunity_id` is the canonical join axis for marts that
 need opp-level outcome data (`status`, `lost_reason_id`,
 `last_status_change_at`, etc.) tied to the booking. Join through it
 instead of re-implementing the selection rule.
@@ -85,7 +85,7 @@ state" / "latest-opp" questions.** Those answer a different question
 (latest opp by `opportunity_updated_at desc`, no time filter) and
 need a separate join — see `lead_journey.latest_opportunity` for the
 existing pattern. Routing a current-state mart column through
-`selected_opportunity_id` silently inverts its semantics for any
+`booking_time_opportunity_id` silently inverts its semantics for any
 contact whose booking-time opp differs from their latest opp.
 
 NOT unique within this fact — a single opp can be the selected opp

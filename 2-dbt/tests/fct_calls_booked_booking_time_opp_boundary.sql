@@ -1,4 +1,4 @@
--- Singular test: every non-NULL selected_opportunity_id must point at an
+-- Singular test: every non-NULL booking_time_opportunity_id must point at an
 -- opportunity whose opportunity_created_at <= the booking's booked_at.
 --
 -- This is the load-bearing time-boundary rule the fact's docstring promises
@@ -13,19 +13,19 @@
 -- layer means PR-2's mart collapse has structurally guaranteed temporal
 -- correctness rather than relying on each mart to re-implement the filter.
 --
--- Returns rows on failure (any selected_opportunity_id pointing at an opp
+-- Returns rows on failure (any booking_time_opportunity_id pointing at an opp
 -- created after its booking). Zero rows = boundary rule holds.
 
 select
     fact.booking_sk,
     fact.booked_at,
-    fact.selected_opportunity_id,
+    fact.booking_time_opportunity_id,
     opp.opportunity_created_at,
     timestamp_diff(opp.opportunity_created_at, fact.booked_at, second)
         as opp_creation_seconds_after_booking
 from {{ ref('fct_calls_booked') }} as fact
 inner join {{ ref('stg_ghl__opportunities') }} as opp
-    on opp.opportunity_id = fact.selected_opportunity_id
+    on opp.opportunity_id = fact.booking_time_opportunity_id
 where
     -- Strict <= per the fact's selection rule. The sub-second case
     -- (workflow-created opp T+50ms after Calendly) is by-design EXCLUDED

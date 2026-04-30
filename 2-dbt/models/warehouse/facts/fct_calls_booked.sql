@@ -25,7 +25,7 @@
 -- filter; lead_journey uses "latest opp by updated_at"). Mart collapse to
 -- consume this axis ships in PR-2 / PR-3 — see plan doc below.
 --
--- selected_opportunity_id projects the opportunity_id of the picked opp so
+-- booking_time_opportunity_id projects the opportunity_id of the picked opp so
 -- marts can join back to stg_ghl__opportunities on a single deterministic
 -- axis without re-implementing the selection rule. NULL on the same
 -- condition as assigned_user_sk / pipeline_stage_sk (no pre-booking opp).
@@ -132,7 +132,7 @@ final as (
         booking_contact.contact_sk                              as contact_sk,
         users.user_sk                                           as assigned_user_sk,
         pipeline_stages.pipeline_stage_sk                       as pipeline_stage_sk,
-        opportunity_at_booking.opportunity_id                   as selected_opportunity_id,
+        opportunity_at_booking.opportunity_id                   as booking_time_opportunity_id,
 
         events.event_id                                         as calendly_event_id,
         events.event_type_id,

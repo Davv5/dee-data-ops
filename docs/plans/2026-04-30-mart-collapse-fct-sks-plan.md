@@ -9,7 +9,7 @@ _Authored 2026-04-30. Branch: `Davv5/refactor/mart-consume-fct-sks`._
 
 _Original status: PLAN ONLY — no SQL written._
 
-> **Headline recommendation.** Multi-PR migration (3 PRs) gated on a parity test, modeled on the F1/F2/F3 Speed-to-Lead pattern (`mart-naming.md` lessons-learned). PR-1 widens the fact with `selected_opportunity_id` (and a few opportunity outcome columns) so marts have a single, deterministic join axis to opps. PR-2 collapses `sales_activity_detail` and `lead_journey` to consume from the fact + the new join axis, behind a parity test. PR-3 deletes the divergent CTEs once parity has held green for one prod refresh cycle. **Blocking on David** for the two business-semantic questions in §7 before PR-1 merges.
+> **Headline recommendation.** Multi-PR migration (3 PRs) gated on a parity test, modeled on the F1/F2/F3 Speed-to-Lead pattern (`mart-naming.md` lessons-learned). PR-1 widens the fact with `booking_time_opportunity_id` (and a few opportunity outcome columns) so marts have a single, deterministic join axis to opps. PR-2 collapses `sales_activity_detail` and `lead_journey` to consume from the fact + the new join axis, behind a parity test. PR-3 deletes the divergent CTEs once parity has held green for one prod refresh cycle. **Blocking on David** for the two business-semantic questions in §7 before PR-1 merges.
 
 ## 1. Scope check — Y3 audit alignment
 
@@ -68,13 +68,13 @@ Pause point: do not merge PR-1 (the fact widening) until Q3.1 is answered, becau
 
 ## 4. Fact-layer shape change
 
-### 4.1 Recommended: add `selected_opportunity_id` to `fct_calls_booked`
+### 4.1 Recommended: add `booking_time_opportunity_id` to `fct_calls_booked`
 
 The fact already does the selection (lines 99–116). It selects the row but does not project the `opportunity_id` of that row. Adding the column is one line (`opportunities.opportunity_id` in the `opportunity_at_booking` CTE projection + the SELECT in `final`).
 
 **Why this matters:**
 
-- **Single canonical join axis.** Any mart that wants to enrich a booking with opp-level data (`close_outcome`, `closed_at`, `lost_reason`, `last_stage_change_at`) gets exactly one rule for which opp: "the one the fact picked." No `QUALIFY ROW_NUMBER()` in the mart layer (that's the data-modeling-process rule's Maxim 2 — `QUALIFY = 1` in a downstream model is a code smell signaling upstream grain is wrong). The fact already partitions on `event_id`; the mart joins on `selected_opportunity_id`.
+- **Single canonical join axis.** Any mart that wants to enrich a booking with opp-level data (`close_outcome`, `closed_at`, `lost_reason`, `last_stage_change_at`) gets exactly one rule for which opp: "the one the fact picked." No `QUALIFY ROW_NUMBER()` in the mart layer (that's the data-modeling-process rule's Maxim 2 — `QUALIFY = 1` in a downstream model is a code smell signaling upstream grain is wrong). The fact already partitions on `event_id`; the mart joins on `booking_time_opportunity_id`.
 - **No fan-out risk.** `opportunity_id` is the PK of `stg_ghl__opportunities` (verify before PR-1 — `data-modeling-process.md` Maxim 4). Mart joins to `stg_ghl__opportunities` on that key are 1:1.
 - **Costs nothing.** One column on a small fact table. The selection CTE already computes the row.
 
@@ -84,12 +84,12 @@ Two paths to surface `close_outcome` / `closed_at` / `lost_reason` / `last_stage
 
 | Path | Where the columns live | Pros | Cons |
 |---|---|---|---|
-| **Path X — fact widens.** Add `close_outcome`, `closed_at`, `lost_reason_id`, `last_stage_change_at` to `fct_calls_booked` directly, sourced from `stg_ghl__opportunities` joined on the new `selected_opportunity_id`. | On the fact. | Marts join once. Column semantics are pinned at the fact's grain (booking × selected-opp). The `warehouse.md` rule "facts contain numeric aggregables + event-grain timestamps" allows event-grain timestamps; `closed_at` / `last_stage_change_at` qualify. | `lost_reason_id` is a categorical FK, not a numeric / timestamp. `warehouse.md` says "no descriptive text in facts" — `lost_reason_id` is the FK form, not the descriptive name, so this is borderline-acceptable but worth noting. |
-| **Path Y — mart joins through `selected_opportunity_id`.** Fact only adds `selected_opportunity_id`; `sales_activity_detail` joins to `stg_ghl__opportunities` (or to a new `dim_opportunities` if we ever build one) and reads outcome columns there. | In the mart. | Keeps the fact narrow per `warehouse.md` ("facts = SK + FK SKs + numeric aggregables + event-grain timestamps"). Outcome data stays in its source layer; the mart picks what it needs. | Two joins instead of one (fact → opportunities → users). Slight repetition if multiple marts ever want outcome columns. |
+| **Path X — fact widens.** Add `close_outcome`, `closed_at`, `lost_reason_id`, `last_stage_change_at` to `fct_calls_booked` directly, sourced from `stg_ghl__opportunities` joined on the new `booking_time_opportunity_id`. | On the fact. | Marts join once. Column semantics are pinned at the fact's grain (booking × selected-opp). The `warehouse.md` rule "facts contain numeric aggregables + event-grain timestamps" allows event-grain timestamps; `closed_at` / `last_stage_change_at` qualify. | `lost_reason_id` is a categorical FK, not a numeric / timestamp. `warehouse.md` says "no descriptive text in facts" — `lost_reason_id` is the FK form, not the descriptive name, so this is borderline-acceptable but worth noting. |
+| **Path Y — mart joins through `booking_time_opportunity_id`.** Fact only adds `booking_time_opportunity_id`; `sales_activity_detail` joins to `stg_ghl__opportunities` (or to a new `dim_opportunities` if we ever build one) and reads outcome columns there. | In the mart. | Keeps the fact narrow per `warehouse.md` ("facts = SK + FK SKs + numeric aggregables + event-grain timestamps"). Outcome data stays in its source layer; the mart picks what it needs. | Two joins instead of one (fact → opportunities → users). Slight repetition if multiple marts ever want outcome columns. |
 
 **Recommended: Path Y.** Fewer fact-shape changes; keeps the fact strictly Kimball; outcome columns are descriptive opportunity attributes that don't earn a place on the fact yet (only one mart consumes them today). If a second consumer emerges, revisit.
 
-**Net fact change in PR-1:** one new column, `selected_opportunity_id`. No outcome columns on the fact.
+**Net fact change in PR-1:** one new column, `booking_time_opportunity_id`. No outcome columns on the fact.
 
 ## 5. Mart shapes after refactor
 
@@ -99,7 +99,7 @@ Two paths to surface `close_outcome` / `closed_at` / `lost_reason` / `last_stage
 
 - `closer_and_outcome` (lines 127–156). Replaced by:
   - `au.assigned_user_name` / `au.assigned_user_role` already wired via the existing `assigned` CTE on `b.assigned_user_sk` for the **booking-time identity** (Q3.1 disposition (a) or (c)).
-  - A new `outcomes` CTE that joins `stg_ghl__opportunities` on `b.selected_opportunity_id = opp.opportunity_id` for `close_outcome` / `closed_at` / `lost_reason` / `last_stage_change_at`. **Single join key, no `QUALIFY`, no fan-out** (assuming opp PK uniqueness check passes — Maxim 4).
+  - A new `outcomes` CTE that joins `stg_ghl__opportunities` on `b.booking_time_opportunity_id = opp.opportunity_id` for `close_outcome` / `closed_at` / `lost_reason` / `last_stage_change_at`. **Single join key, no `QUALIFY`, no fan-out** (assuming opp PK uniqueness check passes — Maxim 4).
 
 **CTEs that stay:**
 
@@ -144,14 +144,14 @@ Modeled on the F1/F2/F3 Speed-to-Lead refactor (`mart-naming.md` lessons-learned
 
 **Changes:**
 - Add `opportunities.opportunity_id` to the `opportunity_at_booking` CTE projection.
-- Project `opportunity_at_booking.opportunity_id as selected_opportunity_id` in `final`.
+- Project `opportunity_at_booking.opportunity_id as booking_time_opportunity_id` in `final`.
 - Update `_facts__models.yml` with the new column + `not_null` is **NOT** added (NULL when no pre-booking opp exists, by design — same pattern as `assigned_user_sk`). Add `relationships` test to `stg_ghl__opportunities.opportunity_id`.
 - Update `_facts__docs.md` description.
 - Pre-merge gate: **`altimate-sql-review` on the changed `fct_calls_booked.sql`** (LAW 1, deterministically hooked).
 
 **Acceptance:**
 - `dbt build --select fct_calls_booked` green in CI.
-- Six-perspective DQ check (`warehouse.md`): unique on `selected_opportunity_id` is **NOT** asserted (multiple bookings can share an opp); referential integrity test added.
+- Six-perspective DQ check (`warehouse.md`): unique on `booking_time_opportunity_id` is **NOT** asserted (multiple bookings can share an opp); referential integrity test added.
 - Row count of `fct_calls_booked` must not change. `dbt run` + `dbt test` clean.
 
 **Why additive-only:** PR-1 introduces no behavior change for any consumer. Marts continue to read what they read today. Safe to merge alone.
@@ -159,7 +159,7 @@ Modeled on the F1/F2/F3 Speed-to-Lead refactor (`mart-naming.md` lessons-learned
 ### PR-2 — Collapse `sales_activity_detail` + add parity test
 
 **Changes:**
-- Refactor `sales_activity_detail.sql`: drop `closer_and_outcome` CTE, add `outcomes` CTE keyed on `selected_opportunity_id`, rewire columns per Q3.1 disposition.
+- Refactor `sales_activity_detail.sql`: drop `closer_and_outcome` CTE, add `outcomes` CTE keyed on `booking_time_opportunity_id`, rewire columns per Q3.1 disposition.
 - (If Q3.1 = (c)) add a new `current_opp` CTE OR scaffold `int_contact_current_closer` intermediate (Step 4 physicalization call: if `lead_journey` also gains the same logic, intermediate; if only `sales_activity_detail` uses it, inline).
 - Edit `lead_journey.sql` header docstring per §5.2.
 - **Add a singular dbt test** `sales_activity_parity` modeled on F1/F2/F3's `stl_headline_parity`:
@@ -168,7 +168,7 @@ Modeled on the F1/F2/F3 Speed-to-Lead refactor (`mart-naming.md` lessons-learned
     2. **`is_within_5_min_sla` distribution** must match exactly (this is the locked headline metric — non-negotiable).
     3. **`first_outbound_touch_at` per booking_id** must match exactly.
     4. **`assigned_user_name` per booking_id** must match exactly under Q3.1 (a) or (c); under (b), pre-refactor's `closer_name` corresponds to post-refactor's `current_closer_name`.
-  - Tolerance for `close_outcome` / `closed_at` / `lost_reason`: **document deltas and require David sign-off** rather than assert byte-equality. The pre-refactor `closer_and_outcome` selection rule (latest opp by `opportunity_created_at desc`, no time filter) and the post-refactor selection (`selected_opportunity_id` from the fact = `<= booked_at` boundary) ARE different rules. Outcome-column drift is expected and is the whole point of unifying on the fact's rule. Capture the diff in the PR description.
+  - Tolerance for `close_outcome` / `closed_at` / `lost_reason`: **document deltas and require David sign-off** rather than assert byte-equality. The pre-refactor `closer_and_outcome` selection rule (latest opp by `opportunity_created_at desc`, no time filter) and the post-refactor selection (`booking_time_opportunity_id` from the fact = `<= booked_at` boundary) ARE different rules. Outcome-column drift is expected and is the whole point of unifying on the fact's rule. Capture the diff in the PR description.
 - Pre-merge gates: **`altimate-sql-review` on `sales_activity_detail.sql`** (LAW 1). **`altimate-data-parity` is NOT the right tool** here because the contract is "preserve headline-metric numerator, document outcome-column drift" — not "byte-identical." A custom dbt singular test is the precedent (F1/F2/F3's `stl_headline_parity`).
 
 **Acceptance:**
@@ -184,7 +184,7 @@ Modeled on the F1/F2/F3 Speed-to-Lead refactor (`mart-naming.md` lessons-learned
 **Changes:**
 - Delete the `sales_activity_parity` singular test (it has served its purpose; keeping it forever fails on legitimate future changes to `sales_activity_detail`).
 - Update `.claude/state/project-state.md` Open Threads to mark the post-PR-#123 follow-up done.
-- Update the `fct_calls_booked.sql` docstring at line 22–25 — the "follow-up PR will collapse the marts" sentence is now historical; update to "marts now consume `selected_opportunity_id` directly (PRs #N, #N+1)."
+- Update the `fct_calls_booked.sql` docstring at line 22–25 — the "follow-up PR will collapse the marts" sentence is now historical; update to "marts now consume `booking_time_opportunity_id` directly (PRs #N, #N+1)."
 
 **Why a separate retirement PR:** F1/F2/F3 precedent. Retiring the parity test in the same PR that introduces it gives no live coverage window; the test only earns its keep by running in CI for at least one refresh cycle on the new shape.
 
@@ -200,12 +200,12 @@ Modeled on the F1/F2/F3 Speed-to-Lead refactor (`mart-naming.md` lessons-learned
 
 1. **Locked headline metric drift on `is_within_5_min_sla`.** This is THE highest-stakes failure mode. The numerator is sourced from `fct_outreach` + `dim_users` and is independent of the SKs / `closer_and_outcome` CTE. Refactor SHOULD not touch it. Defense: parity test asserts byte-identical `is_within_5_min_sla` per booking pre-and-post. Rollback: revert PR-2.
 2. **Q3.1 ambiguity → wrong `closer_name` semantics ship.** If we guess wrong on (a) vs (b) vs (c), the dashboard's "closer" column silently changes meaning. The mart-naming.md "fewer wider marts" maxim does not protect against this — it's a column-semantics error inside one mart. Defense: David answers Q3.1 in writing before PR-1 merges. Recommended default if David is unreachable: (c) both columns, distinguished — strictly more information, can shrink later.
-3. **Outcome-column drift surprises a downstream BI surface.** Post-refactor `close_outcome` / `closed_at` / `lost_reason` come from the fact-selected opp (active at booking) instead of the latest opp on the contact. For bookings whose contact subsequently got a NEW opp (re-engagement, additional pipeline), the outcome column will show the OLD opp's outcome — possibly stale. Defense: PR-2 description must enumerate the row-count of bookings where `selected_opportunity_id` differs from the latest opp on the contact (this is the affected slice). David approves before merge.
+3. **Outcome-column drift surprises a downstream BI surface.** Post-refactor `close_outcome` / `closed_at` / `lost_reason` come from the fact-selected opp (active at booking) instead of the latest opp on the contact. For bookings whose contact subsequently got a NEW opp (re-engagement, additional pipeline), the outcome column will show the OLD opp's outcome — possibly stale. Defense: PR-2 description must enumerate the row-count of bookings where `booking_time_opportunity_id` differs from the latest opp on the contact (this is the affected slice). David approves before merge.
 
 ### Other risks
 
 4. **`opportunity_id` PK uniqueness assumption.** Plan assumes `stg_ghl__opportunities.opportunity_id` is unique. Verify before PR-1 (Maxim 4 — `COUNT(1)` after every join in the new `outcomes` CTE; if not unique, fan-out and the parity test will catch it).
-5. **`selected_opportunity_id` NULL handling.** Bookings with no pre-existing opp (~unknown %) get NULL `selected_opportunity_id`. The new `outcomes` CTE join must be `LEFT JOIN`, and downstream columns must `COALESCE` or accept NULL. Same pattern as the existing NULL `assigned_user_sk` rows. Tested by the parity test.
+5. **`booking_time_opportunity_id` NULL handling.** Bookings with no pre-existing opp (~unknown %) get NULL `booking_time_opportunity_id`. The new `outcomes` CTE join must be `LEFT JOIN`, and downstream columns must `COALESCE` or accept NULL. Same pattern as the existing NULL `assigned_user_sk` rows. Tested by the parity test.
 6. **Parity test scope creep.** Tempting to assert byte-equality on every column. Resist — the WHOLE POINT of the refactor is that some columns intentionally change rule (outcome columns). The parity test asserts only what MUST not move; the diff narrative captures what intentionally changes.
 7. **`lead_journey` future drift.** Adding the comment block is the only defense against a future agent collapsing `latest_opportunity` to consume the fact. Stronger defense (and additive): a unit test asserting `lead_journey.current_pipeline_name` does NOT round-trip through `fct_calls_booked`. Defer to PR-2 if cheap; skip if expensive.
 
@@ -221,8 +221,8 @@ Modeled on the F1/F2/F3 Speed-to-Lead refactor (`mart-naming.md` lessons-learned
 
 ### Rollback path
 
-- **PR-1 rollback:** revert the fact-widening commit. No mart depends on `selected_opportunity_id` until PR-2, so PR-1 is safe to revert independently.
-- **PR-2 rollback:** revert the mart change + delete the parity test. PR-1's `selected_opportunity_id` column remains harmlessly on the fact.
+- **PR-1 rollback:** revert the fact-widening commit. No mart depends on `booking_time_opportunity_id` until PR-2, so PR-1 is safe to revert independently.
+- **PR-2 rollback:** revert the mart change + delete the parity test. PR-1's `booking_time_opportunity_id` column remains harmlessly on the fact.
 - **PR-3 rollback:** N/A — only deletes a passing test. If we need the parity test back, restore from git.
 
 ## 8. Open questions for David (must resolve before PR-1)
@@ -243,3 +243,78 @@ Modeled on the F1/F2/F3 Speed-to-Lead refactor (`mart-naming.md` lessons-learned
 - **PR-1 (fact widen):** `altimate-sql-review` on the `fct_calls_booked.sql` diff (LAW 1, hooked). `altimate-schema-migration` if the operator considers any of the column changes a DDL migration (additive column on a table-materialized model — borderline; default to running it if in doubt — LAW 3 doesn't allow "this case is small" exemptions).
 - **PR-2 (mart collapse):** `altimate-sql-review` on `sales_activity_detail.sql` (LAW 1, hooked). NOT `altimate-data-parity` — the contract is custom (numerator parity + outcome-column drift accepted), so a hand-written dbt singular test (per F1/F2/F3) is the right tool. CE adversarial reviewer pass on the diff before merge per `use-data-engineer-agent.md` "Reviews always pair" — high-stakes, headline-metric-adjacent, large surface.
 - **PR-3 (retire parity test):** `altimate-sql-review` on the changed mart YAML; routine.
+
+## 11. PR-1 verification artifact (pre-merge baseline)
+
+F1/F2/F3 precedent (per `mart-naming.md` lessons-learned): the producer of an additive-fact-widening PR captures the headline numbers BEFORE the change ships, so the next PR (PR-2 here) has a frozen baseline to assert byte-identical against. PR-1's structure (additive only, no QUALIFY change) makes row-count preservation provable structurally — but capturing the exact baseline is still load-bearing for PR-2's parity test.
+
+### Baseline captured 2026-04-30 from `project-41542e21-470f-4589-96d.Core.fct_calls_booked` (live prod)
+
+Query:
+```sql
+SELECT
+  COUNT(*)                               AS total_rows,
+  COUNTIF(assigned_user_sk IS NULL)      AS null_assigned_user_sk,
+  COUNTIF(assigned_user_sk IS NOT NULL)  AS non_null_assigned_user_sk,
+  COUNTIF(pipeline_stage_sk IS NULL)     AS null_pipeline_stage_sk,
+  COUNTIF(pipeline_stage_sk IS NOT NULL) AS non_null_pipeline_stage_sk,
+  COUNTIF(contact_sk IS NULL)            AS null_contact_sk,
+  COUNTIF(contact_sk IS NOT NULL)        AS non_null_contact_sk
+FROM `project-41542e21-470f-4589-96d.Core.fct_calls_booked`;
+```
+
+Result:
+
+| Column | NULL | NOT NULL | NULL % |
+|---|---:|---:|---:|
+| (total) | — | 5,487 | — |
+| `contact_sk` | 401 | 5,086 | 7.3% |
+| `pipeline_stage_sk` | 817 | 4,670 | 14.9% |
+| `assigned_user_sk` | **5,487** | **0** | **100%** ⚠️ |
+
+### Invariants PR-1 cannot violate (structural argument)
+
+- **Row count must remain 5,487.** PR-1 only projects an additional column from the existing `opportunity_at_booking` CTE pick. The QUALIFY `ORDER BY opportunity_created_at desc, opportunity_id desc` was already deterministic; adding the column to the SELECT does not change which row wins partition.
+- **`contact_sk` distribution must remain 401 NULL / 5,086 non-NULL.** PR-1 does not touch the `booking_contact` CTE.
+- **`assigned_user_sk` and `pipeline_stage_sk` distributions must remain identical pre/post.** PR-1 does not change the `dim_users` / `dim_pipeline_stages` LEFT JOINs.
+- **`booking_time_opportunity_id` will be 100% NULL on first build.** Because `assigned_user_id` resolves to NULL on every row of `opportunity_at_booking` (see anomaly below), the `opportunity_id` projected from the same row will also be NULL on every row.
+
+### ⚠️ Anomaly surfaced by the baseline — pre-PR-1 finding
+
+**`assigned_user_sk` is 100% NULL in live prod, despite PR #123 wiring it.** The fact compiles cleanly with the SK derivation (`fct_calls_booked.sql:131-134`) and the SK is not stubbed (verified — the `cast(null as string)` mentioned in the now-resolved CLAUDE.local.md bullet was the pre-PR-#123 state). The 100% NULL state means one of:
+
+1. The `opportunity_at_booking` LEFT JOIN never resolves a row — i.e., for every booking, no opportunity has `contact_id = booking_contact.contact_id` AND `opportunity_created_at <= booked_at`. Possible if the `contact_id` join axis is broken (e.g., the GHL contact_id column on opportunities doesn't match `dim_contacts.contact_id` because of dataset-routing drift post-Y1).
+2. The `dim_users` LEFT JOIN never matches `assigned_user_id`. Possible if `dim_users` is empty or the user_ids in opportunities are formatted differently than in dim_users (e.g., one set is wrapped in quotes from the JSON parse, the other isn't).
+3. `stg_ghl__opportunities` is itself empty post-Y1 cutover. Possible if the GHL sources repoint at `raw_ghl_v2` views (PR #128) didn't carry through to the staging model.
+
+**This anomaly is pre-existing — not introduced by PR-1.** PR-1 is purely additive and surfaces no new failure mode; the 100% NULL state will appear on `booking_time_opportunity_id` for the same upstream reason as on `assigned_user_sk`. But this anomaly **does affect PR-2's premises**: the mart-collapse parity test will be vacuous against an all-NULL fact (no rows to compare). Resolution must happen before PR-2 can demonstrate value.
+
+**Recommended next step (separate from PR-1 / PR-2 / PR-3):** open a follow-up issue or Open-Threads entry to investigate the 100% NULL state. Likely diagnostic queries:
+
+```sql
+-- 1. Are there any opportunities at all post-Y1?
+SELECT COUNT(*) FROM `project-41542e21-470f-4589-96d.STG.stg_ghl__opportunities`;
+
+-- 2. Do opp.contact_id values match dim_contacts.contact_id at all?
+SELECT COUNT(DISTINCT contact_id) AS opps_with_contact_id_match
+FROM `project-41542e21-470f-4589-96d.STG.stg_ghl__opportunities` o
+JOIN `project-41542e21-470f-4589-96d.Core.dim_contacts` dc
+  ON dc.contact_id = o.contact_id;
+
+-- 3. Do opp.assigned_user_id values match dim_users.user_id at all?
+SELECT COUNT(DISTINCT assigned_user_id) AS opps_with_user_match
+FROM `project-41542e21-470f-4589-96d.STG.stg_ghl__opportunities` o
+JOIN `project-41542e21-470f-4589-96d.Core.dim_users` u
+  ON u.user_id = o.assigned_user_id
+WHERE o.assigned_user_id IS NOT NULL;
+```
+
+These queries are read-only diagnostics. David: please run them when convenient and update the plan doc with results so PR-2's design can account for whatever the actual upstream state is.
+
+### PR-2 parity-test contract (informed by this baseline)
+
+When PR-2 ships, the singular test `sales_activity_parity` must assert at minimum:
+1. `COUNT(*) FROM sales_activity_detail` = pre-refactor count (frozen-snapshot comparison)
+2. `COUNTIF(is_within_5_min_sla)` = pre-refactor count, byte-identical
+3. `COUNTIF(first_outbound_touch_at IS NOT NULL) GROUP BY booking_id` = pre-refactor count per booking
+4. Outcome-column drift documented in the PR description, not asserted (per Q3.3 disposition).
