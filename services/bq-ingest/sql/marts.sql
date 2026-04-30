@@ -1562,6 +1562,10 @@ outbound_call_rollup AS (
 ),
 -- Static GHL userId → name map (same seed as dim_team_members static_ghl_user_seed).
 -- Needed here because GHL opportunities payloads carry userId but never userName/email.
+-- Casing convention: names are GHL-verbatim (whatever `$.name` returns from
+-- /users/search). Do NOT reflexively Title-case — if the seed diverges from
+-- live `assignedToName` payloads, name-based joins downstream silently break.
+-- Keep this seed in sync with `static_ghl_user_seed` below.
 ghl_user_name_map AS (
   SELECT user_id, user_name FROM (
     SELECT 'leBv9MtltaKdfSijVEhb' AS user_id, 'aariz menon'        AS user_name
@@ -2741,6 +2745,10 @@ fathom_users AS (
 -- setter_dim_display_name for ghl_outbound rows.
 -- Add rows here whenever a GHL userId is identified (from GHL Settings → Team Members).
 -- Confirmed via Fathom cross-reference (18 overlapping calls within ±4h same contact).
+-- Casing convention: names are GHL-verbatim (whatever `$.name` returns from
+-- /users/search). Do NOT reflexively Title-case — if the seed diverges from
+-- live `assignedToName` payloads, name-based joins downstream silently break.
+-- Keep this seed in sync with `ghl_user_name_map` above.
 static_ghl_user_seed AS (
   SELECT
     activity_ts,
