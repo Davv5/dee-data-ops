@@ -26,11 +26,9 @@ from sources.shared.phase1_release_gate import run_phase1_release_gate
 from sources.typeform.typeform_pipeline import ensure_tables as ensure_typeform_tables
 from sources.typeform.typeform_pipeline import run_incremental_sync as run_typeform_incremental_sync
 from sources.typeform.typeform_pipeline import run_models as run_typeform_models
-from sources.shared.analyst import ask_analyst
 from sources.shared.data_quality import run_dq
 from ops.runner.tasks import run_task
 from sources.shared.warehouse_healthcheck import run_healthcheck
-from sources.shared.warehouse_queries import AVAILABLE_QUERIES, run_named_query
 
 app = Flask(__name__)
 
@@ -199,39 +197,6 @@ def refresh_marts():
         return jsonify({"ok": False, "error": str(exc)}), 500
 
 
-@app.route("/query", methods=["GET", "POST"])
-def query():
-    """Run a named analytical query on GCP and return a compact JSON summary.
-
-    Pass the query name via:
-      - POST body:   {"query": "closer_summary"}
-      - GET param:   /query?name=closer_summary
-
-    Available queries are listed in the catalog response at GET /query/catalog.
-    """
-    name = None
-    if request.method == "POST":
-        body = request.get_json(silent=True) or {}
-        name = body.get("query") or body.get("name")
-    if not name:
-        name = request.args.get("name") or request.args.get("query")
-    if not name:
-        return jsonify({"ok": False, "error": "Provide 'query' in POST body or ?name= param",
-                        "available": AVAILABLE_QUERIES}), 400
-    try:
-        result = run_named_query(name)
-        return jsonify({"ok": True, **result}), 200
-    except KeyError as exc:
-        return jsonify({"ok": False, "error": str(exc), "available": AVAILABLE_QUERIES}), 404
-    except Exception as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 500
-
-
-@app.route("/query/catalog", methods=["GET"])
-def query_catalog():
-    return jsonify({"ok": True, "available_queries": AVAILABLE_QUERIES}), 200
-
-
 @app.route("/run-data-quality", methods=["GET", "POST"])
 def run_data_quality():
     try:
@@ -277,52 +242,6 @@ def healthcheck_phase1_release_gate():
         return jsonify(result), status_code
     except Exception as exc:
         return jsonify({"ok": False, "error": str(exc)}), 500
-
-
-@app.route("/ask", methods=["POST", "OPTIONS"])
-def ask():
-    """
-    AI data analyst endpoint. Accepts a plain-English question and returns
-    a structured answer backed by Gemini 1.5 Flash + BigQuery.
-
-    Request:
-        POST /ask
-        Headers:
-            Content-Type: application/json
-            Authorization: Bearer <ANALYST_API_KEY>   (if env var is set)
-        Body:
-            {"question": "How did Jordan do last week?"}
-
-    Response:
-        {"ok": true, "answer": "...", "sql": "...", "data": [...], "row_count": N}
-    """
-    # CORS preflight
-    if request.method == "OPTIONS":
-        resp = app.make_default_options_response()
-        resp.headers["Access-Control-Allow-Origin"] = "*"
-        resp.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
-        resp.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
-        return resp
-
-    # Optional bearer token auth
-    analyst_key = os.getenv("ANALYST_API_KEY")
-    if analyst_key:
-        auth_header = request.headers.get("Authorization", "")
-        token = auth_header.removeprefix("Bearer ").strip()
-        if token != analyst_key:
-            return jsonify({"ok": False, "error": "Unauthorized"}), 401
-
-    body = request.get_json(silent=True) or {}
-    question = (body.get("question") or "").strip()
-    if not question:
-        return jsonify({"ok": False, "error": "Provide a 'question' in the request body"}), 400
-
-    result = ask_analyst(question)
-    status_code = 200 if result.get("ok") else 500
-
-    resp = jsonify(result)
-    resp.headers["Access-Control-Allow-Origin"] = "*"
-    return resp, status_code
 
 
 @app.route("/webhooks/calendly", methods=["POST"])
