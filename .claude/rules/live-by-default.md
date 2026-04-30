@@ -13,7 +13,22 @@ freshness (raw landing → dashboard render). The defaults below are
 encoded so NEW rollups and dashboards inherit that behavior without
 per-model / per-tile configuration.
 
-## dbt (see `dbt-marts-rollups.md` for detail)
+> **Note (2026-04-30):** The dbt rollup defaults below are HISTORICAL.
+> The `marts/rollups/` directory was retired by the same PR that retired
+> the dbt-side speed-to-lead chain (`sales_activity_detail`,
+> `speed_to_lead_detail`, `fct_speed_to_lead_touch`, `stl_data_freshness`).
+> The "2-minute Cloud Run Job rebuilds `stl_* sales_activity_detail`" is
+> documentation only — no such Cloud Scheduler / Cloud Run Job exists in
+> `services/` (verified by adversarial review). Speed-to-lead now flows
+> through `Marts.fct_speed_to_lead` (built by `services/bq-ingest/sql/marts.sql`,
+> refreshed by `pipeline-marts-hourly` Cloud Run Job at `:50` past each hour)
+> with corresponding rollups (`mrt_speed_to_lead_overall`, `rpt_speed_to_lead_week`).
+> The freshness contract still holds (sub-hour from raw landing to mart row),
+> but the implementation moved from dbt to bq-ingest. Future-Claude scaffolding
+> a NEW mart should follow the bq-ingest pattern, not the retired dbt rollup
+> pattern.
+
+## dbt (HISTORICAL, see notes above)
 
 - Rollups under `marts/rollups/**` default to `materialized: incremental`,
   `incremental_strategy: insert_overwrite`, `on_schema_change: append_new_columns`
