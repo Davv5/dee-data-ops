@@ -1,0 +1,69 @@
+version: 2
+
+sources:
+  - name: ghl_core
+    description: >
+      Bq-ingest-built `Core` schema facts for GHL data. These tables are
+      maintained by `services/bq-ingest/sql/ghl_models.sql` (executed by
+      the `pipeline-marts-hourly` Cloud Run Job at `:50` past each hour
+      via `run_marts_with_dependencies`). dbt reads them as sources here
+      because the bq-ingest layer is canonical post-Y1-cutover for GHL
+      message-grain data; maintaining a parallel dbt staging layer
+      (the retired `stg_ghl__messages`) would duplicate work.
+
+      Read order: bq-ingest writes Raw → Core (Cloud Run Jobs) →
+      dbt reads Core via these sources → dbt writes warehouse facts
+      that consume them (e.g., `fct_outreach`).
+
+      Why these aren't in `_ghl__sources.yml` next to the staging models:
+      they're warehouse-layer facts being consumed by another warehouse-
+      layer fact, not staging-layer raw data. Placement here mirrors the
+      consumer (`2-dbt/models/warehouse/facts/fct_outreach.sql`).
+    schema: Core
+    tables:
+      - name: fct_ghl_outbound_calls
+        description: >
+          One row per GHL outbound call log. Built from
+          `Raw.ghl_objects_raw WHERE entity_type='outbound_call_logs'`
+          by bq-ingest. Carries `direction_norm`, `channel_norm`,
+          `call_status`, `call_started_at`, plus the raw `payload_json`
+          for fields not surfaced as top-level columns (e.g., the
+          message sender's `userId` which lives only in the payload).
+        columns:
+          - name: location_id
+          - name: call_log_id
+            description: Natural key — the GHL call_log_id.
+          - name: contact_id
+          - name: direction_norm
+            description: Lowercase normalized direction. Filter to 'outbound'.
+          - name: call_started_at
+            description: Touch timestamp.
+          - name: call_status
+          - name: payload_json
+            description: Raw GHL payload. Source for assignedTo / userId / ownerId via JSON_VALUE.
+
+      - name: fct_ghl_conversations
+        description: >
+          One row per GHL conversation message (despite the table name —
+          'conversations' is the entity_type but each row is a message).
+          Built from `Raw.ghl_objects_raw WHERE entity_type='conversations'`
+          by bq-ingest. Replaces the retired `STG.stg_ghl__messages`
+          which read from a permanently-empty view (Bug #2 cascade
+          investigation 2026-04-30).
+        columns:
+          - name: location_id
+          - name: conversation_id
+          - name: message_id
+            description: Natural key — the GHL message_id.
+          - name: contact_id
+          - name: assigned_to_user_id
+            description: Conversation-level assigned user. Per-message sender lives in payload_json.userId.
+          - name: direction_norm
+            description: Lowercase normalized direction. Filter to 'outbound'.
+          - name: message_type_norm
+            description: Lowercase normalized message_type (sms, type_sms, type_call, etc.).
+          - name: message_status_norm
+          - name: message_created_at
+            description: Touch timestamp.
+          - name: payload_json
+            description: Raw GHL payload. Source for sender userId + message source classification.
