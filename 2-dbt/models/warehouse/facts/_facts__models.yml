@@ -77,12 +77,20 @@ models:
 
   - name: fct_outreach
     description: >
-      Grain: one row per outbound human CALL/SMS. Source:
-      `stg_ghl__messages` filtered to outbound CALL/SMS and joined to
-      `stg_ghl__conversations` to require a non-null
-      `last_manual_message_at` (excludes automation). No role filter —
-      per Track D the SDR filter moves to the mart so this fact is
-      reusable across SDR / AE / Closer cuts.
+      Grain: one row per outbound human CALL/SMS. Source: bq-ingest-built
+      `Core.fct_ghl_outbound_calls` (calls) + `Core.fct_ghl_conversations`
+      (SMS), declared as sources in
+      `2-dbt/models/warehouse/_core__sources.yml`. Repointed 2026-04-30 from
+      the retired `STG.stg_ghl__messages` (which read from a permanently-
+      empty view). SMS messages must belong to a conversation with at least
+      one manual message (`stg_ghl__conversations.last_manual_message_at IS
+      NOT NULL`) — the locked-metric exclusion lever for human vs automation.
+      Outbound calls bypass the gate (inherently human). Cross-entity dedupe
+      via QUALIFY ROW_NUMBER on (message_id, location_id) — GHL logs the
+      same physical event in both `outbound_call_logs` and `conversations`
+      entities, sharing the id; we keep one row per id, preferring the call
+      representation. No role filter — per Track D the SDR filter moves to
+      the mart so this fact is reusable across SDR / AE / Closer cuts.
     columns:
       - name: touch_sk
         description: Surrogate key over `message_id`.
@@ -90,9 +98,15 @@ models:
           - unique
           - not_null
       - name: contact_sk
-        description: FK to `dim_contacts.contact_sk`.
+        description: >
+          FK to `dim_contacts.contact_sk`. Resolved via LEFT JOIN to
+          `dim_contacts`; NULL when the touch's `(location_id,
+          contact_id)` doesn't appear in `dim_contacts` (typically
+          historical contacts deleted from GHL, or contacts not yet
+          captured by the latest contacts pull). Unattributed-contact
+          diagnostics can count NULL `contact_sk` rows; mart-layer joins
+          to `dim_contacts` correctly drop them.
         tests:
-          - not_null
           - relationships:
               to: ref('dim_contacts')
               field: contact_sk
