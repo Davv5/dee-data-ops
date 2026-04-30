@@ -50,25 +50,10 @@ models:
               field: pipeline_stage_sk
       - name: selected_opportunity_id
         description: >
-          GHL `opportunity_id` of the active-opp-at-booking-time row the
-          fact selected (the same row that produced `assigned_user_sk`
-          and `pipeline_stage_sk`). Nullable on the same condition (no
-          pre-booking opp). Provides marts a single deterministic join
-          axis back to `stg_ghl__opportunities` for the booking-time
-          opp's outcome columns (`status`, `lost_reason_id`,
-          `last_status_change_at`, etc.) without re-implementing the
-          selection rule. NOT unique within this fact — a single opp
-          can be the selected opp for multiple bookings on the same
-          contact.
-
-          **NOT the right axis for "current closer" / "current pipeline
-          state" / "latest-opp" questions.** Those answer a different
-          question (latest opp by `opportunity_updated_at desc`, no
-          time filter) and need a separate join — see
-          `lead_journey.latest_opportunity` for the existing pattern.
-          Routing a current-state mart column through this axis silently
-          inverts its semantics for any contact whose booking-time opp
-          differs from their latest opp.
+          GHL `opportunity_id` of the booking-time-active opp; canonical
+          mart join axis. NULL when no pre-booking opp exists. NOT for
+          current/latest-opp questions — see `fct_calls_booked__overview`
+          for full rationale and the negative-space disclaimer.
         tests:
           - relationships:
               to: ref('stg_ghl__opportunities')

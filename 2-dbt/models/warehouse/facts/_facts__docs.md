@@ -65,18 +65,33 @@ here is authoritative on "did a booking event happen?"
 resolve via the most-recent GHL opportunity for the contact whose
 `opportunity_created_at <= booked_at` ("active opp at booking time"),
 with `opportunity_id desc` as the deterministic tiebreaker. All three
-emit NULL when the contact has no pre-booking opp; `relationships`
-tests auto-exclude nulls.
+emit NULL when the contact has no pre-booking opp OR when the booking
+fails to resolve to a `contact_sk` (no invitee-email match against
+`dim_contacts`). `relationships` tests auto-exclude nulls.
 
 These columns are *diagnostic* — not on the Speed-to-Lead numerator
 path. The headline metric sources first-touch identity from
 `fct_outreach`, independent of opportunity state.
 
-`selected_opportunity_id` is the canonical join axis for marts
-that need opp-level outcome data (`status`, `lost_reason_id`,
-`last_status_change_at`, etc.) — join through it instead of
-re-implementing the selection rule. See
-`docs/plans/2026-04-30-mart-collapse-fct-sks-plan.md`.
+#### `selected_opportunity_id` — what it IS for, what it ISN'T
+
+`selected_opportunity_id` is the canonical join axis for marts that
+need opp-level outcome data (`status`, `lost_reason_id`,
+`last_status_change_at`, etc.) tied to the booking. Join through it
+instead of re-implementing the selection rule.
+
+**It is NOT the right axis for "current closer" / "current pipeline
+state" / "latest-opp" questions.** Those answer a different question
+(latest opp by `opportunity_updated_at desc`, no time filter) and
+need a separate join — see `lead_journey.latest_opportunity` for the
+existing pattern. Routing a current-state mart column through
+`selected_opportunity_id` silently inverts its semantics for any
+contact whose booking-time opp differs from their latest opp.
+
+NOT unique within this fact — a single opp can be the selected opp
+for multiple bookings on the same contact.
+
+Mart-collapse plan: `docs/plans/2026-04-30-mart-collapse-fct-sks-plan.md`.
 
 {% enddocs %}
 

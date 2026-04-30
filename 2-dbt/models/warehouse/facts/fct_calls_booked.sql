@@ -19,9 +19,11 @@
 -- an opp T+50ms after the Calendly booking event, the fact selects the
 -- *prior* opp on this contact (or NULL) — by design, since this column
 -- represents the SDR who owned the contact *before* the booking, not the
--- workflow-created opp. This rule replaces three divergent rules that were
--- coexisting in marts (sales_activity_detail used "latest opp by created_at"
--- with a broken time filter; lead_journey used "latest opp by updated_at").
+-- workflow-created opp. The fact's selection rule provides the canonical
+-- axis to *eliminate* three divergent rules currently coexisting in marts
+-- (sales_activity_detail uses "latest opp by created_at" with a broken time
+-- filter; lead_journey uses "latest opp by updated_at"). Mart collapse to
+-- consume this axis ships in PR-2 / PR-3 — see plan doc below.
 --
 -- selected_opportunity_id projects the opportunity_id of the picked opp so
 -- marts can join back to stg_ghl__opportunities on a single deterministic

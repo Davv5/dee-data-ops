@@ -1,6 +1,13 @@
 # Mart collapse — consume `fct_calls_booked.{assigned_user_sk, pipeline_stage_sk}` from the fact
 
-_Authored 2026-04-30. Branch: `Davv5/refactor/mart-consume-fct-sks`. Status: **PLAN ONLY — no SQL written.** Awaiting David review of the open questions in §7 before any implementation PR opens._
+_Authored 2026-04-30. Branch: `Davv5/refactor/mart-consume-fct-sks`._
+
+> **PR status (2026-04-30):**
+> - **PR-1 (fact widening):** opened as [PR #135](https://github.com/Davv5/dee-data-ops/pull/135) — strictly additive, merging without Q3.1/Q3.2/Q3.3 resolution because the column is harmless until PR-2 consumes it. Adversarial + 7-persona code review run; findings addressed in-PR.
+> - **PR-2 (mart collapse + parity test):** **BLOCKED** on Q3.1 / Q3.2 / Q3.3 dispositions — see §8 of this plan.
+> - **PR-3 (parity test retirement):** unstarted; depends on PR-2 + one prod refresh cycle.
+
+_Original status: PLAN ONLY — no SQL written._
 
 > **Headline recommendation.** Multi-PR migration (3 PRs) gated on a parity test, modeled on the F1/F2/F3 Speed-to-Lead pattern (`mart-naming.md` lessons-learned). PR-1 widens the fact with `selected_opportunity_id` (and a few opportunity outcome columns) so marts have a single, deterministic join axis to opps. PR-2 collapses `sales_activity_detail` and `lead_journey` to consume from the fact + the new join axis, behind a parity test. PR-3 deletes the divergent CTEs once parity has held green for one prod refresh cycle. **Blocking on David** for the two business-semantic questions in §7 before PR-1 merges.
 
