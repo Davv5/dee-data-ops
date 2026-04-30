@@ -2,6 +2,18 @@
 
 _Authored 2026-04-29. Revised 2026-04-29 evening after multi-persona doc review surfaced production-breaking gaps in the original verdict tables. Sets the contract for batched retirement of `marts.sql` (6,064 lines, 45 tables/views written) so dbt-built tables replace its analytical surface and the `pipeline-marts-hourly` Cloud Run Job retires._
 
+> **Scope shift — PR #133 merged 2026-04-30 00:23 UTC.** PR #133 retired the dead HTTP analytical surface (`/ask`, `/query`, `/query/catalog`) and deleted `analyst.py` + `warehouse_queries.py`. **Two bucket structures collapse:**
+>
+> - **HOLD bucket — gone.** The 5 tables previously blocked on `/ask` disposition (`rpt_closer_close_rate_week`, `rpt_closer_revenue_month`, `rpt_closer_speed_to_close_week`, `rpt_setter_pre_appt_outreach_week`, `rpt_setter_unbooked_conversion_week`) redistribute into confirmed-orphan or cascade-hold per their remaining dependencies. The "HOLD — analyst.py /ask disposition" section below is now historical.
+> - **9 PORT tables lost their only static consumer.** `fct_payment_line_unified`, `rpt_funnel_conversion_week`, `rpt_unbooked_lead_quality_by_campaign`, `rpt_rep_scorecard_week`, `rpt_appt_funnel_week`, `bridge_contact_closer`, `rpt_revenue_by_stage_month`, `rpt_speed_to_lead_week`, `dim_closers` all listed `warehouse_queries.py` as their only consumer outside `marts.sql`. With that file gone, these need re-disposition pending an `INFORMATION_SCHEMA.JOBS_BY_PROJECT` scan against David's account (Batch 0(c), now expanded to also cover these 9 tables). Until verified, treat them as **PORT-pending-verification** — likely-DROP if David has no ad-hoc reads, still-PORT if he does.
+>
+> **The verdict tables and counts below have NOT been re-keyed to reflect the post-#133 state.** A third revision pass will rewrite the tables once Batch 0 verification completes. The batch plan, validation-harness disposition, and Won't-do sections remain accurate as written. Routes-and-files specific changes:
+>
+> - Batch 0(a) /ask traffic check is **resolved** (path B chosen by retirement). The third disposition path "(C) broken or stale" is now moot.
+> - Open Q 3 (/ask endpoint live status) is **resolved**.
+> - Batch 5 "HOLD-resolution slice" no longer applies; the 5 ex-HOLD tables fold into Batch 1 (3 of them) or remain in cascade-hold (2 of them).
+> - Open Q 6 (`warehouse_queries.py` post-Y3 disposition) is **resolved by retirement**, not "kept and repointed at Marts.* names." This means dbt PORT models target dbt-conventional names (`Core.*` or whatever the dbt convention dictates) without back-compat naming pressure.
+
 ## Goal — restated
 
 **Retire `services/bq-ingest/sql/marts.sql` and its Cloud Run Job (`pipeline-marts-hourly`)** so dbt becomes the only writer that runs through `marts.sql`'s blocks. The earlier framing — "dbt becomes sole owner of the Marts schema" — overstates the scope: `services/bq-ingest/sources/identity/identity_pipeline.py` ALSO writes 5 Marts tables/views (`bridge_setter_identity`, `mart_speed_to_lead_enriched`, `rpt_setter_identity_unknown_queue`, `rpt_setter_identity_coverage_daily`, `v_unified_dashboard_schema`). Full schema ownership is a follow-on Y4; Y3 retires the `marts.sql` writer specifically.
