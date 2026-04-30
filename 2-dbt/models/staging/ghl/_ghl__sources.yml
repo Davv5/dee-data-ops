@@ -30,11 +30,17 @@ sources:
         - opportunities:       26,156 rows (covered)
         - conversations:       1,572 rows  (covered; legacy had 101 rows)
         - pipelines:           36 rows     (covered)
-        - messages:            0 rows in union — bq-ingest does NOT poll
-                               messages currently. Legacy had 17,971 rows
-                               but they're not in the union; freshness is
-                               disabled below until ingestion is re-enabled.
-        - users:               0 rows on both paths; freshness disabled.
+        - users:               16 rows post-2026-04-30 GHL_COMPANY_ID fix.
+        - messages:            RETIRED 2026-04-30. The `entity_type='messages'`
+                               filter on `raw_ghl_v2.ghl__messages_raw` was
+                               filtering on a non-existent entity type (actual
+                               outbound entities are `outbound_call_logs` +
+                               `conversations`). `STG.stg_ghl__messages` and
+                               its source declaration both retired in PR #3
+                               of the Bug #2 cleanup chain (PRs #142/#143/this).
+                               `fct_outreach` now reads `Core.fct_ghl_outbound_calls`
+                               + `Core.fct_ghl_conversations` directly via
+                               `2-dbt/models/warehouse/_core__sources.yml`.
     schema: raw_ghl_v2
     config:
       loaded_at_field: _ingested_at
@@ -135,38 +141,6 @@ sources:
               - not_null
           - name: payload_json
             description: JSON column — full contact object.
-            tests:
-              - not_null
-
-      - name: messages
-        identifier: ghl__messages_raw
-        # Freshness disabled: bq-ingest does not poll messages currently
-        # (the live service's GHL_OBJECT_TYPES env doesn't include
-        # `messages`). Legacy `raw_ghl.ghl__messages_raw` holds 17,971
-        # historical rows but stopped writing 2026-04-19; the union table
-        # has 0 rows under entity_type='messages'. Re-enable freshness
-        # when message ingestion is re-enabled — see Strategic-Reset
-        # paused threads.
-        freshness: null
-        description: >
-          One row per GHL message, fanned out from `conversations` via
-          `/conversations/{id}/messages`. Per-touch SDR attribution lives here
-          (`userId`). **0 rows** in `Raw.ghl_objects_raw` (the live source);
-          17,971 historical rows in legacy `raw_ghl.ghl__messages_raw`,
-          last write 2026-04-19. The bq-ingest service does not currently
-          poll messages — staging passes zero rows through until upstream
-          fix. Out of scope for the source-drift cutover.
-        columns:
-          - name: entity_id
-            description: GHL message id.
-            tests:
-              - not_null
-          - name: _ingested_at
-            description: Wall-clock UTC time this row was written into BigQuery.
-            tests:
-              - not_null
-          - name: payload_json
-            description: JSON column — full message object.
             tests:
               - not_null
 
