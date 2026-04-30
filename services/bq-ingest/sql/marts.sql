@@ -1562,9 +1562,13 @@ outbound_call_rollup AS (
 ),
 -- Static GHL userId → name map (same seed as dim_team_members static_ghl_user_seed).
 -- Needed here because GHL opportunities payloads carry userId but never userName/email.
+-- Casing convention: names are GHL-verbatim (whatever `$.name` returns from
+-- /users/search). Do NOT reflexively Title-case — if the seed diverges from
+-- live `assignedToName` payloads, name-based joins downstream silently break.
+-- Keep this seed in sync with `static_ghl_user_seed` below.
 ghl_user_name_map AS (
   SELECT user_id, user_name FROM (
-    SELECT 'leBv9MtltaKdfSijVEhb' AS user_id, 'Houssam Bentouati'  AS user_name
+    SELECT 'leBv9MtltaKdfSijVEhb' AS user_id, 'aariz menon'        AS user_name
     UNION ALL SELECT '1D4ZUkV07gGJ25YtUolz', 'Houssam Bentouati'
     UNION ALL SELECT 'c5ujVqeYHGi1WnmlvtWu', 'Marco Branco'
     UNION ALL SELECT '7rCcXXi8tFdihhDvTTM3', 'Mitchell Naude'
@@ -1575,7 +1579,7 @@ ghl_user_name_map AS (
     UNION ALL SELECT 'ILX9jpFp7ycNbWgakiYR', 'Kevin Maya'
     UNION ALL SELECT 'XKcL1lmTZn8LFHiUwtn1', 'Jake Lynch'
     UNION ALL SELECT 'YyBgSVqB1wQoFj8tAe40', 'Stanley Macauley'
-    UNION ALL SELECT 'BKc6beDhtuW1GFp0wI',   'Ethan Gerstenberg'
+    UNION ALL SELECT 'BKc6beDhtuJIW1Gfp0wI', 'Ethan Gerstenberg'
     -- Oct5Tz6ZVUaDkqXC3yHL: 292 older events, not in GHL team list — likely deleted account
   )
 ),
@@ -2741,6 +2745,10 @@ fathom_users AS (
 -- setter_dim_display_name for ghl_outbound rows.
 -- Add rows here whenever a GHL userId is identified (from GHL Settings → Team Members).
 -- Confirmed via Fathom cross-reference (18 overlapping calls within ±4h same contact).
+-- Casing convention: names are GHL-verbatim (whatever `$.name` returns from
+-- /users/search). Do NOT reflexively Title-case — if the seed diverges from
+-- live `assignedToName` payloads, name-based joins downstream silently break.
+-- Keep this seed in sync with `ghl_user_name_map` above.
 static_ghl_user_seed AS (
   SELECT
     activity_ts,
@@ -2752,8 +2760,8 @@ static_ghl_user_seed AS (
   FROM (
     -- Confirmed from GHL Settings → Team Members (screenshots 2026-04-11)
     -- Columns: activity_ts, user_id_raw, user_name_raw, user_email_norm, phone
-    SELECT TIMESTAMP('2099-01-01') AS activity_ts, 'leBv9MtltaKdfSijVEhb' AS user_id_raw, 'Houssam Bentouati'  AS user_name_raw, 'houssam@precisionscaling.io'        AS user_email_norm, CAST(NULL AS STRING) AS phone
-    UNION ALL SELECT TIMESTAMP('2099-01-01'), '1D4ZUkV07gGJ25YtUolz', 'Houssam Bentouati',  'houssam@precisionscaling.io',        NULL  -- GHL settings ID (may differ from payload ID above)
+    SELECT TIMESTAMP('2099-01-01') AS activity_ts, 'leBv9MtltaKdfSijVEhb' AS user_id_raw, 'aariz menon'        AS user_name_raw, 'aariz@precisionscaling.io'          AS user_email_norm, CAST(NULL AS STRING) AS phone
+    UNION ALL SELECT TIMESTAMP('2099-01-01'), '1D4ZUkV07gGJ25YtUolz', 'Houssam Bentouati',  'houssam@precisionscaling.io',        NULL
     UNION ALL SELECT TIMESTAMP('2099-01-01'), 'c5ujVqeYHGi1WnmlvtWu', 'Marco Branco',        'marcobranco@precisionscaling.io',    '+27826101942'
     UNION ALL SELECT TIMESTAMP('2099-01-01'), '7rCcXXi8tFdihhDvTTM3', 'Mitchell Naude',      'mitchell@precisionscaling.io',       NULL
     UNION ALL SELECT TIMESTAMP('2099-01-01'), '9rocXim1JjeIvjSrWLSn', 'Boipelo Mashigo',     'boipelo@precisionscaling.io',        '+491723821687'
@@ -2763,7 +2771,7 @@ static_ghl_user_seed AS (
     UNION ALL SELECT TIMESTAMP('2099-01-01'), 'ILX9jpFp7ycNbWgakiYR', 'Kevin Maya',           'kevin@precisionscaling.io',         NULL
     UNION ALL SELECT TIMESTAMP('2099-01-01'), 'XKcL1lmTZn8LFHiUwtn1', 'Jake Lynch',           'jake@precisionscaling.io',          NULL
     UNION ALL SELECT TIMESTAMP('2099-01-01'), 'YyBgSVqB1wQoFj8tAe40', 'Stanley Macauley',     'stanley@stanleyoperations.com',      '+447586641324'
-    UNION ALL SELECT TIMESTAMP('2099-01-01'), 'BKc6beDhtuW1GFp0wI',   'Ethan Gerstenberg',    'ethan@precisionscaling.io',          NULL
+    UNION ALL SELECT TIMESTAMP('2099-01-01'), 'BKc6beDhtuJIW1Gfp0wI', 'Ethan Gerstenberg',    'ethan@precisionscaling.io',          NULL
     -- Oct5Tz6ZVUaDkqXC3yHL: 292 older events, not in GHL team member list — likely deleted account
   )
 ),
