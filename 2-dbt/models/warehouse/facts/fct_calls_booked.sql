@@ -19,10 +19,17 @@
 -- an opp T+50ms after the Calendly booking event, the fact selects the
 -- *prior* opp on this contact (or NULL) — by design, since this column
 -- represents the SDR who owned the contact *before* the booking, not the
--- workflow-created opp. This rule replaces three divergent rules that were
--- coexisting in marts (sales_activity_detail used "latest opp by created_at"
--- with a broken time filter; lead_journey used "latest opp by updated_at");
--- follow-up PR will collapse the marts to consume these SKs from the fact.
+-- workflow-created opp. The fact's selection rule provides the canonical
+-- axis to *eliminate* three divergent rules currently coexisting in marts
+-- (sales_activity_detail uses "latest opp by created_at" with a broken time
+-- filter; lead_journey uses "latest opp by updated_at"). Mart collapse to
+-- consume this axis ships in PR-2 / PR-3 — see plan doc below.
+--
+-- booking_time_opportunity_id projects the opportunity_id of the picked opp so
+-- marts can join back to stg_ghl__opportunities on a single deterministic
+-- axis without re-implementing the selection rule. NULL on the same
+-- condition as assigned_user_sk / pipeline_stage_sk (no pre-booking opp).
+-- Mart collapse plan: `docs/plans/2026-04-30-mart-collapse-fct-sks-plan.md`.
 
 with
 
@@ -100,6 +107,7 @@ opportunity_at_booking as (
 
     select
         booking_contact.event_id,
+        opportunities.opportunity_id,
         opportunities.assigned_user_id,
         opportunities.pipeline_id,
         opportunities.pipeline_stage_id
@@ -124,6 +132,7 @@ final as (
         booking_contact.contact_sk                              as contact_sk,
         users.user_sk                                           as assigned_user_sk,
         pipeline_stages.pipeline_stage_sk                       as pipeline_stage_sk,
+        opportunity_at_booking.opportunity_id                   as booking_time_opportunity_id,
 
         events.event_id                                         as calendly_event_id,
         events.event_type_id,
