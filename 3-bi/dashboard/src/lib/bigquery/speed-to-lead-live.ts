@@ -64,16 +64,114 @@ const speedToLeadQueries = {
     ORDER BY IFNULL(speed_to_lead_pct_within_sla, -1) DESC, bookings DESC, rep_name
     LIMIT 12
   `,
-} satisfies Record<"speed_to_lead_overall" | "speed_to_lead_daily" | "speed_to_lead_by_rep", string>;
+  speed_to_lead_trigger_summary: `
+    SELECT
+      trigger_type,
+      COUNT(*) AS total_triggers,
+      COUNTIF(first_touch_ts IS NOT NULL) AS touched,
+      SAFE_DIVIDE(COUNTIF(first_touch_ts IS NOT NULL), COUNT(*)) AS touch_rate,
+      COUNTIF(is_within_sla) AS within_5m,
+      SAFE_DIVIDE(COUNTIF(is_within_sla), COUNT(*)) AS within_5m_rate,
+      APPROX_QUANTILES(speed_to_lead_minutes, 100)[OFFSET(50)] AS median_minutes,
+      APPROX_QUANTILES(speed_to_lead_minutes, 100)[OFFSET(90)] AS p90_minutes
+    FROM ${tableRef("freshness")}
+    GROUP BY trigger_type
+    ORDER BY total_triggers DESC
+  `,
+  speed_to_lead_response_buckets: `
+    WITH bucketed AS (
+      SELECT
+        trigger_type,
+        CASE
+          WHEN first_touch_ts IS NULL THEN 'no touch'
+          WHEN speed_to_lead_minutes <= 1 THEN '<=1m'
+          WHEN speed_to_lead_minutes <= 5 THEN '1-5m'
+          WHEN speed_to_lead_minutes <= 15 THEN '5-15m'
+          WHEN speed_to_lead_minutes <= 60 THEN '15-60m'
+          WHEN speed_to_lead_minutes <= 1440 THEN '1-24h'
+          ELSE '>24h'
+        END AS response_bucket,
+        CASE
+          WHEN first_touch_ts IS NULL THEN 7
+          WHEN speed_to_lead_minutes <= 1 THEN 1
+          WHEN speed_to_lead_minutes <= 5 THEN 2
+          WHEN speed_to_lead_minutes <= 15 THEN 3
+          WHEN speed_to_lead_minutes <= 60 THEN 4
+          WHEN speed_to_lead_minutes <= 1440 THEN 5
+          ELSE 6
+        END AS bucket_order
+      FROM ${tableRef("freshness")}
+    ),
+    counted AS (
+      SELECT
+        trigger_type,
+        response_bucket,
+        bucket_order,
+        COUNT(*) AS triggers
+      FROM bucketed
+      GROUP BY trigger_type, response_bucket, bucket_order
+    )
+    SELECT
+      trigger_type,
+      response_bucket,
+      triggers,
+      SAFE_DIVIDE(triggers, SUM(triggers) OVER (PARTITION BY trigger_type)) AS share_of_type
+    FROM counted
+    ORDER BY trigger_type, bucket_order
+  `,
+  speed_to_lead_source_performance: `
+    SELECT
+      COALESCE(NULLIF(trigger_source_label, ''), 'Unknown') AS source_label,
+      trigger_type,
+      COUNT(*) AS total_triggers,
+      COUNTIF(first_touch_ts IS NOT NULL) AS touched,
+      SAFE_DIVIDE(COUNTIF(first_touch_ts IS NOT NULL), COUNT(*)) AS touch_rate,
+      COUNTIF(is_within_sla) AS within_5m,
+      SAFE_DIVIDE(COUNTIF(is_within_sla), COUNT(*)) AS within_5m_rate,
+      APPROX_QUANTILES(speed_to_lead_minutes, 100)[OFFSET(50)] AS median_minutes
+    FROM ${tableRef("freshness")}
+    WHERE trigger_date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
+    GROUP BY source_label, trigger_type
+    HAVING total_triggers >= 5
+    ORDER BY total_triggers DESC
+    LIMIT 12
+  `,
+  speed_to_lead_no_touch_examples: `
+    SELECT
+      FORMAT_TIMESTAMP('%FT%TZ', trigger_ts) AS trigger_ts,
+      FORMAT_DATE('%Y-%m-%d', trigger_date) AS trigger_date,
+      trigger_type,
+      COALESCE(NULLIF(trigger_source_label, ''), 'Unknown') AS source_label,
+      COALESCE(NULLIF(utm_source, ''), 'N/A') AS utm_source,
+      COALESCE(NULLIF(utm_campaign, ''), 'N/A') AS utm_campaign,
+      TIMESTAMP_DIFF(CURRENT_TIMESTAMP(), trigger_ts, HOUR) AS age_hours
+    FROM ${tableRef("freshness")}
+    WHERE first_touch_ts IS NULL
+    ORDER BY trigger_ts DESC
+    LIMIT 12
+  `,
+} satisfies Record<string, string>;
 
 export async function getSpeedToLeadData(): Promise<DashboardData> {
   const generatedAt = new Date().toISOString();
 
   try {
-    const [overall, daily, byRep] = await Promise.all([
+    const [
+      overall,
+      daily,
+      byRep,
+      triggerSummary,
+      responseBuckets,
+      sourcePerformance,
+      noTouchExamples,
+    ] = await Promise.all([
       runBigQuery(speedToLeadQueries.speed_to_lead_overall),
       runBigQuery(speedToLeadQueries.speed_to_lead_daily),
       runBigQuery(speedToLeadQueries.speed_to_lead_by_rep),
+      runBigQuery(speedToLeadQueries.speed_to_lead_trigger_summary),
+      runBigQuery(speedToLeadQueries.speed_to_lead_response_buckets),
+      runBigQuery(speedToLeadQueries.speed_to_lead_source_performance),
+      runBigQuery(speedToLeadQueries.speed_to_lead_no_touch_examples),
     ]);
 
     return {
@@ -81,6 +179,10 @@ export async function getSpeedToLeadData(): Promise<DashboardData> {
         speed_to_lead_overall: overall,
         speed_to_lead_daily: daily,
         speed_to_lead_by_rep: byRep,
+        speed_to_lead_trigger_summary: triggerSummary,
+        speed_to_lead_response_buckets: responseBuckets,
+        speed_to_lead_source_performance: sourcePerformance,
+        speed_to_lead_no_touch_examples: noTouchExamples,
       },
       freshness: buildFreshness(overall, byRep),
       generatedAt,

@@ -73,6 +73,7 @@ function KpiTile({ tile, data }: { tile: Extract<DashboardTile, { type: "kpi" }>
       <div className="text-3xl font-semibold tracking-normal">
         {formatValue(value, tile.format)}
       </div>
+      <KpiDrilldown tile={tile} data={data} />
       <SourceLine table={query?.table} />
     </DashboardCard>
   );
@@ -94,6 +95,7 @@ function ChartTile({
       ) : (
         <BarChartTile tile={tile} rows={rows} />
       )}
+      <ChartDrilldown tile={tile} rows={rows} data={data} />
       <SourceLine table={queryContracts[tile.query as keyof typeof queryContracts]?.table} />
     </DashboardCard>
   );
@@ -142,6 +144,7 @@ function TableTile({
           </tbody>
         </table>
       </div>
+      <TableDrilldown data={data} />
       <SourceLine table={queryContracts[tile.query as keyof typeof queryContracts]?.table} />
     </DashboardCard>
   );
@@ -281,6 +284,193 @@ function SourceLine({ table }: { table?: string }) {
   }
 
   return <div className="mt-4 truncate font-mono text-[11px] text-[#66635f]">{table}</div>;
+}
+
+function KpiDrilldown({
+  tile,
+  data,
+}: {
+  tile: Extract<DashboardTile, { type: "kpi" }>;
+  data: DashboardData;
+}) {
+  if (tile.field === "pct_within_5m") {
+    return (
+      <Drilldown label="Response detail">
+        <MiniTable
+          rows={data.rows.speed_to_lead_trigger_summary ?? []}
+          columns={[
+            { key: "trigger_type", label: "Trigger" },
+            { key: "total_triggers", label: "Triggers", format: "number" },
+            { key: "touch_rate", label: "Touched", format: "percent" },
+            { key: "within_5m_rate", label: "<=5m", format: "percent" },
+            { key: "median_minutes", label: "Median", format: "duration" },
+          ]}
+        />
+        <MiniTable
+          rows={data.rows.speed_to_lead_response_buckets ?? []}
+          columns={[
+            { key: "trigger_type", label: "Trigger" },
+            { key: "response_bucket", label: "Bucket" },
+            { key: "triggers", label: "Rows", format: "number" },
+            { key: "share_of_type", label: "Share", format: "percent" },
+          ]}
+          className="mt-4"
+        />
+      </Drilldown>
+    );
+  }
+
+  if (tile.field === "bookings_with_outbound_call") {
+    return (
+      <Drilldown label="Source detail">
+        <MiniTable
+          rows={data.rows.speed_to_lead_source_performance ?? []}
+          columns={[
+            { key: "source_label", label: "Source" },
+            { key: "trigger_type", label: "Type" },
+            { key: "total_triggers", label: "Triggers", format: "number" },
+            { key: "touch_rate", label: "Touched", format: "percent" },
+            { key: "within_5m_rate", label: "<=5m", format: "percent" },
+          ]}
+        />
+      </Drilldown>
+    );
+  }
+
+  return null;
+}
+
+function ChartDrilldown({
+  tile,
+  rows,
+  data,
+}: {
+  tile: Extract<DashboardTile, { type: "line" | "bar" }>;
+  rows: DashboardRow[];
+  data: DashboardData;
+}) {
+  if (tile.type === "line") {
+    return (
+      <Drilldown label="Daily rows">
+        <MiniTable
+          rows={rows.slice(-12)}
+          columns={[
+            { key: "report_date", label: "Date" },
+            { key: "total_bookings_matched_to_contact", label: "Bookings", format: "number" },
+            { key: "bookings_with_outbound_call", label: "Touched", format: "number" },
+            { key: "pct_within_5m", label: "<=5m", format: "percent" },
+            { key: "pct_triggers_with_outbound_touch", label: "Trigger Touch", format: "percent" },
+          ]}
+        />
+      </Drilldown>
+    );
+  }
+
+  return (
+    <Drilldown label="No-touch examples">
+      <MiniTable
+        rows={data.rows.speed_to_lead_no_touch_examples ?? []}
+        columns={[
+          { key: "trigger_date", label: "Date" },
+          { key: "trigger_type", label: "Type" },
+          { key: "source_label", label: "Source" },
+          { key: "utm_campaign", label: "Campaign" },
+          { key: "age_hours", label: "Age Hrs", format: "number" },
+        ]}
+      />
+    </Drilldown>
+  );
+}
+
+function TableDrilldown({ data }: { data: DashboardData }) {
+  return (
+    <Drilldown label="Source performance">
+      <MiniTable
+        rows={data.rows.speed_to_lead_source_performance ?? []}
+        columns={[
+          { key: "source_label", label: "Source" },
+          { key: "trigger_type", label: "Type" },
+          { key: "total_triggers", label: "Triggers", format: "number" },
+          { key: "touched", label: "Touched", format: "number" },
+          { key: "touch_rate", label: "Touch Rate", format: "percent" },
+          { key: "within_5m", label: "<=5m", format: "number" },
+          { key: "within_5m_rate", label: "<=5m Rate", format: "percent" },
+        ]}
+      />
+    </Drilldown>
+  );
+}
+
+function Drilldown({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <details className="mt-4 rounded-md border border-[#ece9e1] bg-[#fbfaf7]">
+      <summary className="cursor-pointer px-3 py-2 text-xs font-semibold text-[#0f766e]">
+        {label}
+      </summary>
+      <div className="border-t border-[#ece9e1] p-3">{children}</div>
+    </details>
+  );
+}
+
+function MiniTable({
+  rows,
+  columns,
+  className,
+}: {
+  rows: DashboardRow[];
+  columns: Array<{ key: string; label: string; format?: DashboardFormat }>;
+  className?: string;
+}) {
+  return (
+    <div className={className}>
+      <div className="overflow-x-auto">
+        <table className="min-w-full border-separate border-spacing-0 text-left text-xs">
+          <thead>
+            <tr className="text-[#66635f]">
+              {columns.map((column) => (
+                <th
+                  key={column.key}
+                  className="border-b border-[#dedbd2] px-2 py-2 font-semibold first:pl-0"
+                >
+                  {column.label}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length > 0 ? (
+              rows.map((row, rowIndex) => (
+                <tr key={`drilldown-${rowIndex}`}>
+                  {columns.map((column) => (
+                    <td
+                      key={column.key}
+                      className="max-w-52 border-b border-[#ece9e1] px-2 py-2 first:pl-0"
+                    >
+                      <span className="block truncate">
+                        {formatValue(row[column.key] ?? null, column.format)}
+                      </span>
+                    </td>
+                  ))}
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan={columns.length} className="py-4 text-[#66635f]">
+                  No rows returned.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
 }
 
 function rowsForTile(data: DashboardData, tile: DashboardTile) {
