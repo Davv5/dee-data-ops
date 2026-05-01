@@ -6,6 +6,8 @@ Purpose: this is the reset document for source → dbt → marts → dashboard w
 
 The project has been fighting stale guidance. Several plans and state files still describe marts and BI direction that no longer match `main`. This document names the current truth and gives future agents a safer path.
 
+Companion infrastructure map: `docs/discovery/cloud-project-provenance-map.md`. Read it before any GCP, BigQuery, Cloud Run, or Scheduler change.
+
 ## Operating Doctrine
 
 The architecture is the three-layer model from `docs/transcripts/3-layer-architecture-of-truth.md`:
@@ -30,7 +32,9 @@ Hard rule: no new dashboard logic until the mart or report-table contract is nam
 
 ## Present Reality
 
-There are two active data-serving worlds:
+The current consolidated GCP project is `project-41542e21-470f-4589-96d`. Legacy projects `dee-data-ops-prod` and `dee-data-ops` still exist and still contain useful evidence, but they are not the target for new work.
+
+There are two active data-serving worlds inside the current project:
 
 1. **dbt-owned durable layer** under `2-dbt/models/`
 2. **bq-ingest inline SQL report layer** in `services/bq-ingest/sql/marts.sql`

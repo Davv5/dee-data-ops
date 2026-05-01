@@ -19,6 +19,7 @@ _Last regenerated: 2026-05-01 mid-day UTC — **PR #146 merged + verified end-to
 - **dbt prod schemas are STG / Core / Marts** (capitalized — Y1 cutover, PR #129). dbt-built tables coexist alongside bq-ingest's inline-SQL writers in those datasets (different table names, no conflict).
 - **GHL sources read from `raw_ghl_v2` views** (PR #128). Per-entity views over `Raw.ghl_objects_raw` filtered by `entity_type` and aliasing `ingested_at AS _ingested_at`.
 - **`fct_calls_booked.{assigned_user_sk,pipeline_stage_sk,booking_time_opportunity_id}` are wired and flowing** (PRs #123/#135/#138). `assigned_user_sk` non-NULL = 10/5,487 (0.18%); 99.82% NULL is legitimate LEFT JOIN orphan case (historical/deleted users not in `/users/search`).
+- **Cloud project provenance map added 2026-05-01:** `docs/discovery/cloud-project-provenance-map.md` labels `project-41542e21-470f-4589-96d` as current, `dee-data-ops-prod` as legacy prod/rollback, and `dee-data-ops` as legacy dev/raw. Local `gcloud` default still points at `dee-data-ops-prod`; always pass `--project` / `--project_id` explicitly.
 - **Data-layer reset map added 2026-05-01:** `docs/discovery/current-data-layer-truth-map.md` is now the first read before mart/dashboard work. It corrects stale guidance: dbt `speed_to_lead_detail` and `sales_activity_detail` were deleted in PR #142; Fanbasis staging/facts now exist; dashboard v1 may consume bq-ingest Speed-to-Lead report tables temporarily, but dbt remains the durable data layer.
 - **`bq-ingest` requires authenticated invocation.** `curl -H "Authorization: Bearer $(gcloud auth print-identity-token)" ...`
 - **GHL transition snapshots remain LIVE.** `Core.fct_pipeline_stage_snapshots` compounds daily at 07:00 UTC.
@@ -77,6 +78,7 @@ _Last regenerated: 2026-05-01 mid-day UTC — **PR #146 merged + verified end-to
 - **bq-ingest service rules:** `.claude/rules/bq-ingest.md`
 - **Live snapshot table:** `project-41542e21-470f-4589-96d.Core.fct_pipeline_stage_snapshots`, partitioned by `snapshot_date`.
 - **Current data-layer truth map:** `docs/discovery/current-data-layer-truth-map.md` — first read before marts/dashboard work.
+- **Cloud project provenance map:** `docs/discovery/cloud-project-provenance-map.md` — first read before GCP/BigQuery/Cloud Run/Scheduler work.
 - **Canonical roadmap:** `docs/discovery/gold-layer-roadmap.md` (stale in places; refresh against the truth map before executing)
 - **Phase A → B ADR:** `docs/decisions/2026-04-27-phase-a-to-b-transition.md`
 - **Mart architecture commitment:** `docs/discovery/coverage-matrix.md` + `.claude/rules/mart-naming.md` Rule 2
