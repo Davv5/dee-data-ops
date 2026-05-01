@@ -184,3 +184,7 @@ For the dashboard product:
 - Are `dee-data-ops-prod` minute-level jobs still writing useful data, or are they duplicating consolidated jobs?
 - Which lowercase datasets in the current project are still read by anything?
 - Should the local `gcloud` default be switched from `dee-data-ops-prod` to `project-41542e21-470f-4589-96d` after the next PR lands?
+
+## Follow-up Audits
+
+- `docs/discovery/duplicate-data-audit-2026-05-01.md` — read-only duplicate/overlap audit across current and legacy BigQuery projects.
