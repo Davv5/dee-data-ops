@@ -4,6 +4,8 @@ Last updated: 2026-05-01.
 
 Purpose: safely pause the legacy every-minute `calendly-poll` Scheduler trigger in `dee-data-ops-prod` without deleting the Cloud Run Job, image, secrets, or legacy BigQuery tables.
 
+Execution log: `docs/runbooks/pause-legacy-calendly-poll-execution-2026-05-01.md`.
+
 This runbook is based on:
 
 - `docs/discovery/cloud-project-provenance-map.md`
