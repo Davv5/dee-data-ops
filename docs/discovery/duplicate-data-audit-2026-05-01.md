@@ -8,6 +8,7 @@ Companion docs:
 
 - `docs/discovery/cloud-project-provenance-map.md`
 - `docs/discovery/current-data-layer-truth-map.md`
+- `docs/discovery/legacy-runtime-audit-2026-05-01.md`
 
 ## Short Answer
 
@@ -239,9 +240,11 @@ Do not point the new dashboard directly at legacy raw tables.
 
 ## Recommended Next Cleanup Pass
 
+The first pass of item 1 is now captured in `docs/discovery/legacy-runtime-audit-2026-05-01.md`.
+
 Before deleting or pausing anything, do these in order:
 
-1. **Legacy runtime audit:** inspect `dee-data-ops-prod` job env vars and targets for `ghl-hot`, `ghl-cold`, and `calendly-poll`. Determine whether they still write useful legacy raw or duplicate current ingestion.
+1. **Legacy runtime audit:** inspect `dee-data-ops-prod` job env vars and targets for `ghl-hot`, `ghl-cold`, and `calendly-poll`. Determine whether they still write useful legacy raw or duplicate current ingestion. First pass complete; next step is source-id comparison before any pause.
 2. **Raw source comparison:** for each source, compare current unified raw IDs to legacy raw IDs:
    - GHL contacts/opportunities/conversations/messages
    - Calendly events/invitees/questions
