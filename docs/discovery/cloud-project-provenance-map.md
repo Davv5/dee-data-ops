@@ -189,3 +189,4 @@ For the dashboard product:
 
 - `docs/discovery/duplicate-data-audit-2026-05-01.md` — read-only duplicate/overlap audit across current and legacy BigQuery projects.
 - `docs/discovery/legacy-runtime-audit-2026-05-01.md` — read-only classification of the three active legacy jobs in `dee-data-ops-prod`.
+- `docs/discovery/source-id-comparison-audit-2026-05-01.md` — source-ID coverage comparison before pausing any legacy writer.

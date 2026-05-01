@@ -80,6 +80,7 @@ Never rely on the local gcloud default for D-DEE commands; pass
 - **Cloud project provenance:** [`docs/discovery/cloud-project-provenance-map.md`](docs/discovery/cloud-project-provenance-map.md) — current vs legacy GCP projects and local clone labels
 - **Duplicate data audit:** [`docs/discovery/duplicate-data-audit-2026-05-01.md`](docs/discovery/duplicate-data-audit-2026-05-01.md) — current vs legacy BigQuery overlap and cleanup order
 - **Legacy runtime audit:** [`docs/discovery/legacy-runtime-audit-2026-05-01.md`](docs/discovery/legacy-runtime-audit-2026-05-01.md) — classification of remaining `dee-data-ops-prod` jobs
+- **Source-ID comparison audit:** [`docs/discovery/source-id-comparison-audit-2026-05-01.md`](docs/discovery/source-id-comparison-audit-2026-05-01.md) — pause-safety evidence for legacy raw writers
 - **Data layer truth map:** [`docs/discovery/current-data-layer-truth-map.md`](docs/discovery/current-data-layer-truth-map.md) — source to dashboard routing and stale artifact register
 - **Session log:** [`WORKLOG.md`](WORKLOG.md) — append-only; newest entry at the top
 - **Always-on Claude operating instructions:** [`CLAUDE.md`](CLAUDE.md)

@@ -11,6 +11,7 @@ Companion docs:
 - `docs/discovery/cloud-project-provenance-map.md`
 - `docs/discovery/duplicate-data-audit-2026-05-01.md`
 - `docs/discovery/current-data-layer-truth-map.md`
+- `docs/discovery/source-id-comparison-audit-2026-05-01.md`
 
 ## Short Answer
 
@@ -164,6 +165,8 @@ Reason: this job is actively touching legacy raw tables every minute and is show
 | Cost/noise from duplicated GHL cold ingestion | Medium | Millions of legacy rows continue accumulating outside the current project. |
 
 ## Recommended Next Actions
+
+The first source-ID comparison pass is now captured in `docs/discovery/source-id-comparison-audit-2026-05-01.md`.
 
 1. **Do not build the dashboard on these legacy jobs.** New dashboard work should read `project-41542e21-470f-4589-96d.Marts.*`.
 2. **Run ID-level comparison for GHL cold objects.** Compare current `Raw.ghl_objects_raw` contacts/opportunities/users/pipelines against `dee-data-ops.raw_ghl.*` latest IDs.
