@@ -1580,6 +1580,7 @@ ghl_user_name_map AS (
     UNION ALL SELECT 'XKcL1lmTZn8LFHiUwtn1', 'Jake Lynch'
     UNION ALL SELECT 'YyBgSVqB1wQoFj8tAe40', 'Stanley Macauley'
     UNION ALL SELECT 'BKc6beDhtuJIW1Gfp0wI', 'Ethan Gerstenberg'
+    UNION ALL SELECT 'eWA0YcbNP3rklPwRFFwM', 'Ayaan Menon'
     -- Oct5Tz6ZVUaDkqXC3yHL: 292 older events, not in GHL team list — likely deleted account
   )
 ),
@@ -2772,6 +2773,7 @@ static_ghl_user_seed AS (
     UNION ALL SELECT TIMESTAMP('2099-01-01'), 'XKcL1lmTZn8LFHiUwtn1', 'Jake Lynch',           'jake@precisionscaling.io',          NULL
     UNION ALL SELECT TIMESTAMP('2099-01-01'), 'YyBgSVqB1wQoFj8tAe40', 'Stanley Macauley',     'stanley@stanleyoperations.com',      '+447586641324'
     UNION ALL SELECT TIMESTAMP('2099-01-01'), 'BKc6beDhtuJIW1Gfp0wI', 'Ethan Gerstenberg',    'ethan@precisionscaling.io',          NULL
+    UNION ALL SELECT TIMESTAMP('2099-01-01'), 'eWA0YcbNP3rklPwRFFwM', 'Ayaan Menon',          'ayaan@precisionscaling.io',          '+918618569761'
     -- Oct5Tz6ZVUaDkqXC3yHL: 292 older events, not in GHL team member list — likely deleted account
   )
 ),
@@ -5739,12 +5741,44 @@ ORDER BY 1 DESC, 4 DESC
 CREATE OR REPLACE TABLE `project-41542e21-470f-4589-96d.Marts.rpt_rep_scorecard_week` AS
 WITH
 
--- All active rep × week combinations across setter and closer activity
+-- All active rep × week combinations across setter and closer activity.
+-- rpt_appt_funnel_week.setter_name resolves via Calendly slug → email (slug_to_email
+-- has only closer slugs), so that arm yields closers, not SDRs. To surface real SDRs
+-- (who appear via outbound activity, not Calendly bookings), pull setter_name from
+-- the three GHL-owner-resolved reports + fct_speed_to_lead's setter_dim_display_name.
+-- The regex guard on the unbooked arm filters user_id-string leakage from that report's
+-- COALESCE(tm.display_name, cw.owner_id, 'unknown') triple-fallback when dim_team_members
+-- lookup misses (other arms COALESCE only to 'unknown' and don't need the guard).
 rep_weeks AS (
   SELECT DISTINCT report_week, setter_name AS rep_name
   FROM `project-41542e21-470f-4589-96d.Marts.rpt_appt_funnel_week`
   WHERE setter_name NOT IN ('unknown')
+
   UNION DISTINCT
+
+  SELECT DISTINCT report_week, setter_name AS rep_name
+  FROM `project-41542e21-470f-4589-96d.Marts.rpt_call_to_booking_rate_week`
+  WHERE setter_name NOT IN ('unknown')
+
+  UNION DISTINCT
+
+  SELECT DISTINCT
+    DATE_TRUNC(DATE(trigger_ts), WEEK(MONDAY))   AS report_week,
+    setter_dim_display_name                       AS rep_name
+  FROM `project-41542e21-470f-4589-96d.Marts.fct_speed_to_lead`
+  WHERE trigger_ts IS NOT NULL
+    AND setter_dim_display_name IS NOT NULL
+    AND setter_dim_display_name NOT IN ('unknown', 'unattributed')
+
+  UNION DISTINCT
+
+  SELECT DISTINCT report_week, setter_name AS rep_name
+  FROM `project-41542e21-470f-4589-96d.Marts.rpt_setter_unbooked_conversion_week`
+  WHERE setter_name NOT IN ('unknown')
+    AND NOT REGEXP_CONTAINS(setter_name, r'^[A-Za-z0-9]{20}$')
+
+  UNION DISTINCT
+
   SELECT DISTINCT report_week, closer_name AS rep_name
   FROM `project-41542e21-470f-4589-96d.Marts.rpt_closer_close_rate_week`
   WHERE closer_name NOT IN ('unassigned', 'unknown')
@@ -5821,11 +5855,20 @@ SELECT
   rw.report_week,
   rw.rep_name,
 
-  -- Role: setter, closer, or both
+  -- Role: setter, closer, or both.
+  -- Existing branches preserve labels for af-resolved reps (Calendly-slug closers,
+  -- mis-named "setter" upstream — pre-existing semantics, kept for diff stability).
+  -- New SDR branch fires when a rep surfaces only via outbound activity
+  -- (call_booking / speed / unbooked) without a Calendly slug or Fathom won deal.
+  -- TODO(rep-role-cleanup): retire the af-as-setter mis-naming and re-classify
+  -- af-only reps as 'closer' under a follow-up PR (will re-label some existing rows).
   CASE
     WHEN af.setter_name IS NOT NULL AND cl.closer_name IS NOT NULL THEN 'setter+closer'
     WHEN af.setter_name IS NOT NULL                                 THEN 'setter'
     WHEN cl.closer_name IS NOT NULL                                 THEN 'closer'
+    WHEN cb.setter_name IS NOT NULL
+      OR sp.setter_name IS NOT NULL
+      OR ub.setter_name IS NOT NULL                                 THEN 'setter'
     ELSE 'unknown'
   END AS rep_role,
 
