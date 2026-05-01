@@ -30,9 +30,7 @@ export function Sidebar() {
       <nav className="mt-4 flex gap-2 overflow-x-auto md:mt-8 md:block md:space-y-1 md:overflow-visible">
         {dashboardSections.map((section) => {
           const Icon = section.icon;
-          const isActive =
-            section.href === pathname ||
-            (section.href.startsWith(pathname) && pathname !== "/");
+          const isActive = section.href === pathname;
 
           return (
             <Link

@@ -4,7 +4,7 @@ export const speedToLeadDashboard = {
   slug: "speed-to-lead",
   title: "Speed-to-Lead",
   description:
-    "Page 1 rebuild of the retired Metabase Speed-to-Lead dashboard, sourced from existing bq-ingest report tables for v1.",
+    "Page 1 rebuild of the retired Metabase Speed-to-Lead dashboard, sourced from the current BigQuery Marts tables.",
   sourceContract: "bq-ingest-report",
   sections: [
     {
@@ -56,11 +56,17 @@ export const speedToLeadDashboard = {
           columns: [
             { key: "rep_name", label: "Rep" },
             { key: "rep_role", label: "Role" },
+            { key: "bookings", label: "Bookings", format: "number" },
             { key: "total_dials", label: "Dials", format: "number" },
             {
               key: "pct_within_sla",
               label: "Within SLA",
               format: "percent",
+            },
+            {
+              key: "avg_speed_to_lead_minutes",
+              label: "Avg Speed",
+              format: "duration",
             },
           ],
         },
