@@ -1,7 +1,6 @@
-import { DashboardRenderer } from "@/components/dashboard/DashboardRenderer";
+import { SpeedToLeadOperatingView } from "@/components/dashboard/SpeedToLeadOperatingView";
 import { AppShell } from "@/components/layout/AppShell";
 import { getSpeedToLeadData } from "@/lib/bigquery/speed-to-lead-live";
-import { speedToLeadDashboard } from "@/lib/dashboards/speed-to-lead";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -11,7 +10,7 @@ export default async function SpeedToLeadPage() {
 
   return (
     <AppShell>
-      <DashboardRenderer dashboard={speedToLeadDashboard} data={data} />
+      <SpeedToLeadOperatingView data={data} />
     </AppShell>
   );
 }
