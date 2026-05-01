@@ -2,6 +2,12 @@
 
 _Authored 2026-04-30. Branch: `Davv5/refactor/mart-consume-fct-sks`._
 
+> **STALE WARNING — 2026-05-01 reset.**
+> Do not execute PR-2 / PR-3 from this plan as written. The plan targets dbt
+> `sales_activity_detail`, but that model was retired from `main` in PR #142.
+> Current truth lives in `docs/discovery/current-data-layer-truth-map.md`.
+> If this work is revived, rewrite the plan against current code first.
+
 > **PR status (2026-04-30):**
 > - **PR-1 (fact widening):** opened as [PR #135](https://github.com/Davv5/dee-data-ops/pull/135) — strictly additive, merging without Q3.1/Q3.2/Q3.3 resolution because the column is harmless until PR-2 consumes it. Adversarial + 7-persona code review run; findings addressed in-PR.
 > - **PR-2 (mart collapse + parity test):** **BLOCKED** on Q3.1 / Q3.2 / Q3.3 dispositions — see §8 of this plan.

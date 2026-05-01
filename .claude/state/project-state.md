@@ -19,6 +19,7 @@ _Last regenerated: 2026-05-01 mid-day UTC — **PR #146 merged + verified end-to
 - **dbt prod schemas are STG / Core / Marts** (capitalized — Y1 cutover, PR #129). dbt-built tables coexist alongside bq-ingest's inline-SQL writers in those datasets (different table names, no conflict).
 - **GHL sources read from `raw_ghl_v2` views** (PR #128). Per-entity views over `Raw.ghl_objects_raw` filtered by `entity_type` and aliasing `ingested_at AS _ingested_at`.
 - **`fct_calls_booked.{assigned_user_sk,pipeline_stage_sk,booking_time_opportunity_id}` are wired and flowing** (PRs #123/#135/#138). `assigned_user_sk` non-NULL = 10/5,487 (0.18%); 99.82% NULL is legitimate LEFT JOIN orphan case (historical/deleted users not in `/users/search`).
+- **Data-layer reset map added 2026-05-01:** `docs/discovery/current-data-layer-truth-map.md` is now the first read before mart/dashboard work. It corrects stale guidance: dbt `speed_to_lead_detail` and `sales_activity_detail` were deleted in PR #142; Fanbasis staging/facts now exist; dashboard v1 may consume bq-ingest Speed-to-Lead report tables temporarily, but dbt remains the durable data layer.
 - **`bq-ingest` requires authenticated invocation.** `curl -H "Authorization: Bearer $(gcloud auth print-identity-token)" ...`
 - **GHL transition snapshots remain LIVE.** `Core.fct_pipeline_stage_snapshots` compounds daily at 07:00 UTC.
 - **Foundation intact (do not rebuild):** BigQuery + dbt + 15 staging models + `(id, _ingested_at, payload)` raw-landing discipline.
@@ -44,9 +45,9 @@ _Last regenerated: 2026-05-01 mid-day UTC — **PR #146 merged + verified end-to
 - **🟡 Decommission `GCP_SA_KEY_PROD` secret + revoke `dbt-prod@dee-data-ops-prod` keys** — secret is dormant post-WIF cutover. `gh secret delete GCP_SA_KEY_PROD` (irreversible).
 - **🟡 Drop orphan lowercase `staging`/`warehouse`/`snapshots` datasets** — partial materialization from PR #128 deploy. Drop with `bq rm -r --dataset` once confirmed nothing reads from lowercase names.
 - **Stripe staging `safe_cast` rule violation** (PR #120 review). `stg_stripe__charges.sql:28-30` uses `safe_cast(... as int64)` for amount columns. Per `staging.md`, SAFE_CAST should only appear in WHERE clauses. Stripe is historical-only; small follow-up PR.
-- **dabi NUMERIC rendering verification** (post-PR #120). First dabi pipeline run after Y1 will surface whether NUMERIC columns render as expected.
+- ~~**dabi NUMERIC rendering verification**~~ — superseded by the click-around dashboard product plan (`docs/plans/2026-05-01-001-feat-dashboard-product-plan.md`).
 - **Multi-page contacts unit test** (post-PRs #119/#127). bq-ingest has no test infra; reviewer recommended a stub-mocked test for `searchAfter` cursor + `operator: range` filter shape.
-- **🟢 Mart cleanup post-#123 — PR-1 merged (PR #135).** PR-2 will collapse `sales_activity_detail.closer_and_outcome` behind a parity gate. **PR-2 blocked on David answering Q3.1/Q3.2/Q3.3** in `docs/plans/2026-04-30-mart-collapse-fct-sks-plan.md` §8.
+- **🟡 Mart-collapse plan stale after PR #142.** `docs/plans/2026-04-30-mart-collapse-fct-sks-plan.md` targets dbt `sales_activity_detail`, which no longer exists on `main`. Do not execute PR-2 from that plan without rewriting it against current code.
 - **Y3 audit landed (PR #132)** — `marts.sql` retirement scope defined: 22 confirmed-orphan + 5 cascade-hold + 1 parity-gated + 2 superseded + 15 PORT. Blocked on Batch 0 verification + David disposition on ~26 tables.
 - **2 GHL opportunities** (out of thousands) have Ayaan as `$.assignedTo` — `Marts.mart_master_lead_wide.closer_name` flipped from `'owner_id:eWA0YcbNP3rklPwRFFwM'` → `'Ayaan Menon'` for those rows post-PR-#146. Trivial scope but real role-conflation (SDR Ayaan now appears as `closer_name` for those 2 opps).
 - **`pipeline-marts-hourly` operating notes** (PR #115 review). Timeout 3600s; `run_marts_with_dependencies` is fail-fast; marts Job at `:50` is the only writer of `mrt_speed_to_lead_daily` (post-#117).
@@ -75,10 +76,11 @@ _Last regenerated: 2026-05-01 mid-day UTC — **PR #146 merged + verified end-to
 - **Operational-health rule:** `.claude/rules/operational-health.md`
 - **bq-ingest service rules:** `.claude/rules/bq-ingest.md`
 - **Live snapshot table:** `project-41542e21-470f-4589-96d.Core.fct_pipeline_stage_snapshots`, partitioned by `snapshot_date`.
-- **Canonical roadmap:** `docs/discovery/gold-layer-roadmap.md`
+- **Current data-layer truth map:** `docs/discovery/current-data-layer-truth-map.md` — first read before marts/dashboard work.
+- **Canonical roadmap:** `docs/discovery/gold-layer-roadmap.md` (stale in places; refresh against the truth map before executing)
 - **Phase A → B ADR:** `docs/decisions/2026-04-27-phase-a-to-b-transition.md`
 - **Mart architecture commitment:** `docs/discovery/coverage-matrix.md` + `.claude/rules/mart-naming.md` Rule 2
-- **Phase B artifacts (on main):** `2-dbt/models/staging/fanbasis/`, `2-dbt/models/warehouse/{facts,bridges}/`, `2-dbt/models/marts/{lead_journey,revenue_detail,sales_activity_detail,speed_to_lead_detail}.sql`
+- **Phase B artifacts (on main):** `2-dbt/models/staging/fanbasis/`, `2-dbt/models/warehouse/{facts,bridges}/`, `2-dbt/models/marts/{lead_journey,revenue_detail}.sql`. dbt `sales_activity_detail` and `speed_to_lead_detail` were retired in PR #142; Speed-to-Lead v1 currently consumes bq-ingest `Marts.*` report tables.
 - **Local dev loop:** `2-dbt/scripts/local-ci.sh` + `2-dbt/profiles.yml` (`dev_local` / `ci_local`).
 - **Data-engineer agent + LAW skills:** `~/.claude/agents/data-engineer.md`. Pairing rule: `.claude/rules/use-data-engineer-agent.md`.
 - **Corpus engine v2:** `.claude/skills/ask-corpus/scripts/` + `SKILL.md`

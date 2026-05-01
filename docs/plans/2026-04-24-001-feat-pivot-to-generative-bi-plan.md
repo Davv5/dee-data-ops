@@ -1,13 +1,14 @@
 ---
 title: Pivot D-DEE BI from Metabase to dabi (Kim-style generative BI)
 type: feat
-status: parked
+status: superseded
 parked_on: 2026-04-26
+superseded_on: 2026-05-01
+superseded_by: docs/plans/2026-05-01-001-feat-dashboard-product-plan.md
 reactivation_gate: |
-  Reactivate ONLY when BOTH of:
-  1. Strategic Reset Sprint exits (`docs/plans/2026-05-xx-gold-layer-rebuild.md` published).
-  2. Gold-layer roadmap names a dashboard or surface that requires the new BI direction.
-  Until both hold, do not propose dabi work or cite this plan as authoritative for current build. The BI direction itself (dabi per Kim recipe) is reaffirmed (2026-04-26); only the build is gated.
+  Do not reactivate as the current BI direction. Superseded 2026-05-01 by
+  the click-around dashboard product plan ("Cabinet shell, Kim simplicity").
+  This file remains historical context only.
 date: 2026-04-24
 origin: conversation 2026-04-24 (this session) + docs/plans/2026-04-23-001-feat-gtm-source-port-plan.md (the Port plan, paused) + Joshua Kim's Medium piece
 supersedes: U5 of the Port plan ("Repoint Metabase at project-41542e21-..."); the "v2 deliverable: Evidence.dev cutover" line in CLAUDE.local.md; the `project_evidence_dev_transition.md` memory (since replaced by `project_bi_direction_dabi.md` on 2026-04-26)
@@ -15,6 +16,11 @@ related: docs/plans/2026-04-24-002-feat-generative-bi-platform-plan.md (Plan B â
 ---
 
 # Pivot D-DEE BI from Metabase to dabi
+
+> **SUPERSEDED 2026-05-01.**
+> Current BI direction is the click-around dashboard product in
+> `docs/plans/2026-05-01-001-feat-dashboard-product-plan.md`, not dabi.
+> Use this file only for historical context.
 
 ## Fresh session startup
 

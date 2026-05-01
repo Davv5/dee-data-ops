@@ -1,5 +1,12 @@
 # Gold-Layer Roadmap — Data Discovery Sprint
 
+> **STALE WARNING — 2026-05-01 reset.**
+> This roadmap contains useful reasoning but is not current execution truth.
+> It predates PR #142 retiring dbt `speed_to_lead_detail` and
+> `sales_activity_detail`, and it predates Fanbasis staging/fact work now
+> present on `main`. Read `docs/discovery/current-data-layer-truth-map.md`
+> before using this roadmap for any build.
+
 **Purpose:** Ranked list of Gold-layer marts (dashboard-ready tables) to build or refresh next, derived from the coverage matrix and scored against a value / feasibility / strategic-anchor rubric. This is the final Discovery Sprint artifact — when this page is approved, Phase A (docs-only Discovery) ends and Phase B (Layer Build) is authorized.
 
 Last updated: 2026-04-27.

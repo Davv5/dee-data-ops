@@ -1,20 +1,25 @@
 ---
 title: Build dabi — generative BI platform inspired by Joshua Kim
 type: feat
-status: parked
+status: superseded
 parked_on: 2026-04-26
+superseded_on: 2026-05-01
+superseded_by: docs/plans/2026-05-01-001-feat-dashboard-product-plan.md
 reactivation_gate: |
-  Reactivate ONLY when ALL of:
-  1. Strategic Reset Sprint exits (`docs/plans/2026-05-xx-gold-layer-rebuild.md` published).
-  2. Gold-layer roadmap names a dashboard or surface that requires the new BI direction.
-  3. Plan A (`2026-04-24-001-feat-pivot-to-generative-bi-plan.md`) is reactivated — Plan B is the platform; Plan A consumes its outputs.
-  Until all three hold, do not propose dabi platform work. The BI direction itself (dabi per Kim recipe) is reaffirmed (2026-04-26); only the build is gated.
+  Do not reactivate as the current BI direction. Superseded 2026-05-01 by
+  the click-around dashboard product plan ("Cabinet shell, Kim simplicity").
+  This file remains historical context only.
 date: 2026-04-24
 origin: conversation 2026-04-24 (this session); [Joshua Kim, "Building Dashboards Without BI SaaS" — Medium, April 2026](https://joshua-data.medium.com/generative-bi-en-3669ffd08ddb)
 related: docs/plans/2026-04-24-001-feat-pivot-to-generative-bi-plan.md (Plan A — D-DEE pivot consumes Plan B's outputs); docs/plans/2026-04-24-strategic-reset.md (active Discovery Sprint — gates Plan B build units); docs/plans/2026-04-23-001-feat-gtm-source-port-plan.md (Port plan, paused at U3-complete)
 ---
 
 # Build dabi — a generative BI platform
+
+> **SUPERSEDED 2026-05-01.**
+> Current BI direction is the click-around dashboard product in
+> `docs/plans/2026-05-01-001-feat-dashboard-product-plan.md`, not dabi.
+> Use this file only for historical context.
 
 ## Fresh session startup
 

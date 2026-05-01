@@ -1,5 +1,12 @@
 # Source Inventory — Data Discovery Sprint (2026-04-24)
 
+> **STALE WARNING — 2026-05-01 reset.**
+> This inventory is a historical sprint artifact. Its Fanbasis section is
+> outdated: `stg_fanbasis__transactions`, `stg_fanbasis__refunds`,
+> `fct_payments`, `fct_refunds`, and `revenue_detail` now exist on `main`.
+> Read `docs/discovery/current-data-layer-truth-map.md` before using this
+> inventory for execution.
+
 **Sprint artifact 1.** Seeds from `docs/_archive/gtm-gcp-inventory.md` §7 / §8 / §10 / §11.
 
 All row counts and freshness snapshots are from the 2026-04-23 U1 preflight against `project-41542e21-470f-4589-96d`. They are not re-queried for this document — if anything looks suspect, re-run the SQL in §7 of the preflight.
