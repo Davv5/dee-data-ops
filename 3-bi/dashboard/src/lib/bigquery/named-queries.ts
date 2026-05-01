@@ -55,6 +55,38 @@ export const queryContracts = {
       "Plain-English follow-up health: worked, reached, human follow-up, automation, and unworked leads.",
     status: "ready",
   },
+  speed_to_lead_follow_up_counts: {
+    name: "speed_to_lead_follow_up_counts",
+    owner: "bq-ingest-report",
+    table: `${table(deeConfig.bigQuery.tables.speedToLeadFact)} + Core.fct_ghl_*`,
+    description:
+      "Follow-up counts with explicit denominator columns for team-facing dashboard reading.",
+    status: "ready",
+  },
+  speed_to_lead_first_work_by_rep: {
+    name: "speed_to_lead_first_work_by_rep",
+    owner: "bq-ingest-report",
+    table: `${table(deeConfig.bigQuery.tables.speedToLeadFact)} + Core.fct_ghl_* + Core.dim_users`,
+    description:
+      "Who or what first worked each lead after the Speed-to-Lead trigger.",
+    status: "ready",
+  },
+  speed_to_lead_phone_reach_by_rep: {
+    name: "speed_to_lead_phone_reach_by_rep",
+    owner: "bq-ingest-report",
+    table: `${table(deeConfig.bigQuery.tables.speedToLeadFact)} + Core.fct_ghl_* + Core.dim_users`,
+    description:
+      "Who or what first reached leads by phone after the Speed-to-Lead trigger.",
+    status: "ready",
+  },
+  speed_to_lead_reached_examples: {
+    name: "speed_to_lead_reached_examples",
+    owner: "bq-ingest-report",
+    table: `${table(deeConfig.bigQuery.tables.speedToLeadFact)} + Core.fct_ghl_* + Marts.dim_golden_contact`,
+    description:
+      "Recent lead-level examples for answered or completed outbound calls.",
+    status: "ready",
+  },
   speed_to_lead_first_attempt_outcomes: {
     name: "speed_to_lead_first_attempt_outcomes",
     owner: "bq-ingest-report",

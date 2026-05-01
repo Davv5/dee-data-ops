@@ -10,18 +10,30 @@ const speedToLeadQualityCte = `
       trigger_event_id,
       golden_contact_key,
       trigger_ts,
-      trigger_type
+      trigger_type,
+      trigger_source_label,
+      utm_campaign
     FROM ${tableRef("freshness")}
     WHERE trigger_ts IS NOT NULL
   ),
-  outbound_touches AS (
+  outbound_touches_raw AS (
     SELECT
       gc.golden_contact_key,
       COALESCE(c.call_started_at, c.event_ts, c.updated_at_ts, c.ingested_at) AS touch_ts,
       'call' AS channel_group,
       LOWER(COALESCE(NULLIF(TRIM(c.call_status), ''), 'unknown')) AS touch_status,
       CONCAT('call|', COALESCE(c.call_log_id, CAST(FARM_FINGERPRINT(TO_JSON_STRING(c.payload_json)) AS STRING))) AS touch_id,
-      LOWER(NULLIF(TRIM(JSON_VALUE(c.payload_json, '$.source')), '')) AS touch_source_raw
+      LOWER(NULLIF(TRIM(JSON_VALUE(c.payload_json, '$.source')), '')) AS touch_source_raw,
+      NULLIF(TRIM(COALESCE(
+        JSON_VALUE(c.payload_json, '$.assignedTo'),
+        JSON_VALUE(c.payload_json, '$.assigned_to'),
+        JSON_VALUE(c.payload_json, '$.userId'),
+        JSON_VALUE(c.payload_json, '$.user_id'),
+        JSON_VALUE(c.payload_json, '$.ownerId'),
+        JSON_VALUE(c.payload_json, '$.owner_id'),
+        JSON_VALUE(c.payload_json, '$.agentId'),
+        JSON_VALUE(c.payload_json, '$.agent_id')
+      )), '') AS touch_user_id
     FROM \`project-41542e21-470f-4589-96d.Core.fct_ghl_outbound_calls\` c
     JOIN \`project-41542e21-470f-4589-96d.Marts.dim_golden_contact\` gc
       ON gc.location_id = c.location_id
@@ -49,7 +61,16 @@ const speedToLeadQualityCte = `
           CAST(FARM_FINGERPRINT(TO_JSON_STRING(m.payload_json)) AS STRING)
         )
       ) AS touch_id,
-      LOWER(NULLIF(TRIM(JSON_VALUE(m.payload_json, '$.source')), '')) AS touch_source_raw
+      LOWER(NULLIF(TRIM(JSON_VALUE(m.payload_json, '$.source')), '')) AS touch_source_raw,
+      NULLIF(TRIM(COALESCE(
+        m.assigned_to_user_id,
+        JSON_VALUE(m.payload_json, '$.assignedTo'),
+        JSON_VALUE(m.payload_json, '$.assigned_to'),
+        JSON_VALUE(m.payload_json, '$.userId'),
+        JSON_VALUE(m.payload_json, '$.user_id'),
+        JSON_VALUE(m.payload_json, '$.ownerId'),
+        JSON_VALUE(m.payload_json, '$.owner_id')
+      )), '') AS touch_user_id
     FROM \`project-41542e21-470f-4589-96d.Core.fct_ghl_conversations\` m
     JOIN \`project-41542e21-470f-4589-96d.Marts.dim_golden_contact\` gc
       ON gc.location_id = m.location_id
@@ -63,6 +84,21 @@ const speedToLeadQualityCte = `
         LOWER(COALESCE(m.message_type_norm, '')),
         r'sms|text|whatsapp|email|type_call|type_phone|phone|call'
       )
+  ),
+  outbound_touches AS (
+    SELECT
+      r.*,
+      CASE
+        WHEN r.touch_source_raw = 'workflow' THEN 'Workflow automation'
+        ELSE COALESCE(NULLIF(u.name, ''), 'Unknown rep')
+      END AS touch_owner_name,
+      CASE
+        WHEN r.touch_source_raw = 'workflow' THEN 'Automation'
+        ELSE COALESCE(NULLIF(u.role, ''), 'Unknown')
+      END AS touch_owner_role
+    FROM outbound_touches_raw r
+    LEFT JOIN \`project-41542e21-470f-4589-96d.Core.dim_users\` u
+      ON u.user_id = r.touch_user_id
   ),
   classified_touches AS (
     SELECT
@@ -91,6 +127,8 @@ const speedToLeadQualityCte = `
       t.golden_contact_key,
       t.trigger_ts,
       t.trigger_type,
+      t.trigger_source_label,
+      t.utm_campaign,
       CASE
         WHEN EXTRACT(DAYOFWEEK FROM DATETIME(t.trigger_ts, 'America/New_York')) BETWEEN 2 AND 6
           AND TIME(DATETIME(t.trigger_ts, 'America/New_York')) >= TIME '09:00:00'
@@ -103,6 +141,9 @@ const speedToLeadQualityCte = `
       c.touch_status,
       c.touch_id,
       c.touch_source_raw,
+      c.touch_user_id,
+      c.touch_owner_name,
+      c.touch_owner_role,
       c.is_automated_workflow_touch,
       c.touch_outcome,
       c.is_successful_connection,
@@ -115,14 +156,17 @@ const speedToLeadQualityCte = `
   trigger_rollup AS (
     SELECT
       trigger_event_id,
+      ANY_VALUE(golden_contact_key) AS golden_contact_key,
       ANY_VALUE(trigger_type) AS trigger_type,
+      ANY_VALUE(trigger_source_label) AS trigger_source_label,
+      ANY_VALUE(utm_campaign) AS utm_campaign,
       ANY_VALUE(service_window) AS service_window,
       ANY_VALUE(trigger_ts) AS trigger_ts,
       ARRAY_AGG(
         IF(
           touch_ts IS NULL,
           NULL,
-          STRUCT(channel_group, touch_status, touch_outcome, is_automated_workflow_touch, touch_ts)
+          STRUCT(channel_group, touch_status, touch_outcome, is_automated_workflow_touch, touch_ts, touch_user_id, touch_owner_name, touch_owner_role)
         )
         IGNORE NULLS
         ORDER BY touch_ts ASC, channel_group ASC, touch_id ASC
@@ -131,7 +175,7 @@ const speedToLeadQualityCte = `
       ARRAY_AGG(
         IF(
           is_successful_connection,
-          STRUCT(channel_group, touch_status, touch_outcome, is_automated_workflow_touch, touch_ts),
+          STRUCT(channel_group, touch_status, touch_outcome, is_automated_workflow_touch, touch_ts, touch_user_id, touch_owner_name, touch_owner_role),
           NULL
         )
         IGNORE NULLS
@@ -141,7 +185,7 @@ const speedToLeadQualityCte = `
       ARRAY_AGG(
         IF(
           is_meaningful_human_response,
-          STRUCT(channel_group, touch_status, touch_outcome, is_automated_workflow_touch, touch_ts),
+          STRUCT(channel_group, touch_status, touch_outcome, is_automated_workflow_touch, touch_ts, touch_user_id, touch_owner_name, touch_owner_role),
           NULL
         )
         IGNORE NULLS
@@ -151,7 +195,7 @@ const speedToLeadQualityCte = `
       ARRAY_AGG(
         IF(
           is_automated_workflow_touch,
-          STRUCT(channel_group, touch_status, touch_outcome, is_automated_workflow_touch, touch_ts),
+          STRUCT(channel_group, touch_status, touch_outcome, is_automated_workflow_touch, touch_ts, touch_user_id, touch_owner_name, touch_owner_role),
           NULL
         )
         IGNORE NULLS
@@ -335,6 +379,189 @@ const speedToLeadQueries = {
       SAFE_DIVIDE(COUNTIF(first_attempt.touch_ts IS NULL), COUNT(*)) AS unworked_lead_rate
     FROM trigger_rollup
   `,
+  speed_to_lead_follow_up_counts: `
+    ${speedToLeadQualityCte},
+    summary AS (
+      SELECT
+        COUNT(*) AS total_triggers,
+        COUNTIF(first_attempt.touch_ts IS NOT NULL) AS worked_leads,
+        COUNTIF(first_successful_connection.touch_ts IS NOT NULL) AS reached_leads,
+        COUNTIF(first_meaningful_human_response.touch_ts IS NOT NULL) AS human_follow_ups,
+        COUNTIF(first_automated_workflow_touch.touch_ts IS NOT NULL) AS automation_touched_leads,
+        COUNTIF(first_attempt.touch_ts IS NULL) AS unworked_leads
+      FROM trigger_rollup
+    )
+    SELECT
+      1 AS metric_order,
+      'All lead events' AS metric,
+      total_triggers AS lead_count,
+      total_triggers AS denominator_count,
+      1.0 AS share_of_all_leads,
+      CAST(NULL AS FLOAT64) AS share_of_worked_leads,
+      'Every lead trigger included in this dashboard.' AS plain_english
+    FROM summary
+
+    UNION ALL
+
+    SELECT
+      2 AS metric_order,
+      'Leads worked' AS metric,
+      worked_leads AS lead_count,
+      total_triggers AS denominator_count,
+      SAFE_DIVIDE(worked_leads, total_triggers) AS share_of_all_leads,
+      SAFE_DIVIDE(worked_leads, worked_leads) AS share_of_worked_leads,
+      'Had any outbound call, text, email, or logged conversation after the lead raised their hand.' AS plain_english
+    FROM summary
+
+    UNION ALL
+
+    SELECT
+      3 AS metric_order,
+      'Reached by phone' AS metric,
+      reached_leads AS lead_count,
+      total_triggers AS denominator_count,
+      SAFE_DIVIDE(reached_leads, total_triggers) AS share_of_all_leads,
+      SAFE_DIVIDE(reached_leads, worked_leads) AS share_of_worked_leads,
+      'Had an answered or completed outbound phone call after the lead event.' AS plain_english
+    FROM summary
+
+    UNION ALL
+
+    SELECT
+      4 AS metric_order,
+      'Human follow-up' AS metric,
+      human_follow_ups AS lead_count,
+      total_triggers AS denominator_count,
+      SAFE_DIVIDE(human_follow_ups, total_triggers) AS share_of_all_leads,
+      SAFE_DIVIDE(human_follow_ups, worked_leads) AS share_of_worked_leads,
+      'Had a non-workflow call, text, or email that counts as a real team response.' AS plain_english
+    FROM summary
+
+    UNION ALL
+
+    SELECT
+      5 AS metric_order,
+      'Automation touched' AS metric,
+      automation_touched_leads AS lead_count,
+      total_triggers AS denominator_count,
+      SAFE_DIVIDE(automation_touched_leads, total_triggers) AS share_of_all_leads,
+      SAFE_DIVIDE(automation_touched_leads, worked_leads) AS share_of_worked_leads,
+      'Had at least one workflow-generated follow-up after the lead event.' AS plain_english
+    FROM summary
+
+    UNION ALL
+
+    SELECT
+      6 AS metric_order,
+      'Still not worked' AS metric,
+      unworked_leads AS lead_count,
+      total_triggers AS denominator_count,
+      SAFE_DIVIDE(unworked_leads, total_triggers) AS share_of_all_leads,
+      CAST(NULL AS FLOAT64) AS share_of_worked_leads,
+      'No follow-up attempt was found after the lead event.' AS plain_english
+    FROM summary
+    ORDER BY metric_order
+  `,
+  speed_to_lead_first_work_by_rep: `
+    ${speedToLeadQualityCte},
+    summary AS (
+      SELECT COUNTIF(first_attempt.touch_ts IS NOT NULL) AS total_worked
+      FROM trigger_rollup
+    ),
+    worked AS (
+      SELECT
+        CASE
+          WHEN first_attempt.is_automated_workflow_touch THEN 'Workflow automation'
+          ELSE COALESCE(first_attempt.touch_owner_name, 'Unknown rep')
+        END AS worked_by,
+        CASE
+          WHEN first_attempt.is_automated_workflow_touch THEN 'Automation'
+          ELSE COALESCE(first_attempt.touch_owner_role, 'Unknown')
+        END AS role,
+        CASE
+          WHEN first_attempt.channel_group = 'call' THEN 'Phone'
+          WHEN first_attempt.channel_group = 'sms' THEN 'Text'
+          WHEN first_attempt.channel_group = 'email' THEN 'Email'
+          ELSE 'Other'
+        END AS first_channel_label,
+        first_successful_connection.touch_ts IS NOT NULL AS was_reached_by_phone,
+        TIMESTAMP_DIFF(first_attempt.touch_ts, trigger_ts, SECOND) / 60.0 AS minutes_to_first_attempt
+      FROM trigger_rollup
+      WHERE first_attempt.touch_ts IS NOT NULL
+    )
+    SELECT
+      worked_by,
+      role,
+      first_channel_label,
+      COUNT(*) AS leads_worked,
+      SAFE_DIVIDE(COUNT(*), ANY_VALUE(summary.total_worked)) AS share_of_worked_leads,
+      COUNTIF(was_reached_by_phone) AS reached_by_phone,
+      AVG(minutes_to_first_attempt) AS avg_minutes_to_first_attempt
+    FROM worked
+    CROSS JOIN summary
+    GROUP BY worked_by, role, first_channel_label
+    ORDER BY leads_worked DESC, reached_by_phone DESC, worked_by
+    LIMIT 20
+  `,
+  speed_to_lead_phone_reach_by_rep: `
+    ${speedToLeadQualityCte},
+    summary AS (
+      SELECT
+        COUNT(*) AS total_triggers,
+        COUNTIF(first_successful_connection.touch_ts IS NOT NULL) AS total_reached
+      FROM trigger_rollup
+    ),
+    reached AS (
+      SELECT
+        CASE
+          WHEN first_successful_connection.is_automated_workflow_touch THEN 'Workflow automation'
+          ELSE COALESCE(first_successful_connection.touch_owner_name, 'Unknown rep')
+        END AS reached_by,
+        CASE
+          WHEN first_successful_connection.is_automated_workflow_touch THEN 'Automation'
+          ELSE COALESCE(first_successful_connection.touch_owner_role, 'Unknown')
+        END AS role,
+        TIMESTAMP_DIFF(first_successful_connection.touch_ts, trigger_ts, SECOND) / 60.0 AS minutes_to_connection
+      FROM trigger_rollup
+      WHERE first_successful_connection.touch_ts IS NOT NULL
+    )
+    SELECT
+      reached_by,
+      role,
+      COUNT(*) AS leads_reached,
+      SAFE_DIVIDE(COUNT(*), ANY_VALUE(summary.total_reached)) AS share_of_reached_leads,
+      SAFE_DIVIDE(COUNT(*), ANY_VALUE(summary.total_triggers)) AS share_of_all_leads,
+      AVG(minutes_to_connection) AS avg_minutes_to_connection
+    FROM reached
+    CROSS JOIN summary
+    GROUP BY reached_by, role
+    ORDER BY leads_reached DESC, reached_by
+    LIMIT 20
+  `,
+  speed_to_lead_reached_examples: `
+    ${speedToLeadQualityCte}
+    SELECT
+      FORMAT_TIMESTAMP('%Y-%m-%d %I:%M %p ET', tr.first_successful_connection.touch_ts, 'America/New_York') AS reached_at_et,
+      COALESCE(
+        NULLIF(gc.full_name, ''),
+        NULLIF(TRIM(CONCAT(COALESCE(gc.first_name, ''), ' ', COALESCE(gc.last_name, ''))), ''),
+        'Unknown lead'
+      ) AS lead_name,
+      COALESCE(NULLIF(gc.email, ''), 'No email') AS lead_email,
+      COALESCE(NULLIF(tr.trigger_source_label, ''), NULLIF(tr.utm_campaign, ''), 'Unknown') AS source_label,
+      CASE
+        WHEN tr.first_successful_connection.is_automated_workflow_touch THEN 'Workflow automation'
+        ELSE COALESCE(tr.first_successful_connection.touch_owner_name, 'Unknown rep')
+      END AS reached_by,
+      TIMESTAMP_DIFF(tr.first_successful_connection.touch_ts, tr.trigger_ts, SECOND) / 60.0 AS minutes_to_connect,
+      tr.first_successful_connection.touch_status AS phone_status
+    FROM trigger_rollup tr
+    LEFT JOIN \`project-41542e21-470f-4589-96d.Marts.dim_golden_contact\` gc
+      ON gc.golden_contact_key = tr.golden_contact_key
+    WHERE tr.first_successful_connection.touch_ts IS NOT NULL
+    ORDER BY tr.first_successful_connection.touch_ts DESC
+    LIMIT 12
+  `,
   speed_to_lead_first_attempt_outcomes: `
     ${speedToLeadQualityCte}
     SELECT
@@ -414,6 +641,10 @@ export async function getSpeedToLeadData(): Promise<DashboardData> {
       sourcePerformance,
       noTouchExamples,
       qualitySummary,
+      followUpCounts,
+      firstWorkByRep,
+      phoneReachByRep,
+      reachedExamples,
       firstAttemptOutcomes,
       businessHours,
     ] = await Promise.all([
@@ -425,6 +656,10 @@ export async function getSpeedToLeadData(): Promise<DashboardData> {
       runBigQuery(speedToLeadQueries.speed_to_lead_source_performance),
       runBigQuery(speedToLeadQueries.speed_to_lead_no_touch_examples),
       runBigQuery(speedToLeadQueries.speed_to_lead_quality_summary),
+      runBigQuery(speedToLeadQueries.speed_to_lead_follow_up_counts),
+      runBigQuery(speedToLeadQueries.speed_to_lead_first_work_by_rep),
+      runBigQuery(speedToLeadQueries.speed_to_lead_phone_reach_by_rep),
+      runBigQuery(speedToLeadQueries.speed_to_lead_reached_examples),
       runBigQuery(speedToLeadQueries.speed_to_lead_first_attempt_outcomes),
       runBigQuery(speedToLeadQueries.speed_to_lead_business_hours),
     ]);
@@ -439,6 +674,10 @@ export async function getSpeedToLeadData(): Promise<DashboardData> {
         speed_to_lead_source_performance: sourcePerformance,
         speed_to_lead_no_touch_examples: noTouchExamples,
         speed_to_lead_quality_summary: qualitySummary,
+        speed_to_lead_follow_up_counts: followUpCounts,
+        speed_to_lead_first_work_by_rep: firstWorkByRep,
+        speed_to_lead_phone_reach_by_rep: phoneReachByRep,
+        speed_to_lead_reached_examples: reachedExamples,
         speed_to_lead_first_attempt_outcomes: firstAttemptOutcomes,
         speed_to_lead_business_hours: businessHours,
       },

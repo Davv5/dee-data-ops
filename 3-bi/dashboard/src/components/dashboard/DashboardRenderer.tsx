@@ -144,7 +144,7 @@ function TableTile({
           </tbody>
         </table>
       </div>
-      <TableDrilldown data={data} />
+      <TableDrilldown tile={tile} data={data} />
       <SourceLine table={queryContracts[tile.query as keyof typeof queryContracts]?.table} />
     </DashboardCard>
   );
@@ -382,7 +382,26 @@ function ChartDrilldown({
   );
 }
 
-function TableDrilldown({ data }: { data: DashboardData }) {
+function TableDrilldown({
+  tile,
+  data,
+}: {
+  tile: Extract<DashboardTile, { type: "table" }>;
+  data: DashboardData;
+}) {
+  if (
+    [
+      "speed_to_lead_follow_up_counts",
+      "speed_to_lead_first_work_by_rep",
+      "speed_to_lead_phone_reach_by_rep",
+      "speed_to_lead_reached_examples",
+      "speed_to_lead_first_attempt_outcomes",
+      "speed_to_lead_business_hours",
+    ].includes(tile.query)
+  ) {
+    return null;
+  }
+
   return (
     <Drilldown label="Source performance">
       <MiniTable
