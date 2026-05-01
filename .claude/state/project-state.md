@@ -23,6 +23,7 @@ _Last regenerated: 2026-05-01 mid-day UTC — **PR #146 merged + verified end-to
 - **Duplicate data audit added 2026-05-01:** `docs/discovery/duplicate-data-audit-2026-05-01.md` confirms current project is active, legacy prod marts/warehouse are parity archives, legacy `dee-data-ops.raw_*` is large raw-history candidate data, and `dee-data-ops-prod` legacy jobs are still scheduled. Do not delete or pause legacy assets before source-by-source comparison.
 - **Legacy runtime audit added 2026-05-01:** `docs/discovery/legacy-runtime-audit-2026-05-01.md` classifies `dee-data-ops-prod` jobs. `ghl-hot` writes legacy messages/conversations and should stay temporarily; `ghl-cold` is a pause candidate after ID comparison; `calendly-poll` is highest-priority pause/migration candidate because it is every-minute and showing quota/timeouts. No legacy jobs were changed.
 - **Source-ID comparison audit added 2026-05-01:** `docs/discovery/source-id-comparison-audit-2026-05-01.md` confirms `calendly-poll` is the first pause candidate, `ghl-cold` is a pause candidate after final sample check, and `ghl-hot` is not safe to pause because current project has only 0.64% of legacy conversation IDs and 38.52% of legacy message IDs in its current `raw_ghl` copy.
+- **Pause runbook added 2026-05-01:** `docs/runbooks/pause-legacy-calendly-poll.md` gives a reversible pause procedure for Scheduler job `calendly-poll`. It has not been executed. Pause only the Scheduler trigger, not the Cloud Run Job or legacy tables.
 - **Data-layer reset map added 2026-05-01:** `docs/discovery/current-data-layer-truth-map.md` is now the first read before mart/dashboard work. It corrects stale guidance: dbt `speed_to_lead_detail` and `sales_activity_detail` were deleted in PR #142; Fanbasis staging/facts now exist; dashboard v1 may consume bq-ingest Speed-to-Lead report tables temporarily, but dbt remains the durable data layer.
 - **`bq-ingest` requires authenticated invocation.** `curl -H "Authorization: Bearer $(gcloud auth print-identity-token)" ...`
 - **GHL transition snapshots remain LIVE.** `Core.fct_pipeline_stage_snapshots` compounds daily at 07:00 UTC.
@@ -85,6 +86,7 @@ _Last regenerated: 2026-05-01 mid-day UTC — **PR #146 merged + verified end-to
 - **Duplicate data audit:** `docs/discovery/duplicate-data-audit-2026-05-01.md` — read before proposing migration/deletion/pausing of legacy projects.
 - **Legacy runtime audit:** `docs/discovery/legacy-runtime-audit-2026-05-01.md` — read before touching `ghl-hot`, `ghl-cold`, or `calendly-poll`.
 - **Source-ID comparison audit:** `docs/discovery/source-id-comparison-audit-2026-05-01.md` — read before pausing legacy raw writers.
+- **Calendly pause runbook:** `docs/runbooks/pause-legacy-calendly-poll.md` — reversible first pause candidate; not yet executed.
 - **Canonical roadmap:** `docs/discovery/gold-layer-roadmap.md` (stale in places; refresh against the truth map before executing)
 - **Phase A → B ADR:** `docs/decisions/2026-04-27-phase-a-to-b-transition.md`
 - **Mart architecture commitment:** `docs/discovery/coverage-matrix.md` + `.claude/rules/mart-naming.md` Rule 2

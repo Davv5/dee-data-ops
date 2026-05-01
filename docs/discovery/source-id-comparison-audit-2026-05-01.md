@@ -208,6 +208,8 @@ Read: current has every response it has in legacy, but legacy has a much larger 
 
 ## Recommended Next Action
 
+Pause runbook: `docs/runbooks/pause-legacy-calendly-poll.md`.
+
 Pause only one thing first, and make it reversible:
 
 ```text

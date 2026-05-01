@@ -12,6 +12,7 @@ Companion docs:
 - `docs/discovery/duplicate-data-audit-2026-05-01.md`
 - `docs/discovery/current-data-layer-truth-map.md`
 - `docs/discovery/source-id-comparison-audit-2026-05-01.md`
+- `docs/runbooks/pause-legacy-calendly-poll.md`
 
 ## Short Answer
 
