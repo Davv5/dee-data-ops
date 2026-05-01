@@ -315,14 +315,24 @@ const speedToLeadQueries = {
       COUNT(*) AS total_triggers,
       COUNTIF(first_attempt.touch_ts IS NOT NULL) AS first_attempts,
       SAFE_DIVIDE(COUNTIF(first_attempt.touch_ts IS NOT NULL), COUNT(*)) AS first_attempt_rate,
+      COUNTIF(first_attempt.touch_ts IS NOT NULL) AS worked_leads,
+      SAFE_DIVIDE(COUNTIF(first_attempt.touch_ts IS NOT NULL), COUNT(*)) AS worked_lead_rate,
       COUNTIF(first_successful_connection.touch_ts IS NOT NULL) AS successful_connections,
       SAFE_DIVIDE(COUNTIF(first_successful_connection.touch_ts IS NOT NULL), COUNT(*)) AS successful_connection_rate,
+      COUNTIF(first_successful_connection.touch_ts IS NOT NULL) AS reached_leads,
+      SAFE_DIVIDE(COUNTIF(first_successful_connection.touch_ts IS NOT NULL), COUNT(*)) AS reached_lead_rate,
       COUNTIF(first_meaningful_human_response.touch_ts IS NOT NULL) AS meaningful_human_responses,
       SAFE_DIVIDE(COUNTIF(first_meaningful_human_response.touch_ts IS NOT NULL), COUNT(*)) AS meaningful_human_response_rate,
+      COUNTIF(first_meaningful_human_response.touch_ts IS NOT NULL) AS human_follow_ups,
+      SAFE_DIVIDE(COUNTIF(first_meaningful_human_response.touch_ts IS NOT NULL), COUNT(*)) AS human_follow_up_rate,
       COUNTIF(first_automated_workflow_touch.touch_ts IS NOT NULL) AS automated_workflow_touches,
       SAFE_DIVIDE(COUNTIF(first_automated_workflow_touch.touch_ts IS NOT NULL), COUNT(*)) AS automated_workflow_touch_rate,
+      COUNTIF(first_automated_workflow_touch.touch_ts IS NOT NULL) AS automation_touched_leads,
+      SAFE_DIVIDE(COUNTIF(first_automated_workflow_touch.touch_ts IS NOT NULL), COUNT(*)) AS automation_touch_rate,
       COUNTIF(first_attempt.touch_ts IS NULL) AS no_attempt,
-      SAFE_DIVIDE(COUNTIF(first_attempt.touch_ts IS NULL), COUNT(*)) AS no_attempt_rate
+      SAFE_DIVIDE(COUNTIF(first_attempt.touch_ts IS NULL), COUNT(*)) AS no_attempt_rate,
+      COUNTIF(first_attempt.touch_ts IS NULL) AS unworked_leads,
+      SAFE_DIVIDE(COUNTIF(first_attempt.touch_ts IS NULL), COUNT(*)) AS unworked_lead_rate
     FROM trigger_rollup
   `,
   speed_to_lead_first_attempt_outcomes: `
@@ -331,12 +341,29 @@ const speedToLeadQueries = {
       COALESCE(first_attempt.channel_group, 'no_touch') AS first_attempt_channel,
       COALESCE(first_attempt.touch_status, 'no_touch') AS first_attempt_status,
       COALESCE(first_attempt.touch_outcome, 'no_touch') AS first_attempt_outcome,
+      CASE
+        WHEN first_attempt.touch_ts IS NULL THEN 'No follow-up yet'
+        WHEN first_attempt.touch_outcome = 'successful_connection' THEN 'Reached by phone'
+        WHEN first_attempt.touch_outcome = 'call_no_answer' THEN 'Called, no answer'
+        WHEN first_attempt.touch_outcome IN ('call_failed', 'call_canceled', 'call_busy', 'call_undelivered', 'call_voicemail') THEN 'Call did not connect'
+        WHEN first_attempt.channel_group = 'call' THEN 'Call attempt logged'
+        WHEN first_attempt.channel_group = 'sms' THEN 'Text message logged'
+        WHEN first_attempt.channel_group = 'email' THEN 'Email logged'
+        ELSE 'Other follow-up logged'
+      END AS outcome_label,
+      CASE
+        WHEN first_attempt.touch_ts IS NULL THEN 'No follow-up'
+        WHEN first_attempt.channel_group = 'call' THEN 'Phone'
+        WHEN first_attempt.channel_group = 'sms' THEN 'Text'
+        WHEN first_attempt.channel_group = 'email' THEN 'Email'
+        ELSE 'Other'
+      END AS channel_label,
       COUNT(*) AS trigger_count,
       SAFE_DIVIDE(COUNT(*), SUM(COUNT(*)) OVER ()) AS share_of_triggers,
       COUNTIF(first_attempt.is_automated_workflow_touch) AS workflow_attempts,
       SAFE_DIVIDE(COUNTIF(first_attempt.is_automated_workflow_touch), COUNT(*)) AS workflow_attempt_rate
     FROM trigger_rollup
-    GROUP BY first_attempt_channel, first_attempt_status, first_attempt_outcome
+    GROUP BY first_attempt_channel, first_attempt_status, first_attempt_outcome, outcome_label, channel_label
     ORDER BY trigger_count DESC, first_attempt_channel, first_attempt_status
     LIMIT 16
   `,
@@ -344,18 +371,30 @@ const speedToLeadQueries = {
     ${speedToLeadQualityCte}
     SELECT
       service_window,
+      CASE
+        WHEN service_window = 'business_hours' THEN 'Business hours'
+        ELSE 'After hours / weekend'
+      END AS service_window_label,
       COUNT(*) AS total_triggers,
       COUNTIF(first_attempt.touch_ts IS NOT NULL) AS first_attempts,
       SAFE_DIVIDE(COUNTIF(first_attempt.touch_ts IS NOT NULL), COUNT(*)) AS first_attempt_rate,
+      COUNTIF(first_attempt.touch_ts IS NOT NULL) AS worked_leads,
+      SAFE_DIVIDE(COUNTIF(first_attempt.touch_ts IS NOT NULL), COUNT(*)) AS worked_lead_rate,
       COUNTIF(TIMESTAMP_DIFF(first_attempt.touch_ts, trigger_ts, SECOND) <= 300) AS first_attempt_within_5m,
       SAFE_DIVIDE(COUNTIF(TIMESTAMP_DIFF(first_attempt.touch_ts, trigger_ts, SECOND) <= 300), COUNT(*)) AS first_attempt_within_5m_rate,
+      SAFE_DIVIDE(COUNTIF(TIMESTAMP_DIFF(first_attempt.touch_ts, trigger_ts, SECOND) <= 300), COUNT(*)) AS five_minute_worked_rate,
       COUNTIF(first_successful_connection.touch_ts IS NOT NULL) AS successful_connections,
       SAFE_DIVIDE(COUNTIF(first_successful_connection.touch_ts IS NOT NULL), COUNT(*)) AS successful_connection_rate,
+      SAFE_DIVIDE(COUNTIF(first_successful_connection.touch_ts IS NOT NULL), COUNT(*)) AS reached_lead_rate,
       COUNTIF(first_meaningful_human_response.touch_ts IS NOT NULL) AS meaningful_human_responses,
       SAFE_DIVIDE(COUNTIF(first_meaningful_human_response.touch_ts IS NOT NULL), COUNT(*)) AS meaningful_human_response_rate,
+      SAFE_DIVIDE(COUNTIF(first_meaningful_human_response.touch_ts IS NOT NULL), COUNT(*)) AS human_follow_up_rate,
       COUNTIF(TIMESTAMP_DIFF(first_meaningful_human_response.touch_ts, trigger_ts, SECOND) <= 300) AS meaningful_human_within_5m,
       SAFE_DIVIDE(COUNTIF(TIMESTAMP_DIFF(first_meaningful_human_response.touch_ts, trigger_ts, SECOND) <= 300), COUNT(*)) AS meaningful_human_within_5m_rate,
-      COUNTIF(first_attempt.touch_ts IS NULL) AS no_attempt
+      SAFE_DIVIDE(COUNTIF(TIMESTAMP_DIFF(first_meaningful_human_response.touch_ts, trigger_ts, SECOND) <= 300), COUNT(*)) AS five_minute_human_rate,
+      COUNTIF(first_attempt.touch_ts IS NULL) AS no_attempt,
+      COUNTIF(first_attempt.touch_ts IS NULL) AS unworked_leads,
+      SAFE_DIVIDE(COUNTIF(first_attempt.touch_ts IS NULL), COUNT(*)) AS unworked_lead_rate
     FROM trigger_rollup
     GROUP BY service_window
     ORDER BY CASE service_window WHEN 'business_hours' THEN 1 ELSE 2 END

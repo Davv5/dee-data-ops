@@ -52,7 +52,7 @@ export const queryContracts = {
     owner: "bq-ingest-report",
     table: `${table(deeConfig.bigQuery.tables.speedToLeadFact)} + Core.fct_ghl_*`,
     description:
-      "Trigger-level response quality split into first attempt, successful connection, human response, and workflow automation.",
+      "Plain-English follow-up health: worked, reached, human follow-up, automation, and unworked leads.",
     status: "ready",
   },
   speed_to_lead_first_attempt_outcomes: {
@@ -60,14 +60,14 @@ export const queryContracts = {
     owner: "bq-ingest-report",
     table: `${table(deeConfig.bigQuery.tables.speedToLeadFact)} + Core.fct_ghl_*`,
     description:
-      "First attempt channel/status outcomes by trigger, including no-answer, failed, and canceled calls.",
+      "What happened first after a lead raised their hand, grouped into team-readable outcomes.",
     status: "ready",
   },
   speed_to_lead_business_hours: {
     name: "speed_to_lead_business_hours",
     owner: "bq-ingest-report",
     table: `${table(deeConfig.bigQuery.tables.speedToLeadFact)} + Core.fct_ghl_*`,
-    description: "Business-hours versus after-hours response SLA performance.",
+    description: "Follow-up health for leads that arrived during business hours versus after hours.",
     status: "ready",
   },
 } satisfies Record<string, QueryContract>;
