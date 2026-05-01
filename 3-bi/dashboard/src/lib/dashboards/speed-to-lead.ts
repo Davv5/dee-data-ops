@@ -72,5 +72,61 @@ export const speedToLeadDashboard = {
         },
       ],
     },
+    {
+      title: "Response Quality",
+      description:
+        "Separates attempt, connection, human response, automation, channel status, and business-hours SLA.",
+      tiles: [
+        {
+          type: "kpi",
+          title: "First attempt coverage",
+          query: "speed_to_lead_quality_summary",
+          field: "first_attempt_rate",
+          format: "percent",
+          description: "Any outbound call, SMS, email, or conversation attempt after the trigger.",
+        },
+        {
+          type: "kpi",
+          title: "Successful connection",
+          query: "speed_to_lead_quality_summary",
+          field: "successful_connection_rate",
+          format: "percent",
+          description: "First qualifying call connection after trigger; SMS/email delivery is tracked separately.",
+        },
+        {
+          type: "kpi",
+          title: "Meaningful human response",
+          query: "speed_to_lead_quality_summary",
+          field: "meaningful_human_response_rate",
+          format: "percent",
+          description: "Non-workflow call connection or delivered/sent SMS/email after trigger.",
+        },
+        {
+          type: "table",
+          title: "First attempt outcomes",
+          query: "speed_to_lead_first_attempt_outcomes",
+          columns: [
+            { key: "first_attempt_channel", label: "Channel" },
+            { key: "first_attempt_status", label: "Status" },
+            { key: "trigger_count", label: "Triggers", format: "number" },
+            { key: "share_of_triggers", label: "Share", format: "percent" },
+            { key: "workflow_attempts", label: "Workflow", format: "number" },
+          ],
+        },
+        {
+          type: "table",
+          title: "Business-hours SLA",
+          query: "speed_to_lead_business_hours",
+          columns: [
+            { key: "service_window", label: "Window" },
+            { key: "total_triggers", label: "Triggers", format: "number" },
+            { key: "first_attempt_rate", label: "Attempted", format: "percent" },
+            { key: "first_attempt_within_5m_rate", label: "Attempt <=5m", format: "percent" },
+            { key: "meaningful_human_response_rate", label: "Human Response", format: "percent" },
+            { key: "meaningful_human_within_5m_rate", label: "Human <=5m", format: "percent" },
+          ],
+        },
+      ],
+    },
   ],
 } satisfies DashboardDefinition;

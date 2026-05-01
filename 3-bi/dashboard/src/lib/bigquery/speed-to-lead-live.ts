@@ -4,6 +4,165 @@ import type { DashboardData, DashboardFreshness, DashboardRow } from "@/types/da
 
 const tableRef = (queryName: QueryName) => `\`${queryContracts[queryName].table}\``;
 
+const speedToLeadQualityCte = `
+  WITH trigger_events AS (
+    SELECT
+      trigger_event_id,
+      golden_contact_key,
+      trigger_ts,
+      trigger_type
+    FROM ${tableRef("freshness")}
+    WHERE trigger_ts IS NOT NULL
+  ),
+  outbound_touches AS (
+    SELECT
+      gc.golden_contact_key,
+      COALESCE(c.call_started_at, c.event_ts, c.updated_at_ts, c.ingested_at) AS touch_ts,
+      'call' AS channel_group,
+      LOWER(COALESCE(NULLIF(TRIM(c.call_status), ''), 'unknown')) AS touch_status,
+      CONCAT('call|', COALESCE(c.call_log_id, CAST(FARM_FINGERPRINT(TO_JSON_STRING(c.payload_json)) AS STRING))) AS touch_id,
+      LOWER(NULLIF(TRIM(JSON_VALUE(c.payload_json, '$.source')), '')) AS touch_source_raw
+    FROM \`project-41542e21-470f-4589-96d.Core.fct_ghl_outbound_calls\` c
+    JOIN \`project-41542e21-470f-4589-96d.Marts.dim_golden_contact\` gc
+      ON gc.location_id = c.location_id
+     AND gc.ghl_contact_id = c.contact_id
+    WHERE COALESCE(c.call_started_at, c.event_ts, c.updated_at_ts, c.ingested_at) IS NOT NULL
+      AND LOWER(COALESCE(c.direction_norm, '')) = 'outbound'
+
+    UNION ALL
+
+    SELECT
+      gc.golden_contact_key,
+      COALESCE(m.message_created_at, m.event_ts, m.updated_at_ts, m.ingested_at) AS touch_ts,
+      CASE
+        WHEN REGEXP_CONTAINS(LOWER(COALESCE(m.message_type_norm, '')), r'email') THEN 'email'
+        WHEN REGEXP_CONTAINS(LOWER(COALESCE(m.message_type_norm, '')), r'sms|text|whatsapp') THEN 'sms'
+        WHEN REGEXP_CONTAINS(LOWER(COALESCE(m.message_type_norm, '')), r'call|phone') THEN 'call'
+        ELSE 'conversation_phone'
+      END AS channel_group,
+      LOWER(COALESCE(NULLIF(TRIM(m.message_status_norm), ''), 'unknown')) AS touch_status,
+      CONCAT(
+        'message|',
+        COALESCE(
+          m.message_id,
+          m.conversation_id,
+          CAST(FARM_FINGERPRINT(TO_JSON_STRING(m.payload_json)) AS STRING)
+        )
+      ) AS touch_id,
+      LOWER(NULLIF(TRIM(JSON_VALUE(m.payload_json, '$.source')), '')) AS touch_source_raw
+    FROM \`project-41542e21-470f-4589-96d.Core.fct_ghl_conversations\` m
+    JOIN \`project-41542e21-470f-4589-96d.Marts.dim_golden_contact\` gc
+      ON gc.location_id = m.location_id
+     AND gc.ghl_contact_id = m.contact_id
+    WHERE COALESCE(m.message_created_at, m.event_ts, m.updated_at_ts, m.ingested_at) IS NOT NULL
+      AND (
+        LOWER(COALESCE(m.direction_norm, '')) = 'outbound'
+        OR REGEXP_CONTAINS(LOWER(COALESCE(JSON_VALUE(m.payload_json, '$.lastMessageDirection'), '')), r'outbound')
+      )
+      AND REGEXP_CONTAINS(
+        LOWER(COALESCE(m.message_type_norm, '')),
+        r'sms|text|whatsapp|email|type_call|type_phone|phone|call'
+      )
+  ),
+  classified_touches AS (
+    SELECT
+      *,
+      touch_source_raw = 'workflow' AS is_automated_workflow_touch,
+      CASE
+        WHEN channel_group = 'call' AND touch_status IN ('answered', 'completed') THEN 'successful_connection'
+        WHEN channel_group = 'call' AND touch_status IN ('no-answer', 'failed', 'canceled', 'busy', 'undelivered', 'voicemail') THEN CONCAT('call_', REPLACE(touch_status, '-', '_'))
+        WHEN channel_group = 'call' THEN CONCAT('call_', REPLACE(touch_status, '-', '_'))
+        WHEN channel_group IN ('sms', 'email') AND touch_status IN ('delivered', 'sent', 'completed') THEN CONCAT(channel_group, '_delivered')
+        WHEN channel_group IN ('sms', 'email') AND touch_status IN ('failed', 'undelivered', 'canceled') THEN CONCAT(channel_group, '_failed')
+        ELSE CONCAT(channel_group, '_', REPLACE(touch_status, '-', '_'))
+      END AS touch_outcome,
+      channel_group = 'call'
+        AND touch_status IN ('answered', 'completed') AS is_successful_connection,
+      COALESCE(touch_source_raw, '') != 'workflow'
+        AND (
+          (channel_group = 'call' AND touch_status IN ('answered', 'completed'))
+          OR (channel_group IN ('sms', 'email') AND touch_status IN ('delivered', 'sent', 'completed'))
+        ) AS is_meaningful_human_response
+    FROM outbound_touches
+  ),
+  trigger_touch_candidates AS (
+    SELECT
+      t.trigger_event_id,
+      t.golden_contact_key,
+      t.trigger_ts,
+      t.trigger_type,
+      CASE
+        WHEN EXTRACT(DAYOFWEEK FROM DATETIME(t.trigger_ts, 'America/New_York')) BETWEEN 2 AND 6
+          AND TIME(DATETIME(t.trigger_ts, 'America/New_York')) >= TIME '09:00:00'
+          AND TIME(DATETIME(t.trigger_ts, 'America/New_York')) < TIME '18:00:00'
+          THEN 'business_hours'
+        ELSE 'after_hours'
+      END AS service_window,
+      c.touch_ts,
+      c.channel_group,
+      c.touch_status,
+      c.touch_id,
+      c.touch_source_raw,
+      c.is_automated_workflow_touch,
+      c.touch_outcome,
+      c.is_successful_connection,
+      c.is_meaningful_human_response
+    FROM trigger_events t
+    LEFT JOIN classified_touches c
+      ON c.golden_contact_key = t.golden_contact_key
+     AND c.touch_ts >= t.trigger_ts
+  ),
+  trigger_rollup AS (
+    SELECT
+      trigger_event_id,
+      ANY_VALUE(trigger_type) AS trigger_type,
+      ANY_VALUE(service_window) AS service_window,
+      ANY_VALUE(trigger_ts) AS trigger_ts,
+      ARRAY_AGG(
+        IF(
+          touch_ts IS NULL,
+          NULL,
+          STRUCT(channel_group, touch_status, touch_outcome, is_automated_workflow_touch, touch_ts)
+        )
+        IGNORE NULLS
+        ORDER BY touch_ts ASC, channel_group ASC, touch_id ASC
+        LIMIT 1
+      )[SAFE_OFFSET(0)] AS first_attempt,
+      ARRAY_AGG(
+        IF(
+          is_successful_connection,
+          STRUCT(channel_group, touch_status, touch_outcome, is_automated_workflow_touch, touch_ts),
+          NULL
+        )
+        IGNORE NULLS
+        ORDER BY touch_ts ASC, channel_group ASC, touch_id ASC
+        LIMIT 1
+      )[SAFE_OFFSET(0)] AS first_successful_connection,
+      ARRAY_AGG(
+        IF(
+          is_meaningful_human_response,
+          STRUCT(channel_group, touch_status, touch_outcome, is_automated_workflow_touch, touch_ts),
+          NULL
+        )
+        IGNORE NULLS
+        ORDER BY touch_ts ASC, channel_group ASC, touch_id ASC
+        LIMIT 1
+      )[SAFE_OFFSET(0)] AS first_meaningful_human_response,
+      ARRAY_AGG(
+        IF(
+          is_automated_workflow_touch,
+          STRUCT(channel_group, touch_status, touch_outcome, is_automated_workflow_touch, touch_ts),
+          NULL
+        )
+        IGNORE NULLS
+        ORDER BY touch_ts ASC, channel_group ASC, touch_id ASC
+        LIMIT 1
+      )[SAFE_OFFSET(0)] AS first_automated_workflow_touch
+    FROM trigger_touch_candidates
+    GROUP BY trigger_event_id
+  )
+`;
+
 const speedToLeadQueries = {
   speed_to_lead_overall: `
     SELECT
@@ -150,6 +309,57 @@ const speedToLeadQueries = {
     ORDER BY trigger_ts DESC
     LIMIT 12
   `,
+  speed_to_lead_quality_summary: `
+    ${speedToLeadQualityCte}
+    SELECT
+      COUNT(*) AS total_triggers,
+      COUNTIF(first_attempt.touch_ts IS NOT NULL) AS first_attempts,
+      SAFE_DIVIDE(COUNTIF(first_attempt.touch_ts IS NOT NULL), COUNT(*)) AS first_attempt_rate,
+      COUNTIF(first_successful_connection.touch_ts IS NOT NULL) AS successful_connections,
+      SAFE_DIVIDE(COUNTIF(first_successful_connection.touch_ts IS NOT NULL), COUNT(*)) AS successful_connection_rate,
+      COUNTIF(first_meaningful_human_response.touch_ts IS NOT NULL) AS meaningful_human_responses,
+      SAFE_DIVIDE(COUNTIF(first_meaningful_human_response.touch_ts IS NOT NULL), COUNT(*)) AS meaningful_human_response_rate,
+      COUNTIF(first_automated_workflow_touch.touch_ts IS NOT NULL) AS automated_workflow_touches,
+      SAFE_DIVIDE(COUNTIF(first_automated_workflow_touch.touch_ts IS NOT NULL), COUNT(*)) AS automated_workflow_touch_rate,
+      COUNTIF(first_attempt.touch_ts IS NULL) AS no_attempt,
+      SAFE_DIVIDE(COUNTIF(first_attempt.touch_ts IS NULL), COUNT(*)) AS no_attempt_rate
+    FROM trigger_rollup
+  `,
+  speed_to_lead_first_attempt_outcomes: `
+    ${speedToLeadQualityCte}
+    SELECT
+      COALESCE(first_attempt.channel_group, 'no_touch') AS first_attempt_channel,
+      COALESCE(first_attempt.touch_status, 'no_touch') AS first_attempt_status,
+      COALESCE(first_attempt.touch_outcome, 'no_touch') AS first_attempt_outcome,
+      COUNT(*) AS trigger_count,
+      SAFE_DIVIDE(COUNT(*), SUM(COUNT(*)) OVER ()) AS share_of_triggers,
+      COUNTIF(first_attempt.is_automated_workflow_touch) AS workflow_attempts,
+      SAFE_DIVIDE(COUNTIF(first_attempt.is_automated_workflow_touch), COUNT(*)) AS workflow_attempt_rate
+    FROM trigger_rollup
+    GROUP BY first_attempt_channel, first_attempt_status, first_attempt_outcome
+    ORDER BY trigger_count DESC, first_attempt_channel, first_attempt_status
+    LIMIT 16
+  `,
+  speed_to_lead_business_hours: `
+    ${speedToLeadQualityCte}
+    SELECT
+      service_window,
+      COUNT(*) AS total_triggers,
+      COUNTIF(first_attempt.touch_ts IS NOT NULL) AS first_attempts,
+      SAFE_DIVIDE(COUNTIF(first_attempt.touch_ts IS NOT NULL), COUNT(*)) AS first_attempt_rate,
+      COUNTIF(TIMESTAMP_DIFF(first_attempt.touch_ts, trigger_ts, SECOND) <= 300) AS first_attempt_within_5m,
+      SAFE_DIVIDE(COUNTIF(TIMESTAMP_DIFF(first_attempt.touch_ts, trigger_ts, SECOND) <= 300), COUNT(*)) AS first_attempt_within_5m_rate,
+      COUNTIF(first_successful_connection.touch_ts IS NOT NULL) AS successful_connections,
+      SAFE_DIVIDE(COUNTIF(first_successful_connection.touch_ts IS NOT NULL), COUNT(*)) AS successful_connection_rate,
+      COUNTIF(first_meaningful_human_response.touch_ts IS NOT NULL) AS meaningful_human_responses,
+      SAFE_DIVIDE(COUNTIF(first_meaningful_human_response.touch_ts IS NOT NULL), COUNT(*)) AS meaningful_human_response_rate,
+      COUNTIF(TIMESTAMP_DIFF(first_meaningful_human_response.touch_ts, trigger_ts, SECOND) <= 300) AS meaningful_human_within_5m,
+      SAFE_DIVIDE(COUNTIF(TIMESTAMP_DIFF(first_meaningful_human_response.touch_ts, trigger_ts, SECOND) <= 300), COUNT(*)) AS meaningful_human_within_5m_rate,
+      COUNTIF(first_attempt.touch_ts IS NULL) AS no_attempt
+    FROM trigger_rollup
+    GROUP BY service_window
+    ORDER BY CASE service_window WHEN 'business_hours' THEN 1 ELSE 2 END
+  `,
 } satisfies Record<string, string>;
 
 export async function getSpeedToLeadData(): Promise<DashboardData> {
@@ -164,6 +374,9 @@ export async function getSpeedToLeadData(): Promise<DashboardData> {
       responseBuckets,
       sourcePerformance,
       noTouchExamples,
+      qualitySummary,
+      firstAttemptOutcomes,
+      businessHours,
     ] = await Promise.all([
       runBigQuery(speedToLeadQueries.speed_to_lead_overall),
       runBigQuery(speedToLeadQueries.speed_to_lead_daily),
@@ -172,6 +385,9 @@ export async function getSpeedToLeadData(): Promise<DashboardData> {
       runBigQuery(speedToLeadQueries.speed_to_lead_response_buckets),
       runBigQuery(speedToLeadQueries.speed_to_lead_source_performance),
       runBigQuery(speedToLeadQueries.speed_to_lead_no_touch_examples),
+      runBigQuery(speedToLeadQueries.speed_to_lead_quality_summary),
+      runBigQuery(speedToLeadQueries.speed_to_lead_first_attempt_outcomes),
+      runBigQuery(speedToLeadQueries.speed_to_lead_business_hours),
     ]);
 
     return {
@@ -183,6 +399,9 @@ export async function getSpeedToLeadData(): Promise<DashboardData> {
         speed_to_lead_response_buckets: responseBuckets,
         speed_to_lead_source_performance: sourcePerformance,
         speed_to_lead_no_touch_examples: noTouchExamples,
+        speed_to_lead_quality_summary: qualitySummary,
+        speed_to_lead_first_attempt_outcomes: firstAttemptOutcomes,
+        speed_to_lead_business_hours: businessHours,
       },
       freshness: buildFreshness(overall, byRep),
       generatedAt,

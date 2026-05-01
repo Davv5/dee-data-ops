@@ -47,6 +47,29 @@ export const queryContracts = {
     description: "Max mart_refreshed_at across the Speed-to-Lead fact surface.",
     status: "ready",
   },
+  speed_to_lead_quality_summary: {
+    name: "speed_to_lead_quality_summary",
+    owner: "bq-ingest-report",
+    table: `${table(deeConfig.bigQuery.tables.speedToLeadFact)} + Core.fct_ghl_*`,
+    description:
+      "Trigger-level response quality split into first attempt, successful connection, human response, and workflow automation.",
+    status: "ready",
+  },
+  speed_to_lead_first_attempt_outcomes: {
+    name: "speed_to_lead_first_attempt_outcomes",
+    owner: "bq-ingest-report",
+    table: `${table(deeConfig.bigQuery.tables.speedToLeadFact)} + Core.fct_ghl_*`,
+    description:
+      "First attempt channel/status outcomes by trigger, including no-answer, failed, and canceled calls.",
+    status: "ready",
+  },
+  speed_to_lead_business_hours: {
+    name: "speed_to_lead_business_hours",
+    owner: "bq-ingest-report",
+    table: `${table(deeConfig.bigQuery.tables.speedToLeadFact)} + Core.fct_ghl_*`,
+    description: "Business-hours versus after-hours response SLA performance.",
+    status: "ready",
+  },
 } satisfies Record<string, QueryContract>;
 
 export type QueryName = keyof typeof queryContracts;
