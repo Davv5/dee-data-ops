@@ -97,10 +97,11 @@ export const speedToLeadDashboard = {
           title: "Who worked them first?",
           query: "speed_to_lead_first_work_by_rep",
           description:
-            "The first person or workflow that touched each lead after the trigger.",
+            "The first human, workflow, deleted GHL user id, or dialer number that touched each lead after the trigger.",
           columns: [
             { key: "worked_by", label: "Worked By" },
             { key: "role", label: "Role" },
+            { key: "identity_source", label: "Identity Source" },
             { key: "first_channel_label", label: "First Channel" },
             { key: "leads_worked", label: "Lead Events Worked", format: "number" },
             { key: "share_of_worked_leads", label: "% of Worked", format: "percent" },
@@ -113,10 +114,11 @@ export const speedToLeadDashboard = {
           title: "Who reached leads by phone?",
           query: "speed_to_lead_phone_reach_by_rep",
           description:
-            "The first person or workflow credited with an answered or completed outbound call.",
+            "The first human, deleted GHL user id, or dialer number credited with an answered or completed outbound call.",
           columns: [
             { key: "reached_by", label: "Reached By" },
             { key: "role", label: "Role" },
+            { key: "identity_source", label: "Identity Source" },
             { key: "leads_reached", label: "Lead Events Reached", format: "number" },
             { key: "share_of_reached_leads", label: "% of Reached", format: "percent" },
             { key: "share_of_all_leads", label: "% of All Events", format: "percent" },
@@ -135,6 +137,7 @@ export const speedToLeadDashboard = {
             { key: "lead_email", label: "Email" },
             { key: "source_label", label: "Source" },
             { key: "reached_by", label: "Reached By" },
+            { key: "identity_source", label: "Identity Source" },
             { key: "minutes_to_connect", label: "Time To Connect", format: "duration" },
             { key: "phone_status", label: "Status" },
           ],

@@ -24,6 +24,8 @@ const speedToLeadQualityCte = `
       LOWER(COALESCE(NULLIF(TRIM(c.call_status), ''), 'unknown')) AS touch_status,
       CONCAT('call|', COALESCE(c.call_log_id, CAST(FARM_FINGERPRINT(TO_JSON_STRING(c.payload_json)) AS STRING))) AS touch_id,
       LOWER(NULLIF(TRIM(JSON_VALUE(c.payload_json, '$.source')), '')) AS touch_source_raw,
+      NULLIF(TRIM(JSON_VALUE(c.payload_json, '$.meta.marketplace.appName')), '') AS touch_provider_name,
+      NULLIF(TRIM(JSON_VALUE(c.payload_json, '$.from')), '') AS touch_from_number,
       NULLIF(TRIM(COALESCE(
         JSON_VALUE(c.payload_json, '$.assignedTo'),
         JSON_VALUE(c.payload_json, '$.assigned_to'),
@@ -62,6 +64,8 @@ const speedToLeadQualityCte = `
         )
       ) AS touch_id,
       LOWER(NULLIF(TRIM(JSON_VALUE(m.payload_json, '$.source')), '')) AS touch_source_raw,
+      NULLIF(TRIM(JSON_VALUE(m.payload_json, '$.meta.marketplace.appName')), '') AS touch_provider_name,
+      NULLIF(TRIM(JSON_VALUE(m.payload_json, '$.from')), '') AS touch_from_number,
       NULLIF(TRIM(COALESCE(
         m.assigned_to_user_id,
         JSON_VALUE(m.payload_json, '$.assignedTo'),
@@ -90,12 +94,32 @@ const speedToLeadQualityCte = `
       r.*,
       CASE
         WHEN r.touch_source_raw = 'workflow' THEN 'Workflow automation'
-        ELSE COALESCE(NULLIF(u.name, ''), 'Unknown rep')
+        WHEN NULLIF(u.name, '') IS NOT NULL THEN u.name
+        WHEN r.touch_user_id = 'Oct5Tz6ZVUaDkqXC3yHL' THEN 'Deleted GHL user Oct5Tz6ZVUaDkqXC3yHL'
+        WHEN r.touch_user_id IS NOT NULL THEN CONCAT('Unmapped GHL user ', r.touch_user_id)
+        WHEN r.touch_provider_name IS NOT NULL AND r.touch_from_number IS NOT NULL THEN CONCAT(r.touch_provider_name, ' ', r.touch_from_number)
+        WHEN r.touch_provider_name IS NOT NULL THEN r.touch_provider_name
+        WHEN r.touch_from_number IS NOT NULL THEN CONCAT('GHL phone ', r.touch_from_number)
+        ELSE 'GHL event with no rep supplied'
       END AS touch_owner_name,
       CASE
         WHEN r.touch_source_raw = 'workflow' THEN 'Automation'
-        ELSE COALESCE(NULLIF(u.role, ''), 'Unknown')
-      END AS touch_owner_role
+        WHEN NULLIF(u.role, '') IS NOT NULL THEN u.role
+        WHEN r.touch_user_id IS NOT NULL THEN 'Unmapped GHL user'
+        WHEN r.touch_provider_name IS NOT NULL THEN 'Dialer number'
+        WHEN r.touch_from_number IS NOT NULL THEN 'Phone number'
+        ELSE 'No rep supplied'
+      END AS touch_owner_role,
+      CASE
+        WHEN r.touch_source_raw = 'workflow' THEN 'Workflow'
+        WHEN NULLIF(u.name, '') IS NOT NULL THEN 'GHL user'
+        WHEN r.touch_user_id = 'Oct5Tz6ZVUaDkqXC3yHL' THEN 'Deleted GHL user ID'
+        WHEN r.touch_user_id IS NOT NULL THEN 'Unmapped GHL user ID'
+        WHEN r.touch_provider_name IS NOT NULL AND r.touch_from_number IS NOT NULL THEN 'Dialer number'
+        WHEN r.touch_provider_name IS NOT NULL THEN 'Dialer app'
+        WHEN r.touch_from_number IS NOT NULL THEN 'Phone number'
+        ELSE 'No rep supplied'
+      END AS touch_owner_source
     FROM outbound_touches_raw r
     LEFT JOIN \`project-41542e21-470f-4589-96d.Core.dim_users\` u
       ON u.user_id = r.touch_user_id
@@ -144,6 +168,7 @@ const speedToLeadQualityCte = `
       c.touch_user_id,
       c.touch_owner_name,
       c.touch_owner_role,
+      c.touch_owner_source,
       c.is_automated_workflow_touch,
       c.touch_outcome,
       c.is_successful_connection,
@@ -166,7 +191,7 @@ const speedToLeadQualityCte = `
         IF(
           touch_ts IS NULL,
           NULL,
-          STRUCT(channel_group, touch_status, touch_outcome, is_automated_workflow_touch, touch_ts, touch_user_id, touch_owner_name, touch_owner_role)
+          STRUCT(channel_group, touch_status, touch_outcome, is_automated_workflow_touch, touch_ts, touch_user_id, touch_owner_name, touch_owner_role, touch_owner_source)
         )
         IGNORE NULLS
         ORDER BY touch_ts ASC, channel_group ASC, touch_id ASC
@@ -175,7 +200,7 @@ const speedToLeadQualityCte = `
       ARRAY_AGG(
         IF(
           is_successful_connection,
-          STRUCT(channel_group, touch_status, touch_outcome, is_automated_workflow_touch, touch_ts, touch_user_id, touch_owner_name, touch_owner_role),
+          STRUCT(channel_group, touch_status, touch_outcome, is_automated_workflow_touch, touch_ts, touch_user_id, touch_owner_name, touch_owner_role, touch_owner_source),
           NULL
         )
         IGNORE NULLS
@@ -185,7 +210,7 @@ const speedToLeadQualityCte = `
       ARRAY_AGG(
         IF(
           is_meaningful_human_response,
-          STRUCT(channel_group, touch_status, touch_outcome, is_automated_workflow_touch, touch_ts, touch_user_id, touch_owner_name, touch_owner_role),
+          STRUCT(channel_group, touch_status, touch_outcome, is_automated_workflow_touch, touch_ts, touch_user_id, touch_owner_name, touch_owner_role, touch_owner_source),
           NULL
         )
         IGNORE NULLS
@@ -195,7 +220,7 @@ const speedToLeadQualityCte = `
       ARRAY_AGG(
         IF(
           is_automated_workflow_touch,
-          STRUCT(channel_group, touch_status, touch_outcome, is_automated_workflow_touch, touch_ts, touch_user_id, touch_owner_name, touch_owner_role),
+          STRUCT(channel_group, touch_status, touch_outcome, is_automated_workflow_touch, touch_ts, touch_user_id, touch_owner_name, touch_owner_role, touch_owner_source),
           NULL
         )
         IGNORE NULLS
@@ -478,6 +503,7 @@ const speedToLeadQueries = {
           WHEN first_attempt.is_automated_workflow_touch THEN 'Automation'
           ELSE COALESCE(first_attempt.touch_owner_role, 'Unknown')
         END AS role,
+        COALESCE(first_attempt.touch_owner_source, 'No rep supplied') AS identity_source,
         CASE
           WHEN first_attempt.channel_group = 'call' THEN 'Phone'
           WHEN first_attempt.channel_group = 'sms' THEN 'Text'
@@ -492,6 +518,7 @@ const speedToLeadQueries = {
     SELECT
       worked_by,
       role,
+      identity_source,
       first_channel_label,
       COUNT(*) AS leads_worked,
       SAFE_DIVIDE(COUNT(*), ANY_VALUE(summary.total_worked)) AS share_of_worked_leads,
@@ -499,7 +526,7 @@ const speedToLeadQueries = {
       AVG(minutes_to_first_attempt) AS avg_minutes_to_first_attempt
     FROM worked
     CROSS JOIN summary
-    GROUP BY worked_by, role, first_channel_label
+    GROUP BY worked_by, role, identity_source, first_channel_label
     ORDER BY leads_worked DESC, reached_by_phone DESC, worked_by
     LIMIT 20
   `,
@@ -521,6 +548,7 @@ const speedToLeadQueries = {
           WHEN first_successful_connection.is_automated_workflow_touch THEN 'Automation'
           ELSE COALESCE(first_successful_connection.touch_owner_role, 'Unknown')
         END AS role,
+        COALESCE(first_successful_connection.touch_owner_source, 'No rep supplied') AS identity_source,
         TIMESTAMP_DIFF(first_successful_connection.touch_ts, trigger_ts, SECOND) / 60.0 AS minutes_to_connection
       FROM trigger_rollup
       WHERE first_successful_connection.touch_ts IS NOT NULL
@@ -528,13 +556,14 @@ const speedToLeadQueries = {
     SELECT
       reached_by,
       role,
+      identity_source,
       COUNT(*) AS leads_reached,
       SAFE_DIVIDE(COUNT(*), ANY_VALUE(summary.total_reached)) AS share_of_reached_leads,
       SAFE_DIVIDE(COUNT(*), ANY_VALUE(summary.total_triggers)) AS share_of_all_leads,
       AVG(minutes_to_connection) AS avg_minutes_to_connection
     FROM reached
     CROSS JOIN summary
-    GROUP BY reached_by, role
+    GROUP BY reached_by, role, identity_source
     ORDER BY leads_reached DESC, reached_by
     LIMIT 20
   `,
@@ -553,6 +582,7 @@ const speedToLeadQueries = {
         WHEN tr.first_successful_connection.is_automated_workflow_touch THEN 'Workflow automation'
         ELSE COALESCE(tr.first_successful_connection.touch_owner_name, 'Unknown rep')
       END AS reached_by,
+      COALESCE(tr.first_successful_connection.touch_owner_source, 'No rep supplied') AS identity_source,
       TIMESTAMP_DIFF(tr.first_successful_connection.touch_ts, tr.trigger_ts, SECOND) / 60.0 AS minutes_to_connect,
       tr.first_successful_connection.touch_status AS phone_status
     FROM trigger_rollup tr
