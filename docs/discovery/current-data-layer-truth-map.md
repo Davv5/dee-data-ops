@@ -79,6 +79,7 @@ Raw.fanbasis_transactions_txn_raw
 Current dbt mart files on the active branch:
 
 - `lead_journey`
+- `lead_magnet_buyer_detail`
 - `lead_magnet_detail`
 - `revenue_detail`
 
@@ -89,6 +90,11 @@ GHL opportunity, treats each GHL pipeline as a lead-magnet/funnel lane, and
 attributes outreach, bookings, and revenue inside each contact's opportunity
 window. This matters because 44.6% of contacts appear in more than one
 pipeline; do not join all contact revenue to every lead magnet.
+
+`lead_magnet_buyer_detail` is the buyer-grain companion. It is one row per
+matched paid contact and is the safer dashboard contract for buyer conversion,
+first purchase revenue, payment-plan behavior, bookings before purchase, and
+latest known magnet before first purchase.
 
 ## Current bq-ingest Report Surface
 
