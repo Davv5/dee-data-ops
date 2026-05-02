@@ -95,6 +95,7 @@ const speedToLeadQualityCte = `
       r.*,
       CASE
         WHEN r.touch_source_raw = 'workflow' THEN 'Workflow automation'
+        WHEN r.touch_user_id = 'leBv9MtltaKdfSijVEhb' THEN 'Aariz Menon'
         WHEN NULLIF(u.name, '') IS NOT NULL THEN u.name
         WHEN r.touch_user_id = 'Oct5Tz6ZVUaDkqXC3yHL' THEN 'Deleted GHL user Oct5Tz6ZVUaDkqXC3yHL'
         WHEN r.touch_user_id IS NOT NULL THEN CONCAT('Unmapped GHL user ', r.touch_user_id)

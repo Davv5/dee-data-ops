@@ -26,6 +26,7 @@ _Last regenerated: 2026-05-02 after Speed-to-Lead dashboard operating view work 
 - **Active GCP project:** always pass `--project` / `--project_id` for `project-41542e21-470f-4589-96d`. Local `gcloud` defaults can be misleading.
 - **Latest smoke truth from live API:** 17,753 lead events; 1,350 reached by phone; 15,485 still not worked; 62 appointment-booking triggers reached within 45m out of 5,092.
 - **Reached-by identity truth:** `0 Unknown` means no blank attribution labels. It does not mean every reached call is mapped to a named human. Current gap is 262 reached-call identities that still need verified mapping.
+- **Aariz/Ayaan truth:** Aariz Menon (`leBv9MtltaKdfSijVEhb`, `aariz@precisionscaling.io`) and Ayaan Menon (`eWA0YcbNP3rklPwRFFwM`, `ayaan@precisionscaling.io`) are distinct GHL users. Do not collapse them because of shared last name or casing.
 - **Dashboard design preference:** first screen should show what matters without wasteful scrolling. Use drill-down/clickable detail for sources, identities, examples, and explanations behind metrics.
 - **Notion human home:** Data Ops Home — `https://app.notion.com/p/35405f2aff2981e29136c401ef0855eb`. Keep it light: North Star, Now, Truth Notes, Receipts, Parking Lot.
 - **Dashboard product plan:** `docs/plans/2026-05-01-001-feat-dashboard-product-plan.md`.
