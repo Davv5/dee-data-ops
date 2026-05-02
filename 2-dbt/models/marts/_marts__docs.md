@@ -89,6 +89,7 @@ taxonomy fields:
 
 - `lead_magnet_reporting_name`
 - `lead_magnet_category`
+- `lead_magnet_offer_type`
 - `is_true_lead_magnet`
 - `is_launch`
 - `is_waitlist`

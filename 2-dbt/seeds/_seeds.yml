@@ -6,13 +6,17 @@ seeds:
       Human-maintained taxonomy layer for GHL pipelines used by the
       lead_magnet_detail mart. The raw GHL pipeline name stays visible, while
       this seed adds a cleaned reporting name and separates true lead magnets
-      from launch/event, waitlist, and sales/operating pipelines.
+      from launch/event, waitlist, and sales/operating pipelines. It also adds
+      `lead_magnet_offer_type`, a second axis for the creative/package format
+      of the offer: prompts, templates, guides, lists, trainings, videos,
+      giveaways, communities, waitlists, launches, and sales pipelines.
     config:
       column_types:
         pipeline_id: string
         pipeline_name: string
         lead_magnet_reporting_name: string
         lead_magnet_category: string
+        lead_magnet_offer_type: string
         is_true_lead_magnet: boolean
         is_launch: boolean
         is_waitlist: boolean
@@ -36,6 +40,13 @@ seeds:
         description: Clean dashboard label for the raw GHL pipeline.
         tests:
           - not_null
+      - name: lead_magnet_offer_type
+        description: Creative/package format of the offer for lead-magnet analysis.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['prompt_pack', 'template', 'guide_or_doc', 'resource_list', 'training_or_class', 'video_or_replay', 'giveaway', 'community', 'waitlist', 'sales_pipeline', 'launch_event', 'uncategorized']
 
   - name: ghl_sdr_roster
     description: >
