@@ -68,3 +68,46 @@ models:
           `net_amount - refunds_total_amount`. Mechanical branching keeps the math correct even if `fct_refunds` extends to Stripe later.
         tests:
           - not_null
+
+  - name: lead_magnet_detail
+    description: |
+      Opportunity-grain lead magnet mart — one row per GHL opportunity, treating each GHL pipeline as a lead-magnet funnel.
+      Uses opportunity windows to attribute outreach, bookings, and net revenue without double-counting multi-magnet contacts.
+      See `_marts__docs.md` for column documentation.
+    columns:
+      - name: opportunity_id
+        description: Primary key — native GHL opportunity id.
+        tests:
+          - unique
+          - not_null
+      - name: lead_magnet_id
+        description: GHL pipeline id; the durable lead-magnet/funnel identifier.
+        tests:
+          - not_null
+      - name: lead_magnet_name
+        description: Business-facing GHL pipeline name for the lead magnet/funnel.
+        tests:
+          - not_null
+      - name: contact_id
+        description: Native GHL contact id attached to the opportunity.
+        tests:
+          - not_null
+      - name: attribution_quality_flag
+        tests:
+          - accepted_values:
+              values: ['clean', 'contact_not_matched', 'pipeline_not_mapped', 'multi_magnet_contact']
+      - name: touches_count
+        tests:
+          - not_null
+      - name: direct_bookings_count
+        tests:
+          - not_null
+      - name: window_bookings_count
+        tests:
+          - not_null
+      - name: payment_count
+        tests:
+          - not_null
+      - name: net_revenue_after_refunds
+        tests:
+          - not_null
