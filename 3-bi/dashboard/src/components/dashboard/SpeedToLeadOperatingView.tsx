@@ -1,7 +1,7 @@
 import type { ComponentType } from "react";
 import { AlertTriangle, PhoneCall, Timer, UserCheck } from "lucide-react";
 import { FreshnessBadge } from "@/components/dashboard/FreshnessBadge";
-import type { DashboardData, DashboardRow, DashboardRowValue } from "@/types/dashboard-data";
+import type { DashboardData, DashboardFilters, DashboardRow, DashboardRowValue } from "@/types/dashboard-data";
 
 const BOOKING_SLA_LABEL = "45m";
 
@@ -91,7 +91,10 @@ export function SpeedToLeadOperatingView({ data }: { data: DashboardData }) {
             Follow-up coverage, phone reach, SLA, and reached-by identity from live BigQuery.
           </p>
         </div>
-        <FreshnessBadge freshness={data.freshness} />
+        <div className="flex flex-col gap-2 md:items-end">
+          <FreshnessBadge freshness={data.freshness} />
+          <TimeRangeControl filters={data.filters} />
+        </div>
       </header>
 
       {data.error ? (
@@ -122,6 +125,35 @@ export function SpeedToLeadOperatingView({ data }: { data: DashboardData }) {
       </section>
 
       <AuditDetails data={data} />
+    </div>
+  );
+}
+
+function TimeRangeControl({ filters }: { filters: DashboardFilters }) {
+  return (
+    <div className="w-full md:w-auto">
+      <div className="flex w-full rounded-lg border border-[#dedbd2] bg-white p-1 shadow-sm md:w-auto">
+        {filters.timeRangeOptions.map((option) => {
+          const isActive = option.value === filters.timeRange;
+          return (
+            <a
+              key={option.value}
+              href={`/speed-to-lead?range=${option.value}`}
+              aria-current={isActive ? "page" : undefined}
+              className={`min-w-12 rounded-md px-3 py-1.5 text-center text-xs font-semibold transition ${
+                isActive
+                  ? "bg-[#0f766e] text-white"
+                  : "text-[#66635f] hover:bg-[#f3f1ea] hover:text-[#2d2b28]"
+              }`}
+            >
+              {option.label}
+            </a>
+          );
+        })}
+      </div>
+      <div className="mt-1 text-right text-[11px] text-[#66635f]">
+        {filters.timeRangeDescription}
+      </div>
     </div>
   );
 }

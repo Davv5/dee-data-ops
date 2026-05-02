@@ -1,11 +1,84 @@
 import { queryContracts, type QueryName } from "@/lib/bigquery/named-queries";
 import { runBigQuery } from "@/lib/bigquery/client";
-import type { DashboardData, DashboardFreshness, DashboardRow } from "@/types/dashboard-data";
+import type { DashboardData, DashboardFilters, DashboardFreshness, DashboardRow } from "@/types/dashboard-data";
 
 const tableRef = (queryName: QueryName) => `\`${queryContracts[queryName].table}\``;
 const BOOKING_SLA_SECONDS = 45 * 60;
 
-const speedToLeadQualityCte = `
+export const SPEED_TO_LEAD_TIME_RANGE_OPTIONS = [
+  {
+    value: "today",
+    label: "Today",
+    description: "Lead events from today in Eastern time.",
+  },
+  {
+    value: "7d",
+    label: "7D",
+    description: "Lead events from the last 7 days.",
+  },
+  {
+    value: "30d",
+    label: "30D",
+    description: "Lead events from the last 30 days.",
+  },
+  {
+    value: "90d",
+    label: "90D",
+    description: "Lead events from the last 90 days.",
+  },
+  {
+    value: "all",
+    label: "All",
+    description: "All lead events in the mart.",
+  },
+] as const;
+
+export type SpeedToLeadTimeRange = (typeof SPEED_TO_LEAD_TIME_RANGE_OPTIONS)[number]["value"];
+
+type GetSpeedToLeadDataOptions = {
+  timeRange?: string | null;
+};
+
+const DEFAULT_TIME_RANGE: SpeedToLeadTimeRange = "30d";
+
+export function normalizeSpeedToLeadTimeRange(value: string | null | undefined): SpeedToLeadTimeRange {
+  const normalized = value?.toLowerCase();
+  const option = SPEED_TO_LEAD_TIME_RANGE_OPTIONS.find((candidate) => candidate.value === normalized);
+  return option?.value ?? DEFAULT_TIME_RANGE;
+}
+
+function buildDashboardFilters(timeRange: SpeedToLeadTimeRange): DashboardFilters {
+  const activeOption = SPEED_TO_LEAD_TIME_RANGE_OPTIONS.find((option) => option.value === timeRange);
+
+  return {
+    timeRange,
+    timeRangeLabel: activeOption?.label ?? "30D",
+    timeRangeDescription: activeOption?.description ?? "Lead events from the last 30 days.",
+    timeRangeOptions: SPEED_TO_LEAD_TIME_RANGE_OPTIONS.map((option) => ({ ...option })),
+  };
+}
+
+function timestampRangePredicate(timeRange: SpeedToLeadTimeRange, field: string) {
+  if (timeRange === "all") return "";
+  if (timeRange === "today") {
+    return `DATE(${field}, 'America/New_York') = CURRENT_DATE('America/New_York')`;
+  }
+
+  const days = timeRange === "7d" ? 6 : timeRange === "90d" ? 89 : 29;
+  return `DATE(${field}, 'America/New_York') >= DATE_SUB(CURRENT_DATE('America/New_York'), INTERVAL ${days} DAY)`;
+}
+
+function whereTimeRange(timeRange: SpeedToLeadTimeRange, field: string) {
+  const predicate = timestampRangePredicate(timeRange, field);
+  return predicate ? `WHERE ${predicate}` : "";
+}
+
+function andTimeRange(timeRange: SpeedToLeadTimeRange, field: string) {
+  const predicate = timestampRangePredicate(timeRange, field);
+  return predicate ? `AND ${predicate}` : "";
+}
+
+const buildSpeedToLeadQualityCte = (timeRange: SpeedToLeadTimeRange) => `
   WITH trigger_events AS (
     SELECT
       trigger_event_id,
@@ -16,6 +89,7 @@ const speedToLeadQualityCte = `
       utm_campaign
     FROM ${tableRef("freshness")}
     WHERE trigger_ts IS NOT NULL
+      ${andTimeRange(timeRange, "trigger_ts")}
   ),
   outbound_touches_raw AS (
     SELECT
@@ -234,10 +308,18 @@ const speedToLeadQualityCte = `
   )
 `;
 
-const speedToLeadQueries = {
+function buildSpeedToLeadQueries(timeRange: SpeedToLeadTimeRange) {
+  const qualityCte = buildSpeedToLeadQualityCte(timeRange);
+  const triggerWhere = whereTimeRange(timeRange, "trigger_ts");
+  const triggerAnd = andTimeRange(timeRange, "trigger_ts");
+
+  return {
   speed_to_lead_overall: `
     SELECT
-      FORMAT_TIMESTAMP('%FT%TZ', MAX(mart_refreshed_at)) AS refreshed_at,
+      (
+        SELECT FORMAT_TIMESTAMP('%FT%TZ', MAX(mart_refreshed_at))
+        FROM ${tableRef("freshness")}
+      ) AS refreshed_at,
       COUNTIF(trigger_type = 'appointment_booking') AS total_bookings_matched_to_contact,
       COUNTIF(trigger_type = 'appointment_booking' AND first_touch_ts IS NOT NULL) AS bookings_with_outbound_call,
       COUNTIF(trigger_type = 'appointment_booking' AND first_touch_ts IS NULL) AS bookings_without_outbound_call,
@@ -270,6 +352,7 @@ const speedToLeadQueries = {
         NULLIF(COUNTIF(trigger_type = 'lead_magnet'), 0)
       ) AS pct_lead_magnet_triggers_with_outbound_touch
     FROM ${tableRef("freshness")}
+    ${triggerWhere}
   `,
   speed_to_lead_daily: `
     SELECT
@@ -300,7 +383,7 @@ const speedToLeadQueries = {
       COUNTIF(first_touch_ts IS NOT NULL) AS triggers_with_outbound_touch,
       SAFE_DIVIDE(COUNTIF(first_touch_ts IS NOT NULL), COUNT(*)) AS pct_triggers_with_outbound_touch
     FROM ${tableRef("freshness")}
-    WHERE trigger_date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+    ${triggerWhere}
     GROUP BY trigger_date
     ORDER BY trigger_date
   `,
@@ -336,6 +419,7 @@ const speedToLeadQueries = {
       APPROX_QUANTILES(speed_to_lead_minutes, 100)[OFFSET(50)] AS median_minutes,
       APPROX_QUANTILES(speed_to_lead_minutes, 100)[OFFSET(90)] AS p90_minutes
     FROM ${tableRef("freshness")}
+    ${triggerWhere}
     GROUP BY trigger_type
     ORDER BY total_triggers DESC
   `,
@@ -362,6 +446,7 @@ const speedToLeadQueries = {
           ELSE 6
         END AS bucket_order
       FROM ${tableRef("freshness")}
+      ${triggerWhere}
     ),
     counted AS (
       SELECT
@@ -393,7 +478,7 @@ const speedToLeadQueries = {
       SAFE_DIVIDE(COUNTIF(speed_to_lead_seconds <= 300), COUNT(*)) AS within_5m_rate,
       APPROX_QUANTILES(speed_to_lead_minutes, 100)[OFFSET(50)] AS median_minutes
     FROM ${tableRef("freshness")}
-    WHERE trigger_date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
+    ${triggerWhere}
     GROUP BY source_label, trigger_type
     HAVING total_triggers >= 5
     ORDER BY total_triggers DESC
@@ -410,11 +495,12 @@ const speedToLeadQueries = {
       TIMESTAMP_DIFF(CURRENT_TIMESTAMP(), trigger_ts, HOUR) AS age_hours
     FROM ${tableRef("freshness")}
     WHERE first_touch_ts IS NULL
+      ${triggerAnd}
     ORDER BY trigger_ts DESC
     LIMIT 12
   `,
   speed_to_lead_quality_summary: `
-    ${speedToLeadQualityCte}
+    ${qualityCte}
     SELECT
       COUNT(*) AS total_triggers,
       COUNTIF(first_attempt.touch_ts IS NOT NULL) AS first_attempts,
@@ -440,7 +526,7 @@ const speedToLeadQueries = {
     FROM trigger_rollup
   `,
   speed_to_lead_follow_up_counts: `
-    ${speedToLeadQualityCte},
+    ${qualityCte},
     summary AS (
       SELECT
         COUNT(*) AS total_triggers,
@@ -523,7 +609,7 @@ const speedToLeadQueries = {
     ORDER BY metric_order
   `,
   speed_to_lead_first_work_by_rep: `
-    ${speedToLeadQualityCte},
+    ${qualityCte},
     summary AS (
       SELECT COUNTIF(first_attempt.touch_ts IS NOT NULL) AS total_worked
       FROM trigger_rollup
@@ -566,7 +652,7 @@ const speedToLeadQueries = {
     LIMIT 20
   `,
   speed_to_lead_phone_reach_by_rep: `
-    ${speedToLeadQualityCte},
+    ${qualityCte},
     summary AS (
       SELECT
         COUNT(*) AS total_triggers,
@@ -603,7 +689,7 @@ const speedToLeadQueries = {
     LIMIT 20
   `,
   speed_to_lead_attribution_confidence: `
-    ${speedToLeadQualityCte}
+    ${qualityCte}
     SELECT
       COUNTIF(first_successful_connection.touch_ts IS NOT NULL) AS reached_leads,
       COUNTIF(
@@ -635,7 +721,7 @@ const speedToLeadQueries = {
     FROM trigger_rollup
   `,
   speed_to_lead_not_worked_aging: `
-    ${speedToLeadQualityCte},
+    ${qualityCte},
     not_worked AS (
       SELECT
         CASE
@@ -664,7 +750,7 @@ const speedToLeadQueries = {
     ORDER BY bucket_order
   `,
   speed_to_lead_reached_examples: `
-    ${speedToLeadQualityCte}
+    ${qualityCte}
     SELECT
       FORMAT_TIMESTAMP('%Y-%m-%d %I:%M %p ET', tr.first_successful_connection.touch_ts, 'America/New_York') AS reached_at_et,
       COALESCE(
@@ -689,7 +775,7 @@ const speedToLeadQueries = {
     LIMIT 12
   `,
   speed_to_lead_first_attempt_outcomes: `
-    ${speedToLeadQualityCte}
+    ${qualityCte}
     SELECT
       COALESCE(first_attempt.channel_group, 'no_touch') AS first_attempt_channel,
       COALESCE(first_attempt.touch_status, 'no_touch') AS first_attempt_status,
@@ -721,7 +807,7 @@ const speedToLeadQueries = {
     LIMIT 16
   `,
   speed_to_lead_business_hours: `
-    ${speedToLeadQualityCte}
+    ${qualityCte}
     SELECT
       service_window,
       CASE
@@ -752,10 +838,14 @@ const speedToLeadQueries = {
     GROUP BY service_window
     ORDER BY CASE service_window WHEN 'business_hours' THEN 1 ELSE 2 END
   `,
-} satisfies Record<string, string>;
+  } satisfies Record<string, string>;
+}
 
-export async function getSpeedToLeadData(): Promise<DashboardData> {
+export async function getSpeedToLeadData(options: GetSpeedToLeadDataOptions = {}): Promise<DashboardData> {
   const generatedAt = new Date().toISOString();
+  const timeRange = normalizeSpeedToLeadTimeRange(options.timeRange);
+  const filters = buildDashboardFilters(timeRange);
+  const speedToLeadQueries = buildSpeedToLeadQueries(timeRange);
 
   try {
     const [
@@ -814,6 +904,7 @@ export async function getSpeedToLeadData(): Promise<DashboardData> {
         speed_to_lead_business_hours: businessHours,
       },
       freshness: buildFreshness(overall, byRep),
+      filters,
       generatedAt,
     };
   } catch (error) {
@@ -824,6 +915,7 @@ export async function getSpeedToLeadData(): Promise<DashboardData> {
         label: "Live data unavailable",
         detail: getErrorMessage(error),
       },
+      filters,
       generatedAt,
       error: getErrorMessage(error),
     };

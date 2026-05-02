@@ -9,9 +9,23 @@ export type DashboardFreshness = {
   refreshedAt?: string;
 };
 
+export type DashboardFilterOption = {
+  value: string;
+  label: string;
+  description: string;
+};
+
+export type DashboardFilters = {
+  timeRange: string;
+  timeRangeLabel: string;
+  timeRangeDescription: string;
+  timeRangeOptions: DashboardFilterOption[];
+};
+
 export type DashboardData = {
   rows: Partial<Record<string, DashboardRow[]>>;
   freshness: DashboardFreshness;
+  filters: DashboardFilters;
   generatedAt: string;
   error?: string;
 };
