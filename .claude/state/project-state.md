@@ -24,7 +24,8 @@ _Last regenerated: 2026-05-02 after Speed-to-Lead dashboard operating view work,
 - **Live API:** `3-bi/dashboard/src/app/api/speed-to-lead/route.ts` backed by `src/lib/bigquery/speed-to-lead-live.ts` and `src/lib/bigquery/named-queries.ts`.
 - **Time filter:** Speed-to-Lead supports `?range=today|7d|30d|90d|all`; default is `30d`, filtered by lead trigger time in Eastern time.
 - **Newest dbt mart:** `2-dbt/models/marts/lead_magnet_detail.sql` on branch `codex/lead-magnet-mart`. Grain is one GHL opportunity. It treats GHL pipelines as lead-magnet/funnel lanes and uses contact opportunity windows to attribute outreach, bookings, and revenue without double-counting multi-magnet contacts.
-- **Lead magnet truth:** 26,229 opportunities, 15,600 contacts, 4,671 attributed bookings, $275,228.16 dev net revenue after refunds. 44.6% of contacts appear in more than one pipeline; compare all-window, first-opportunity, and latest-opportunity views separately.
+- **Lead magnet taxonomy:** `2-dbt/seeds/lead_magnet_pipeline_taxonomy.csv` classifies 36 current GHL pipelines as true lead magnet, launch/event, waitlist, or sales/operating pipeline. All rows are initially `taxonomy_confidence = inferred_from_name`; review with David before calling the taxonomy final.
+- **Lead magnet truth:** 26,229 opportunities, 15,600 contacts, 4,671 attributed bookings, $275,228.16 dev net revenue after refunds. 44.6% of contacts appear in more than one pipeline; compare all-window, first-opportunity, latest-opportunity, and category views separately.
 - **Lead magnet first readout:** `docs/discovery/lead-magnet-mart-readout-2026-05-02.md`.
 - **Data contract:** Speed-to-Lead v1 uses live BigQuery report/fact tables while the durable dbt mart layer stabilizes. Say this plainly in UI/docs; do not pretend the temporary path is final.
 - **Active GCP project:** always pass `--project` / `--project_id` for `project-41542e21-470f-4589-96d`. Local `gcloud` defaults can be misleading.
@@ -48,7 +49,7 @@ _Last regenerated: 2026-05-02 after Speed-to-Lead dashboard operating view work,
 
 - **Map the remaining 262 reached-call identities** without faking names. Goal is named-human attribution where source truth supports it; otherwise keep clear labels.
 - **Add clickable drill-downs** so dashboard numbers can reveal source rows, cohorts, reps, identities, and examples behind the metric.
-- **Add reviewed lead-magnet taxonomy** before dashboard comparisons: true magnet, launch/event, waitlist, sales/operating pipeline, internal/test/retired.
+- **Review lead-magnet taxonomy** before dashboard comparisons: true magnet, launch/event, waitlist, sales/operating pipeline, internal/test/retired.
 - **Merge/ship PR #153** after final visual smoke and user approval.
 - **Choose the next revenue dashboard** after Speed-to-Lead is live. Prioritize questions that show money movement or leakage, not vanity reporting.
 - **Legacy cleanup remains label-first, delete-later.** Do not pause/delete legacy projects, raw tables, jobs, or Metabase assets without checking the provenance/comparison docs and keeping rollback.

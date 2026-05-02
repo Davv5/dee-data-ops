@@ -34,6 +34,18 @@ passed 13 of 13 checks:
 - not-null lead-magnet identifiers and metric columns
 - accepted attribution quality flags
 
+After adding `lead_magnet_pipeline_taxonomy`, the validation command became:
+
+`dbt build --target dev_local --select lead_magnet_pipeline_taxonomy lead_magnet_detail lead_magnet_detail_opportunity_parity lead_magnet_detail_taxonomy_coverage`
+
+It passed 23 of 23 checks:
+
+- 36 taxonomy seed rows loaded
+- all opportunity-bearing pipelines mapped to taxonomy
+- no uncategorized opportunity-bearing pipeline
+- mart row-count parity still holds
+- category and attribution accepted-values tests passed
+
 ## First Readout
 
 All opportunity windows:
@@ -55,6 +67,38 @@ Top overall revenue lanes:
 | Inner Circle 2.0 Launch | 117 | 43 | 24 | $16,279.39 | $139.14 |
 | Inner Circle Launch | 233 | 67 | 17 | $15,018.04 | $64.46 |
 | Speed to Lead Call | 161 | 56 | 30 | $12,366.89 | $76.81 |
+
+## Taxonomy Readout
+
+The initial taxonomy classifies every current opportunity-bearing pipeline. All
+classifications are `inferred_from_name`, so this should be reviewed with David
+before it becomes final operating truth.
+
+| Category | Opportunities | Bookings | Paid opps | Net revenue | Revenue / opp |
+|---|---:|---:|---:|---:|---:|
+| Sales / operating pipeline | 7,418 | 1,709 | 560 | $200,479.04 | $27.03 |
+| Launch / event | 6,921 | 1,430 | 131 | $48,519.35 | $7.01 |
+| True lead magnet | 11,349 | 1,495 | 89 | $25,260.77 | $2.23 |
+| Waitlist | 541 | 37 | 1 | $969.00 | $1.79 |
+
+Top true lead magnets:
+
+| True lead magnet | Opportunities | Bookings | Paid opps | Net revenue | Revenue / opp |
+|---|---:|---:|---:|---:|---:|
+| AI Brand Building Prompts | 4,250 | 706 | 18 | $5,051.43 | $1.19 |
+| SMS Templates | 512 | 65 | 17 | $4,226.69 | $8.26 |
+| Content Guide | 813 | 168 | 11 | $3,631.99 | $4.47 |
+| Google Docs | 1,117 | 123 | 7 | $2,384.70 | $2.13 |
+| Manufacturer List | 740 | 124 | 9 | $2,208.98 | $2.99 |
+| Tariff Manufacturer List | 1,423 | 115 | 9 | $1,999.43 | $1.41 |
+
+Top sales / operating pipelines:
+
+| Sales / operating pipeline | Opportunities | Bookings | Paid opps | Net revenue | Revenue / opp |
+|---|---:|---:|---:|---:|---:|
+| Brand Scaling Blueprint Booked Calls | 2,653 | 1,253 | 475 | $167,431.12 | $63.11 |
+| Dee Builds Brands Main Sales Pipeline | 4,600 | 400 | 55 | $20,681.03 | $4.50 |
+| Speed-to-Lead Call | 161 | 56 | 30 | $12,366.89 | $76.81 |
 
 First opportunity view, for acquisition quality:
 
@@ -101,7 +145,7 @@ another communication channel, or a missing conversation capture path.
 
 ## Next Best Move
 
-Add a reviewed lead-magnet taxonomy:
+Review the initial lead-magnet taxonomy with David:
 
 - true lead magnet
 - launch/event
@@ -109,7 +153,7 @@ Add a reviewed lead-magnet taxonomy:
 - sales/operating pipeline
 - internal/test/retired
 
-Then the dashboard can answer the money question cleanly:
+Then build the dashboard chapter so it answers the money question cleanly:
 
 1. Which true magnets create qualified opportunities?
 2. Which magnets book calls?

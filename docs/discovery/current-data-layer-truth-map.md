@@ -187,9 +187,10 @@ Use it before building a lead-magnet dashboard, and keep three views separate:
 - first opportunity for acquisition/source quality
 - latest opportunity for current operating state
 
-Do not treat every GHL pipeline name as the final business label. The next
-cleanup is a reviewed pipeline taxonomy that separates true lead magnets from
-launches, waitlists, and sales operating pipelines.
+Do not treat every GHL pipeline name as the final business label. The branch
+now includes an initial `lead_magnet_pipeline_taxonomy` seed with 36 current
+pipelines classified from their names. Review that seed with David before
+calling the taxonomy final.
 
 ### 6. Defer rep-ops rebuild until GHL source truth is resolved
 
@@ -240,7 +241,7 @@ If those cannot be answered, do not build the dashboard tile yet.
 ### PR C — Lead magnet chapter readiness
 
 - Merge and promote `lead_magnet_detail`
-- Add reviewed lead-magnet taxonomy for pipeline names
+- Review `lead_magnet_pipeline_taxonomy` classifications with David
 - Build the lead-magnet dashboard chapter from the mart, not from raw GHL joins
 
 ### PR D — Revenue chapter readiness

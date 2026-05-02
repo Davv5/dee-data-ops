@@ -58,6 +58,8 @@ create volume, get worked, book calls, and turn into revenue.
 
 - `stg_ghl__opportunities` — row source
 - `dim_pipeline_stages` — lead-magnet / stage names and booked-stage flag
+- `lead_magnet_pipeline_taxonomy` — human-maintained GHL pipeline taxonomy and clean
+  reporting names
 - `dim_contacts` — contact identity and UTM context
 - `dim_users` — current assigned user
 - `fct_outreach` — calls and SMS inside the opportunity window
@@ -77,6 +79,21 @@ That assigns follow-up, bookings, and revenue to the most recent lead-magnet
 opportunity before the event. The `is_first_opportunity_for_contact` and
 `is_latest_opportunity_for_contact` flags support first-touch and last-touch
 views without changing the mart grain.
+
+## Taxonomy
+
+Raw GHL pipeline names are not all the same business object. Some are true
+lead magnets, some are launches, some are waitlists, and some are sales
+operating pipelines. The mart keeps the raw `lead_magnet_name` and adds
+taxonomy fields:
+
+- `lead_magnet_reporting_name`
+- `lead_magnet_category`
+- `is_true_lead_magnet`
+- `is_launch`
+- `is_waitlist`
+- `is_sales_pipeline`
+- `include_in_lead_magnet_dashboard`
 
 ## Quality flags
 

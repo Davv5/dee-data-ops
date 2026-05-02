@@ -123,6 +123,22 @@ payments_net as (
 
 ),
 
+lead_magnet_taxonomy as (
+
+    select
+        pipeline_id,
+        lead_magnet_reporting_name,
+        lead_magnet_category,
+        is_true_lead_magnet,
+        is_launch,
+        is_waitlist,
+        is_sales_pipeline,
+        include_in_lead_magnet_dashboard,
+        taxonomy_confidence
+    from {{ ref('lead_magnet_pipeline_taxonomy') }}
+
+),
+
 outreach_per_opportunity as (
 
     select
@@ -224,6 +240,27 @@ final as (
 
         opportunities.lead_magnet_id,
         opportunities.lead_magnet_name,
+        coalesce(
+            lead_magnet_taxonomy.lead_magnet_reporting_name,
+            opportunities.lead_magnet_name
+        )                                                               as lead_magnet_reporting_name,
+        coalesce(
+            lead_magnet_taxonomy.lead_magnet_category,
+            'uncategorized'
+        )                                                               as lead_magnet_category,
+        coalesce(lead_magnet_taxonomy.is_true_lead_magnet, false)       as is_true_lead_magnet,
+        coalesce(lead_magnet_taxonomy.is_launch, false)                 as is_launch,
+        coalesce(lead_magnet_taxonomy.is_waitlist, false)               as is_waitlist,
+        coalesce(lead_magnet_taxonomy.is_sales_pipeline, false)         as is_sales_pipeline,
+        coalesce(
+            lead_magnet_taxonomy.include_in_lead_magnet_dashboard,
+            false
+        )                                                               as include_in_lead_magnet_dashboard,
+        coalesce(
+            lead_magnet_taxonomy.taxonomy_confidence,
+            'missing_taxonomy'
+        )                                                               as taxonomy_confidence,
+
         opportunities.pipeline_stage_sk,
         opportunities.lead_magnet_stage_id,
         opportunities.lead_magnet_stage_name,
@@ -296,6 +333,8 @@ final as (
         current_timestamp()                                            as mart_refreshed_at
 
     from opportunities
+    left join lead_magnet_taxonomy
+        on opportunities.lead_magnet_id = lead_magnet_taxonomy.pipeline_id
     left join outreach_per_opportunity
         on outreach_per_opportunity.opportunity_id = opportunities.opportunity_id
     left join bookings_per_opportunity
