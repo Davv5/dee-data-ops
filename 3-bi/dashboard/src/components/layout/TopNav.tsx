@@ -1,12 +1,13 @@
 "use client";
 
-import { Activity, Gauge, Target } from "lucide-react";
+import { Activity, DollarSign, Gauge, Target } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const navItems = [
   { href: "/speed-to-lead", label: "Speed-to-Lead", icon: Gauge },
   { href: "/lead-magnets", label: "Lead Magnets", icon: Target },
+  { href: "/revenue", label: "Revenue", icon: DollarSign },
 ];
 
 export function TopNav() {

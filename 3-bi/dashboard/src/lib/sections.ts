@@ -27,6 +27,6 @@ export const dashboardSections = [
     label: "Revenue",
     href: "/revenue",
     icon: BarChart3,
-    status: "next",
+    status: "active",
   },
 ] as const;
