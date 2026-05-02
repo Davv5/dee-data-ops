@@ -41,6 +41,55 @@ Singular test `release_gate_lead_journey.sql` asserts:
 {% enddocs %}
 
 
+{% docs lead_magnet_detail %}
+
+# lead_magnet_detail
+
+**Grain:** one row per GHL opportunity.
+**Primary key:** `opportunity_id`.
+
+## Why it exists
+
+Lead magnets are represented in GHL as pipelines. This mart turns those
+pipeline opportunities into a business-facing analysis surface: which magnets
+create volume, get worked, book calls, and turn into revenue.
+
+## What it's built from
+
+- `stg_ghl__opportunities` — row source
+- `dim_pipeline_stages` — lead-magnet / stage names and booked-stage flag
+- `dim_contacts` — contact identity and UTM context
+- `dim_users` — current assigned user
+- `fct_outreach` — calls and SMS inside the opportunity window
+- `fct_calls_booked` — bookings inside the opportunity window plus direct
+  `booking_time_opportunity_id` counts
+- `fct_payments` + `fct_refunds` — net revenue inside the opportunity window
+
+## Attribution window
+
+About 45% of contacts have opportunities in more than one pipeline, so joining
+all contact revenue to every pipeline would over-credit lead magnets. This mart
+uses an opportunity window:
+
+`opportunity_created_at <= event timestamp < next_opportunity_created_at`
+
+That assigns follow-up, bookings, and revenue to the most recent lead-magnet
+opportunity before the event. The `is_first_opportunity_for_contact` and
+`is_latest_opportunity_for_contact` flags support first-touch and last-touch
+views without changing the mart grain.
+
+## Quality flags
+
+`attribution_quality_flag` buckets every row:
+
+1. `clean` — contact and pipeline are mapped, and the contact only appears in one magnet
+2. `multi_magnet_contact` — same contact appears in multiple magnets; use window or first/latest flags
+3. `contact_not_matched` — opportunity did not join to `dim_contacts`
+4. `pipeline_not_mapped` — opportunity pipeline/stage did not join to `dim_pipeline_stages`
+
+{% enddocs %}
+
+
 {% docs revenue_detail %}
 
 # revenue_detail

@@ -1,6 +1,6 @@
 # Current Data Layer Truth Map
 
-Last updated: 2026-05-01.
+Last updated: 2026-05-02.
 
 Purpose: this is the reset document for source → dbt → marts → dashboard work. Read this before building or modifying any mart, report table, or dashboard binding.
 
@@ -76,12 +76,19 @@ Raw.fanbasis_transactions_txn_raw
 
 ### Marts
 
-Current dbt mart files on `main`:
+Current dbt mart files on the active branch:
 
 - `lead_journey`
+- `lead_magnet_detail`
 - `revenue_detail`
 
 Important correction to stale docs: `speed_to_lead_detail` and `sales_activity_detail` are no longer dbt marts on `main`. They were retired in PR #142.
+
+`lead_magnet_detail` is the newest durable mart candidate. It is one row per
+GHL opportunity, treats each GHL pipeline as a lead-magnet/funnel lane, and
+attributes outreach, bookings, and revenue inside each contact's opportunity
+window. This matters because 44.6% of contacts appear in more than one
+pipeline; do not join all contact revenue to every lead magnet.
 
 ## Current bq-ingest Report Surface
 
@@ -169,7 +176,22 @@ This should be the first non-Speed-to-Lead chapter to prove the durable dbt path
 
 Do not overbuild dashboard logic around placeholder columns. Fill upstream first.
 
-### 5. Defer rep-ops rebuild until GHL source truth is resolved
+### 5. Use `lead_magnet_detail` for the next money-facing chapter
+
+`lead_magnet_detail` is the first clean step toward answering which lead
+magnet creates volume, gets worked, books calls, and turns into paid revenue.
+
+Use it before building a lead-magnet dashboard, and keep three views separate:
+
+- all opportunity windows
+- first opportunity for acquisition/source quality
+- latest opportunity for current operating state
+
+Do not treat every GHL pipeline name as the final business label. The next
+cleanup is a reviewed pipeline taxonomy that separates true lead magnets from
+launches, waitlists, and sales operating pipelines.
+
+### 6. Defer rep-ops rebuild until GHL source truth is resolved
 
 The current rep scorecard is useful enough for v1, but its foundations are patchy.
 
@@ -180,7 +202,7 @@ Before rebuilding rep ops in dbt, resolve:
 - current-vs-booking-time owner semantics
 - whether the 0-row bq-ingest reports should be fixed or retired
 
-### 6. Defer Fathom and retention
+### 7. Defer Fathom and retention
 
 Fathom transcripts and Fanbasis customer/subscription shape are not ready. Do not let those become the next rabbit hole.
 
@@ -215,23 +237,31 @@ If those cannot be answered, do not build the dashboard tile yet.
 - Start `3-bi/dashboard/`
 - Speed-to-Lead v1 consumes bq-ingest report tables only
 
-### PR C — Revenue chapter readiness
+### PR C — Lead magnet chapter readiness
+
+- Merge and promote `lead_magnet_detail`
+- Add reviewed lead-magnet taxonomy for pipeline names
+- Build the lead-magnet dashboard chapter from the mart, not from raw GHL joins
+
+### PR D — Revenue chapter readiness
 
 - Verify `revenue_detail` row counts and refund parity
 - Add any missing tests/docs
 - Make `revenue_detail` the first dbt-backed dashboard chapter candidate
 
-### PR D — Roadmap refresh
+### PR E — Roadmap refresh
 
 - Rewrite `gold-layer-roadmap.md` from current code, not from April 25 assumptions
 - Reclassify `speed_to_lead_detail` / `sales_activity_detail` as retired dbt marts
-- Promote `revenue_detail` as the cleanest current mart
+- Promote `lead_magnet_detail` and `revenue_detail` as the cleanest current
+  dbt-backed dashboard candidates
 
 ## Bottom Line
 
 The path forward is not "more marts." It is fewer, clearer contracts:
 
 - Speed-to-Lead v1: temporary bq-ingest report contract
+- Lead Magnet: durable dbt mart contract
 - Revenue: durable dbt mart contract
 - Lead Journey: durable dbt mart contract, incomplete columns called out
 - Rep Ops: temporary bq-ingest report contract until GHL truth is settled
