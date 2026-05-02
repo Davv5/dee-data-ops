@@ -177,3 +177,87 @@ models:
           - accepted_values:
               arguments:
                 values: ['latest_prior_magnet', 'purchase_before_first_magnet', 'no_known_magnet', 'missing_taxonomy', 'uncategorized_offer_type']
+
+  - name: revenue_funnel_detail
+    description: |
+      Buyer-journey revenue mart — one row per matched paid contact.
+      Connects collected revenue, payment-plan signal, product family,
+      latest magnet before purchase, bookings, pre-purchase outreach, and
+      best available operator attribution.
+      See `_marts__docs.md` for column documentation.
+    columns:
+      - name: contact_sk
+        description: Primary key — warehouse contact surrogate key for a matched paid buyer.
+        tests:
+          - unique
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_contacts')
+                field: contact_sk
+      - name: contact_id
+        description: Native GHL contact id for the buyer.
+        tests:
+          - not_null
+      - name: first_payment_id
+        description: First paid payment id for this buyer.
+        tests:
+          - not_null
+      - name: first_purchase_at
+        description: Timestamp of the buyer's first paid payment.
+        tests:
+          - not_null
+      - name: latest_purchase_at
+        description: Timestamp of the buyer's latest paid payment.
+        tests:
+          - not_null
+      - name: paid_payments_count
+        description: Paid payment events attached to the buyer.
+        tests:
+          - not_null
+      - name: total_net_revenue_after_refunds
+        description: Buyer-level net revenue after source-specific refund treatment.
+        tests:
+          - not_null
+      - name: payment_plan_status
+        description: Payment-plan signal derived from payment count, Fanbasis auto-renew, and plan-named product strings.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['auto_renew_plan', 'multi_payment_plan', 'plan_named_single_payment', 'single_payment']
+      - name: top_product_family
+        description: Product-family label for the buyer's top product by net revenue.
+        tests:
+          - not_null
+      - name: purchase_magnet_attribution_flag
+        description: Lead-magnet attribution state inherited from `lead_magnet_buyer_detail`.
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['latest_prior_magnet', 'purchase_before_first_magnet', 'no_known_magnet', 'missing_taxonomy', 'uncategorized_offer_type']
+      - name: best_available_operator_name
+        description: Best available operator for the buyer journey, prioritizing successful call, first touch, latest prior owner, then booking owner.
+        tests:
+          - not_null
+      - name: best_available_operator_source
+        description: Source used to pick the best available operator.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['first_successful_call_before_purchase', 'first_touch_before_purchase', 'latest_prior_opportunity_owner', 'latest_booking_owner', 'unassigned']
+      - name: pre_purchase_funnel_path
+        description: Highest-known pre-purchase path signal for the buyer.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['booked_before_purchase', 'canceled_booking_before_purchase', 'reached_by_phone_before_purchase', 'worked_before_purchase', 'magnet_before_purchase_no_work_logged', 'buyer_without_known_pre_purchase_path']
+      - name: revenue_funnel_quality_flag
+        description: Data-quality bucket for the buyer journey row.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['clean', 'missing_taxonomy', 'uncategorized_offer_type', 'negative_net_revenue', 'contact_not_matched', 'no_known_magnet']

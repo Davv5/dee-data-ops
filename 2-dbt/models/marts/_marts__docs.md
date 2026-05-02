@@ -158,6 +158,75 @@ does not claim show/no-show truth.
 {% enddocs %}
 
 
+{% docs revenue_funnel_detail %}
+
+# revenue_funnel_detail
+
+**Grain:** one row per matched paid contact.
+**Primary key:** `contact_sk`.
+
+## Why it exists
+
+`revenue_detail` is the payment-reconciliation table. It keeps every payment,
+including unmatched rows, at transaction grain. `revenue_funnel_detail` is the
+buyer-journey table: one row per paid buyer with the best available story of
+how money was created.
+
+It answers:
+
+- what the buyer bought
+- whether the buyer looks like a payment-plan buyer
+- which lead magnet was latest before first purchase
+- whether the buyer booked before buying
+- whether the buyer was touched or reached before buying
+- which operator is most defensibly tied to the path
+
+## What it's built from
+
+- `lead_magnet_buyer_detail` — buyer-grain source of truth and magnet attribution
+- `lead_magnet_detail` — latest-prior opportunity owner and window metrics
+- `fct_payments` + `fct_refunds` — paid payments, product, payment-plan signal, net revenue
+- `fct_outreach` — pre-purchase call/SMS path
+- `fct_calls_booked` — latest booking before first purchase
+- `dim_users` — operator labels
+
+## Attribution language
+
+`best_available_operator_*` is not a commission rule. It is an operating
+diagnostic that chooses the most concrete path evidence in this order:
+
+1. first successful call before purchase
+2. first human touch before purchase
+3. owner of the latest prior opportunity/magnet
+4. booking-time owner
+5. unassigned
+
+Use the source column beside the name so a user can see why a person was
+credited.
+
+## Payment-plan language
+
+`is_payment_plan_buyer` is an inferred operating signal, not a source-system
+contract. It turns true when a buyer has more than one paid payment, Fanbasis
+`auto_renew` payments, or a product name that looks like split pay / deposit /
+balance / payment-plan language. This is enough for funnel operations, but
+finance-grade installment schedules need a future Fanbasis subscription or
+plan-change source.
+
+## Quality flags
+
+`revenue_funnel_quality_flag` keeps messy rows visible:
+
+1. `clean` — usable buyer journey row
+2. `missing_taxonomy` — latest prior magnet exists but taxonomy is missing
+3. `uncategorized_offer_type` — latest prior magnet has only generic taxonomy
+4. `negative_net_revenue` — refunds exceed net revenue for the buyer
+5. `contact_not_matched` — contact id did not survive the buyer contract
+6. `no_known_magnet` — buyer has no known pre-purchase magnet
+
+{% enddocs %}
+
+
 {% docs revenue_detail %}
 
 # revenue_detail
