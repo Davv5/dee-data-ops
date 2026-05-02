@@ -3,6 +3,7 @@ import { runBigQuery } from "@/lib/bigquery/client";
 import type { DashboardData, DashboardFreshness, DashboardRow } from "@/types/dashboard-data";
 
 const tableRef = (queryName: QueryName) => `\`${queryContracts[queryName].table}\``;
+const BOOKING_SLA_SECONDS = 45 * 60;
 
 const speedToLeadQualityCte = `
   WITH trigger_events AS (
@@ -235,43 +236,72 @@ const speedToLeadQualityCte = `
 const speedToLeadQueries = {
   speed_to_lead_overall: `
     SELECT
-      FORMAT_TIMESTAMP('%FT%TZ', refreshed_at) AS refreshed_at,
-      total_bookings_matched_to_contact,
-      bookings_with_outbound_call,
-      bookings_without_outbound_call,
-      avg_speed_to_lead_minutes,
-      median_speed_to_lead_minutes,
-      p90_speed_to_lead_minutes,
-      SAFE_DIVIDE(pct_within_5m, 100) AS pct_within_5m,
-      SAFE_DIVIDE(pct_within_15m, 100) AS pct_within_15m,
-      SAFE_DIVIDE(pct_within_60m, 100) AS pct_within_60m,
-      total_triggers_all,
-      triggers_with_outbound_touch,
-      SAFE_DIVIDE(pct_triggers_with_outbound_touch, 100) AS pct_triggers_with_outbound_touch,
-      total_lead_magnet_triggers,
-      lead_magnet_triggers_with_outbound_touch,
-      SAFE_DIVIDE(pct_lead_magnet_triggers_with_outbound_touch, 100) AS pct_lead_magnet_triggers_with_outbound_touch
-    FROM ${tableRef("speed_to_lead_overall")}
-    LIMIT 1
+      FORMAT_TIMESTAMP('%FT%TZ', MAX(mart_refreshed_at)) AS refreshed_at,
+      COUNTIF(trigger_type = 'appointment_booking') AS total_bookings_matched_to_contact,
+      COUNTIF(trigger_type = 'appointment_booking' AND first_touch_ts IS NOT NULL) AS bookings_with_outbound_call,
+      COUNTIF(trigger_type = 'appointment_booking' AND first_touch_ts IS NULL) AS bookings_without_outbound_call,
+      ROUND(AVG(IF(trigger_type = 'appointment_booking', speed_to_lead_minutes, NULL)), 2) AS avg_speed_to_lead_minutes,
+      ROUND(APPROX_QUANTILES(IF(trigger_type = 'appointment_booking', speed_to_lead_minutes, NULL), 100)[OFFSET(50)], 2) AS median_speed_to_lead_minutes,
+      ROUND(APPROX_QUANTILES(IF(trigger_type = 'appointment_booking', speed_to_lead_minutes, NULL), 100)[OFFSET(90)], 2) AS p90_speed_to_lead_minutes,
+      SAFE_DIVIDE(
+        COUNTIF(trigger_type = 'appointment_booking' AND speed_to_lead_seconds <= ${BOOKING_SLA_SECONDS}),
+        NULLIF(COUNTIF(trigger_type = 'appointment_booking'), 0)
+      ) AS pct_within_sla,
+      SAFE_DIVIDE(
+        COUNTIF(trigger_type = 'appointment_booking' AND speed_to_lead_seconds <= 300),
+        NULLIF(COUNTIF(trigger_type = 'appointment_booking'), 0)
+      ) AS pct_within_5m,
+      SAFE_DIVIDE(
+        COUNTIF(trigger_type = 'appointment_booking' AND speed_to_lead_seconds <= 900),
+        NULLIF(COUNTIF(trigger_type = 'appointment_booking'), 0)
+      ) AS pct_within_15m,
+      SAFE_DIVIDE(
+        COUNTIF(trigger_type = 'appointment_booking' AND speed_to_lead_seconds <= 3600),
+        NULLIF(COUNTIF(trigger_type = 'appointment_booking'), 0)
+      ) AS pct_within_60m,
+      COUNT(*) AS total_triggers_all,
+      COUNTIF(first_touch_ts IS NOT NULL) AS triggers_with_outbound_touch,
+      SAFE_DIVIDE(COUNTIF(first_touch_ts IS NOT NULL), COUNT(*)) AS pct_triggers_with_outbound_touch,
+      COUNTIF(trigger_type = 'lead_magnet') AS total_lead_magnet_triggers,
+      COUNTIF(trigger_type = 'lead_magnet' AND first_touch_ts IS NOT NULL) AS lead_magnet_triggers_with_outbound_touch,
+      SAFE_DIVIDE(
+        COUNTIF(trigger_type = 'lead_magnet' AND first_touch_ts IS NOT NULL),
+        NULLIF(COUNTIF(trigger_type = 'lead_magnet'), 0)
+      ) AS pct_lead_magnet_triggers_with_outbound_touch
+    FROM ${tableRef("freshness")}
   `,
   speed_to_lead_daily: `
     SELECT
-      FORMAT_DATE('%Y-%m-%d', booking_date) AS report_date,
-      total_bookings_matched_to_contact,
-      bookings_with_outbound_call,
-      bookings_without_outbound_call,
-      avg_speed_to_lead_minutes,
-      median_speed_to_lead_minutes,
-      p90_speed_to_lead_minutes,
-      SAFE_DIVIDE(sla_within_5m, total_bookings_matched_to_contact) AS pct_within_5m,
-      SAFE_DIVIDE(sla_within_15m, total_bookings_matched_to_contact) AS pct_within_15m,
-      SAFE_DIVIDE(sla_within_60m, total_bookings_matched_to_contact) AS pct_within_60m,
-      total_triggers_all,
-      triggers_with_outbound_touch,
-      SAFE_DIVIDE(pct_triggers_with_outbound_touch, 100) AS pct_triggers_with_outbound_touch
-    FROM ${tableRef("speed_to_lead_daily")}
-    WHERE booking_date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
-    ORDER BY booking_date
+      FORMAT_DATE('%Y-%m-%d', trigger_date) AS report_date,
+      COUNTIF(trigger_type = 'appointment_booking') AS total_bookings_matched_to_contact,
+      COUNTIF(trigger_type = 'appointment_booking' AND first_touch_ts IS NOT NULL) AS bookings_with_outbound_call,
+      COUNTIF(trigger_type = 'appointment_booking' AND first_touch_ts IS NULL) AS bookings_without_outbound_call,
+      ROUND(AVG(IF(trigger_type = 'appointment_booking', speed_to_lead_minutes, NULL)), 2) AS avg_speed_to_lead_minutes,
+      ROUND(APPROX_QUANTILES(IF(trigger_type = 'appointment_booking', speed_to_lead_minutes, NULL), 100)[OFFSET(50)], 2) AS median_speed_to_lead_minutes,
+      ROUND(APPROX_QUANTILES(IF(trigger_type = 'appointment_booking', speed_to_lead_minutes, NULL), 100)[OFFSET(90)], 2) AS p90_speed_to_lead_minutes,
+      SAFE_DIVIDE(
+        COUNTIF(trigger_type = 'appointment_booking' AND speed_to_lead_seconds <= ${BOOKING_SLA_SECONDS}),
+        NULLIF(COUNTIF(trigger_type = 'appointment_booking'), 0)
+      ) AS pct_within_sla,
+      SAFE_DIVIDE(
+        COUNTIF(trigger_type = 'appointment_booking' AND speed_to_lead_seconds <= 300),
+        NULLIF(COUNTIF(trigger_type = 'appointment_booking'), 0)
+      ) AS pct_within_5m,
+      SAFE_DIVIDE(
+        COUNTIF(trigger_type = 'appointment_booking' AND speed_to_lead_seconds <= 900),
+        NULLIF(COUNTIF(trigger_type = 'appointment_booking'), 0)
+      ) AS pct_within_15m,
+      SAFE_DIVIDE(
+        COUNTIF(trigger_type = 'appointment_booking' AND speed_to_lead_seconds <= 3600),
+        NULLIF(COUNTIF(trigger_type = 'appointment_booking'), 0)
+      ) AS pct_within_60m,
+      COUNT(*) AS total_triggers_all,
+      COUNTIF(first_touch_ts IS NOT NULL) AS triggers_with_outbound_touch,
+      SAFE_DIVIDE(COUNTIF(first_touch_ts IS NOT NULL), COUNT(*)) AS pct_triggers_with_outbound_touch
+    FROM ${tableRef("freshness")}
+    WHERE trigger_date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+    GROUP BY trigger_date
+    ORDER BY trigger_date
   `,
   speed_to_lead_by_rep: `
     WITH latest_week AS (
@@ -298,8 +328,10 @@ const speedToLeadQueries = {
       COUNT(*) AS total_triggers,
       COUNTIF(first_touch_ts IS NOT NULL) AS touched,
       SAFE_DIVIDE(COUNTIF(first_touch_ts IS NOT NULL), COUNT(*)) AS touch_rate,
-      COUNTIF(is_within_sla) AS within_5m,
-      SAFE_DIVIDE(COUNTIF(is_within_sla), COUNT(*)) AS within_5m_rate,
+      COUNTIF(speed_to_lead_seconds <= ${BOOKING_SLA_SECONDS}) AS within_sla,
+      SAFE_DIVIDE(COUNTIF(speed_to_lead_seconds <= ${BOOKING_SLA_SECONDS}), COUNT(*)) AS within_sla_rate,
+      COUNTIF(speed_to_lead_seconds <= 300) AS within_5m,
+      SAFE_DIVIDE(COUNTIF(speed_to_lead_seconds <= 300), COUNT(*)) AS within_5m_rate,
       APPROX_QUANTILES(speed_to_lead_minutes, 100)[OFFSET(50)] AS median_minutes,
       APPROX_QUANTILES(speed_to_lead_minutes, 100)[OFFSET(90)] AS p90_minutes
     FROM ${tableRef("freshness")}
@@ -354,8 +386,10 @@ const speedToLeadQueries = {
       COUNT(*) AS total_triggers,
       COUNTIF(first_touch_ts IS NOT NULL) AS touched,
       SAFE_DIVIDE(COUNTIF(first_touch_ts IS NOT NULL), COUNT(*)) AS touch_rate,
-      COUNTIF(is_within_sla) AS within_5m,
-      SAFE_DIVIDE(COUNTIF(is_within_sla), COUNT(*)) AS within_5m_rate,
+      COUNTIF(speed_to_lead_seconds <= ${BOOKING_SLA_SECONDS}) AS within_sla,
+      SAFE_DIVIDE(COUNTIF(speed_to_lead_seconds <= ${BOOKING_SLA_SECONDS}), COUNT(*)) AS within_sla_rate,
+      COUNTIF(speed_to_lead_seconds <= 300) AS within_5m,
+      SAFE_DIVIDE(COUNTIF(speed_to_lead_seconds <= 300), COUNT(*)) AS within_5m_rate,
       APPROX_QUANTILES(speed_to_lead_minutes, 100)[OFFSET(50)] AS median_minutes
     FROM ${tableRef("freshness")}
     WHERE trigger_date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
@@ -567,6 +601,67 @@ const speedToLeadQueries = {
     ORDER BY leads_reached DESC, reached_by
     LIMIT 20
   `,
+  speed_to_lead_attribution_confidence: `
+    ${speedToLeadQualityCte}
+    SELECT
+      COUNTIF(first_successful_connection.touch_ts IS NOT NULL) AS reached_leads,
+      COUNTIF(
+        first_successful_connection.touch_ts IS NOT NULL
+        AND first_successful_connection.touch_owner_source = 'GHL user'
+      ) AS named_rep_reached,
+      COUNTIF(
+        first_successful_connection.touch_ts IS NOT NULL
+        AND COALESCE(first_successful_connection.touch_owner_source, 'No rep supplied') != 'GHL user'
+      ) AS needs_mapping,
+      COUNTIF(
+        first_successful_connection.touch_ts IS NOT NULL
+        AND COALESCE(first_successful_connection.touch_owner_source, 'No rep supplied') = 'No rep supplied'
+      ) AS no_rep_supplied,
+      SAFE_DIVIDE(
+        COUNTIF(
+          first_successful_connection.touch_ts IS NOT NULL
+          AND first_successful_connection.touch_owner_source = 'GHL user'
+        ),
+        NULLIF(COUNTIF(first_successful_connection.touch_ts IS NOT NULL), 0)
+      ) AS named_rep_rate,
+      SAFE_DIVIDE(
+        COUNTIF(
+          first_successful_connection.touch_ts IS NOT NULL
+          AND COALESCE(first_successful_connection.touch_owner_source, 'No rep supplied') != 'GHL user'
+        ),
+        NULLIF(COUNTIF(first_successful_connection.touch_ts IS NOT NULL), 0)
+      ) AS needs_mapping_rate
+    FROM trigger_rollup
+  `,
+  speed_to_lead_not_worked_aging: `
+    ${speedToLeadQualityCte},
+    not_worked AS (
+      SELECT
+        CASE
+          WHEN TIMESTAMP_DIFF(CURRENT_TIMESTAMP(), trigger_ts, HOUR) < 1 THEN 'Under 1h'
+          WHEN TIMESTAMP_DIFF(CURRENT_TIMESTAMP(), trigger_ts, HOUR) < 24 THEN '1-24h'
+          ELSE 'Over 24h'
+        END AS age_bucket,
+        CASE
+          WHEN TIMESTAMP_DIFF(CURRENT_TIMESTAMP(), trigger_ts, HOUR) < 1 THEN 1
+          WHEN TIMESTAMP_DIFF(CURRENT_TIMESTAMP(), trigger_ts, HOUR) < 24 THEN 2
+          ELSE 3
+        END AS bucket_order,
+        TIMESTAMP_DIFF(CURRENT_TIMESTAMP(), trigger_ts, HOUR) AS age_hours
+      FROM trigger_rollup
+      WHERE first_attempt.touch_ts IS NULL
+    )
+    SELECT
+      age_bucket,
+      bucket_order,
+      COUNT(*) AS lead_events,
+      SAFE_DIVIDE(COUNT(*), SUM(COUNT(*)) OVER ()) AS share_of_not_worked,
+      MIN(age_hours) AS youngest_age_hours,
+      MAX(age_hours) AS oldest_age_hours
+    FROM not_worked
+    GROUP BY age_bucket, bucket_order
+    ORDER BY bucket_order
+  `,
   speed_to_lead_reached_examples: `
     ${speedToLeadQualityCte}
     SELECT
@@ -637,18 +732,18 @@ const speedToLeadQueries = {
       SAFE_DIVIDE(COUNTIF(first_attempt.touch_ts IS NOT NULL), COUNT(*)) AS first_attempt_rate,
       COUNTIF(first_attempt.touch_ts IS NOT NULL) AS worked_leads,
       SAFE_DIVIDE(COUNTIF(first_attempt.touch_ts IS NOT NULL), COUNT(*)) AS worked_lead_rate,
-      COUNTIF(TIMESTAMP_DIFF(first_attempt.touch_ts, trigger_ts, SECOND) <= 300) AS first_attempt_within_5m,
-      SAFE_DIVIDE(COUNTIF(TIMESTAMP_DIFF(first_attempt.touch_ts, trigger_ts, SECOND) <= 300), COUNT(*)) AS first_attempt_within_5m_rate,
-      SAFE_DIVIDE(COUNTIF(TIMESTAMP_DIFF(first_attempt.touch_ts, trigger_ts, SECOND) <= 300), COUNT(*)) AS five_minute_worked_rate,
+      COUNTIF(TIMESTAMP_DIFF(first_attempt.touch_ts, trigger_ts, SECOND) <= ${BOOKING_SLA_SECONDS}) AS first_attempt_within_sla,
+      SAFE_DIVIDE(COUNTIF(TIMESTAMP_DIFF(first_attempt.touch_ts, trigger_ts, SECOND) <= ${BOOKING_SLA_SECONDS}), COUNT(*)) AS first_attempt_within_sla_rate,
+      SAFE_DIVIDE(COUNTIF(TIMESTAMP_DIFF(first_attempt.touch_ts, trigger_ts, SECOND) <= ${BOOKING_SLA_SECONDS}), COUNT(*)) AS sla_worked_rate,
       COUNTIF(first_successful_connection.touch_ts IS NOT NULL) AS successful_connections,
       SAFE_DIVIDE(COUNTIF(first_successful_connection.touch_ts IS NOT NULL), COUNT(*)) AS successful_connection_rate,
       SAFE_DIVIDE(COUNTIF(first_successful_connection.touch_ts IS NOT NULL), COUNT(*)) AS reached_lead_rate,
       COUNTIF(first_meaningful_human_response.touch_ts IS NOT NULL) AS meaningful_human_responses,
       SAFE_DIVIDE(COUNTIF(first_meaningful_human_response.touch_ts IS NOT NULL), COUNT(*)) AS meaningful_human_response_rate,
       SAFE_DIVIDE(COUNTIF(first_meaningful_human_response.touch_ts IS NOT NULL), COUNT(*)) AS human_follow_up_rate,
-      COUNTIF(TIMESTAMP_DIFF(first_meaningful_human_response.touch_ts, trigger_ts, SECOND) <= 300) AS meaningful_human_within_5m,
-      SAFE_DIVIDE(COUNTIF(TIMESTAMP_DIFF(first_meaningful_human_response.touch_ts, trigger_ts, SECOND) <= 300), COUNT(*)) AS meaningful_human_within_5m_rate,
-      SAFE_DIVIDE(COUNTIF(TIMESTAMP_DIFF(first_meaningful_human_response.touch_ts, trigger_ts, SECOND) <= 300), COUNT(*)) AS five_minute_human_rate,
+      COUNTIF(TIMESTAMP_DIFF(first_meaningful_human_response.touch_ts, trigger_ts, SECOND) <= ${BOOKING_SLA_SECONDS}) AS meaningful_human_within_sla,
+      SAFE_DIVIDE(COUNTIF(TIMESTAMP_DIFF(first_meaningful_human_response.touch_ts, trigger_ts, SECOND) <= ${BOOKING_SLA_SECONDS}), COUNT(*)) AS meaningful_human_within_sla_rate,
+      SAFE_DIVIDE(COUNTIF(TIMESTAMP_DIFF(first_meaningful_human_response.touch_ts, trigger_ts, SECOND) <= ${BOOKING_SLA_SECONDS}), COUNT(*)) AS sla_human_rate,
       COUNTIF(first_attempt.touch_ts IS NULL) AS no_attempt,
       COUNTIF(first_attempt.touch_ts IS NULL) AS unworked_leads,
       SAFE_DIVIDE(COUNTIF(first_attempt.touch_ts IS NULL), COUNT(*)) AS unworked_lead_rate
@@ -674,6 +769,8 @@ export async function getSpeedToLeadData(): Promise<DashboardData> {
       followUpCounts,
       firstWorkByRep,
       phoneReachByRep,
+      attributionConfidence,
+      notWorkedAging,
       reachedExamples,
       firstAttemptOutcomes,
       businessHours,
@@ -689,6 +786,8 @@ export async function getSpeedToLeadData(): Promise<DashboardData> {
       runBigQuery(speedToLeadQueries.speed_to_lead_follow_up_counts),
       runBigQuery(speedToLeadQueries.speed_to_lead_first_work_by_rep),
       runBigQuery(speedToLeadQueries.speed_to_lead_phone_reach_by_rep),
+      runBigQuery(speedToLeadQueries.speed_to_lead_attribution_confidence),
+      runBigQuery(speedToLeadQueries.speed_to_lead_not_worked_aging),
       runBigQuery(speedToLeadQueries.speed_to_lead_reached_examples),
       runBigQuery(speedToLeadQueries.speed_to_lead_first_attempt_outcomes),
       runBigQuery(speedToLeadQueries.speed_to_lead_business_hours),
@@ -707,6 +806,8 @@ export async function getSpeedToLeadData(): Promise<DashboardData> {
         speed_to_lead_follow_up_counts: followUpCounts,
         speed_to_lead_first_work_by_rep: firstWorkByRep,
         speed_to_lead_phone_reach_by_rep: phoneReachByRep,
+        speed_to_lead_attribution_confidence: attributionConfidence,
+        speed_to_lead_not_worked_aging: notWorkedAging,
         speed_to_lead_reached_examples: reachedExamples,
         speed_to_lead_first_attempt_outcomes: firstAttemptOutcomes,
         speed_to_lead_business_hours: businessHours,

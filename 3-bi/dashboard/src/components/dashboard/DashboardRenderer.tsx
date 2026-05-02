@@ -293,7 +293,7 @@ function KpiDrilldown({
   tile: Extract<DashboardTile, { type: "kpi" }>;
   data: DashboardData;
 }) {
-  if (tile.field === "pct_within_5m") {
+  if (tile.field === "pct_within_sla") {
     return (
       <Drilldown label="Response detail">
         <MiniTable
@@ -302,7 +302,7 @@ function KpiDrilldown({
             { key: "trigger_type", label: "Trigger" },
             { key: "total_triggers", label: "Triggers", format: "number" },
             { key: "touch_rate", label: "Touched", format: "percent" },
-            { key: "within_5m_rate", label: "<=5m", format: "percent" },
+            { key: "within_sla_rate", label: "<=45m", format: "percent" },
             { key: "median_minutes", label: "Median", format: "duration" },
           ]}
         />
@@ -330,7 +330,7 @@ function KpiDrilldown({
             { key: "trigger_type", label: "Type" },
             { key: "total_triggers", label: "Triggers", format: "number" },
             { key: "touch_rate", label: "Touched", format: "percent" },
-            { key: "within_5m_rate", label: "<=5m", format: "percent" },
+            { key: "within_sla_rate", label: "<=45m", format: "percent" },
           ]}
         />
       </Drilldown>
@@ -358,7 +358,7 @@ function ChartDrilldown({
             { key: "report_date", label: "Date" },
             { key: "total_bookings_matched_to_contact", label: "Bookings", format: "number" },
             { key: "bookings_with_outbound_call", label: "Touched", format: "number" },
-            { key: "pct_within_5m", label: "<=5m", format: "percent" },
+            { key: "pct_within_sla", label: "<=45m", format: "percent" },
             { key: "pct_triggers_with_outbound_touch", label: "Trigger Touch", format: "percent" },
           ]}
         />
@@ -412,8 +412,8 @@ function TableDrilldown({
           { key: "total_triggers", label: "Triggers", format: "number" },
           { key: "touched", label: "Touched", format: "number" },
           { key: "touch_rate", label: "Touch Rate", format: "percent" },
-          { key: "within_5m", label: "<=5m", format: "number" },
-          { key: "within_5m_rate", label: "<=5m Rate", format: "percent" },
+          { key: "within_sla", label: "<=45m", format: "number" },
+          { key: "within_sla_rate", label: "<=45m Rate", format: "percent" },
         ]}
       />
     </Drilldown>

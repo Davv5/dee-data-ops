@@ -3,6 +3,8 @@ import { AlertTriangle, PhoneCall, Timer, UserCheck } from "lucide-react";
 import { FreshnessBadge } from "@/components/dashboard/FreshnessBadge";
 import type { DashboardData, DashboardRow, DashboardRowValue } from "@/types/dashboard-data";
 
+const BOOKING_SLA_LABEL = "45m";
+
 type MetricCard = {
   title: string;
   numerator: number | null;
@@ -35,7 +37,7 @@ export function SpeedToLeadOperatingView({ data }: { data: DashboardData }) {
   const workedEvents = numberValue(worked?.lead_count);
   const reachedEvents = numberValue(reached?.lead_count);
   const notWorkedEvents = numberValue(notWorked?.lead_count);
-  const bookingSlaHits = numberValue(appointmentBooking?.within_5m);
+  const bookingSlaHits = numberValue(appointmentBooking?.within_sla);
   const bookingTriggers = numberValue(appointmentBooking?.total_triggers);
 
   const metrics: MetricCard[] = [
@@ -67,11 +69,11 @@ export function SpeedToLeadOperatingView({ data }: { data: DashboardData }) {
       icon: AlertTriangle,
     },
     {
-      title: "Bookings Within 5m",
+      title: `Bookings Within ${BOOKING_SLA_LABEL}`,
       numerator: bookingSlaHits,
       denominator: bookingTriggers,
       rate: safeDivide(bookingSlaHits, bookingTriggers),
-      note: "Appointment bookings reached within 5 minutes.",
+      note: `Appointment bookings reached within ${BOOKING_SLA_LABEL}.`,
       tone: "amber",
       icon: Timer,
     },
@@ -106,11 +108,15 @@ export function SpeedToLeadOperatingView({ data }: { data: DashboardData }) {
         </div>
 
         <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,1.45fr)_minmax(22rem,0.85fr)]">
-          <ReachedByPanel rows={data.rows.speed_to_lead_phone_reach_by_rep ?? []} />
+          <ReachedByPanel
+            rows={data.rows.speed_to_lead_phone_reach_by_rep ?? []}
+            confidenceRows={data.rows.speed_to_lead_attribution_confidence ?? []}
+          />
           <LeakPanel
             totalEvents={totalEvents}
             notWorkedEvents={notWorkedEvents}
             triggerRows={data.rows.speed_to_lead_trigger_summary ?? []}
+            agingRows={data.rows.speed_to_lead_not_worked_aging ?? []}
           />
         </div>
       </section>
@@ -151,12 +157,24 @@ function MetricCard({ metric }: { metric: MetricCard }) {
   );
 }
 
-function ReachedByPanel({ rows }: { rows: DashboardRow[] }) {
-  const visibleRows = rows.slice(0, 7);
+function ReachedByPanel({
+  rows,
+  confidenceRows,
+}: {
+  rows: DashboardRow[];
+  confidenceRows: DashboardRow[];
+}) {
+  const visibleRows = rows.slice(0, 6);
   const maxReached = Math.max(...visibleRows.map((row) => numberValue(row.leads_reached) ?? 0), 1);
-  const noRepEvents = rows
-    .filter((row) => stringValue(row.identity_source) === "No rep supplied")
-    .reduce((sum, row) => sum + (numberValue(row.leads_reached) ?? 0), 0);
+  const confidence = confidenceRows[0];
+  const totalReached = numberValue(confidence?.reached_leads);
+  const namedRepReached = numberValue(confidence?.named_rep_reached);
+  const needsMapping = numberValue(confidence?.needs_mapping);
+  const noRepEvents =
+    numberValue(confidence?.no_rep_supplied) ??
+    rows
+      .filter((row) => stringValue(row.identity_source) === "No rep supplied")
+      .reduce((sum, row) => sum + (numberValue(row.leads_reached) ?? 0), 0);
 
   return (
     <section className="rounded-lg border border-[#dedbd2] bg-white p-4 shadow-sm">
@@ -168,6 +186,21 @@ function ReachedByPanel({ rows }: { rows: DashboardRow[] }) {
         <span className="rounded-md border border-[#bbf7d0] bg-[#f0fdf4] px-2 py-1 text-xs font-semibold text-[#166534]">
           {noRepEvents === 0 ? "0 Unknown" : `${formatNumber(noRepEvents)} No Rep`}
         </span>
+      </div>
+
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        <SignalBox
+          label="Named reps"
+          value={`${formatNumber(namedRepReached)} / ${formatNumber(totalReached)}`}
+          helper={`${formatPercent(numberValue(confidence?.named_rep_rate))} of reached calls`}
+          tone="green"
+        />
+        <SignalBox
+          label="Needs mapping"
+          value={formatNumber(needsMapping)}
+          helper="Dialer lines or deleted users"
+          tone={needsMapping === 0 ? "green" : "amber"}
+        />
       </div>
 
       <div className="mt-4 space-y-2.5">
@@ -204,10 +237,12 @@ function LeakPanel({
   totalEvents,
   notWorkedEvents,
   triggerRows,
+  agingRows,
 }: {
   totalEvents: number | null;
   notWorkedEvents: number | null;
   triggerRows: DashboardRow[];
+  agingRows: DashboardRow[];
 }) {
   return (
     <section className="rounded-lg border border-[#dedbd2] bg-white p-4 shadow-sm">
@@ -223,6 +258,24 @@ function LeakPanel({
           {formatPercent(safeDivide(notWorkedEvents, totalEvents))} of all lead events
         </div>
       </div>
+
+      {agingRows.length > 0 ? (
+        <div className="mt-3 grid grid-cols-3 gap-2">
+          {agingRows.map((row) => (
+            <div key={stringValue(row.age_bucket) ?? "age"} className="rounded-md border border-[#ece9e1] p-2">
+              <div className="truncate text-[11px] font-semibold uppercase text-[#66635f]">
+                {stringValue(row.age_bucket)}
+              </div>
+              <div className="mt-1 text-base font-semibold tracking-normal">
+                {formatNumber(numberValue(row.lead_events))}
+              </div>
+              <div className="text-[11px] text-[#66635f]">
+                {formatPercent(numberValue(row.share_of_not_worked))}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : null}
 
       <div className="mt-4 space-y-3">
         {triggerRows.map((row) => {
@@ -259,6 +312,27 @@ function AuditDetails({ data }: { data: DashboardData }) {
       </summary>
       <div className="grid gap-3 border-t border-[#ece9e1] p-4 xl:grid-cols-2">
         <TablePanel
+          title="Attribution confidence"
+          rows={data.rows.speed_to_lead_attribution_confidence ?? []}
+          columns={[
+            { key: "reached_leads", label: "Reached", format: "number" },
+            { key: "named_rep_reached", label: "Named Reps", format: "number" },
+            { key: "named_rep_rate", label: "Named Rate", format: "percent" },
+            { key: "needs_mapping", label: "Needs Mapping", format: "number" },
+            { key: "no_rep_supplied", label: "No Rep", format: "number" },
+          ]}
+        />
+        <TablePanel
+          title="Not worked aging"
+          rows={data.rows.speed_to_lead_not_worked_aging ?? []}
+          columns={[
+            { key: "age_bucket", label: "Age" },
+            { key: "lead_events", label: "Lead Events", format: "number" },
+            { key: "share_of_not_worked", label: "Share", format: "percent" },
+            { key: "oldest_age_hours", label: "Oldest Hrs", format: "number" },
+          ]}
+        />
+        <TablePanel
           title="Follow-up counts"
           rows={data.rows.speed_to_lead_follow_up_counts ?? []}
           columns={[
@@ -286,7 +360,7 @@ function AuditDetails({ data }: { data: DashboardData }) {
             { key: "service_window_label", label: "Window" },
             { key: "total_triggers", label: "Events", format: "number" },
             { key: "worked_lead_rate", label: "Worked", format: "percent" },
-            { key: "five_minute_worked_rate", label: "<=5m", format: "percent" },
+            { key: "sla_worked_rate", label: `<=${BOOKING_SLA_LABEL}`, format: "percent" },
             { key: "unworked_leads", label: "Not Worked", format: "number" },
           ]}
         />
@@ -303,6 +377,31 @@ function AuditDetails({ data }: { data: DashboardData }) {
         />
       </div>
     </details>
+  );
+}
+
+function SignalBox({
+  label,
+  value,
+  helper,
+  tone,
+}: {
+  label: string;
+  value: string;
+  helper: string;
+  tone: "green" | "amber";
+}) {
+  const toneClass = {
+    green: "border-[#bbf7d0] bg-[#f0fdf4]",
+    amber: "border-[#fde68a] bg-[#fffbeb]",
+  }[tone];
+
+  return (
+    <div className={`rounded-md border p-2 ${toneClass}`}>
+      <div className="text-[11px] font-semibold uppercase text-[#66635f]">{label}</div>
+      <div className="mt-1 text-lg font-semibold tracking-normal text-[#2d2b28]">{value}</div>
+      <div className="truncate text-[11px] text-[#66635f]">{helper}</div>
+    </div>
   );
 }
 

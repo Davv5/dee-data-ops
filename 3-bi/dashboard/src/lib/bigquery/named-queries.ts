@@ -79,6 +79,22 @@ export const queryContracts = {
       "Who or what first reached leads by phone after the Speed-to-Lead trigger.",
     status: "ready",
   },
+  speed_to_lead_attribution_confidence: {
+    name: "speed_to_lead_attribution_confidence",
+    owner: "bq-ingest-report",
+    table: `${table(deeConfig.bigQuery.tables.speedToLeadFact)} + Core.fct_ghl_* + Core.dim_users`,
+    description:
+      "How many reached-by-phone events are tied to named reps versus identities that still need mapping.",
+    status: "ready",
+  },
+  speed_to_lead_not_worked_aging: {
+    name: "speed_to_lead_not_worked_aging",
+    owner: "bq-ingest-report",
+    table: `${table(deeConfig.bigQuery.tables.speedToLeadFact)} + Core.fct_ghl_*`,
+    description:
+      "Aging buckets for lead events that have no post-trigger outbound follow-up.",
+    status: "ready",
+  },
   speed_to_lead_reached_examples: {
     name: "speed_to_lead_reached_examples",
     owner: "bq-ingest-report",
