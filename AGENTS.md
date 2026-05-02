@@ -6,6 +6,12 @@ This file provides guidance to Codex (Codex.ai/code) when working with this repo
 
 A template for data engineering projects using **dbt**, structured for AI-assisted development with Codex. Conventions and guardrails are version-controlled so every team member (human or AI) follows the same rules.
 
+## Cross-Agent Operating Mode
+
+This repo is used from both Codex and Claude Code. The shared operating agreement lives in **`.claude/rules/operator-mode.md`** and should be read before planning or editing. It captures David's working mode: revenue first, truth first, compact shipping, one next move, and no corporate fog.
+
+`CLAUDE.md` and `.claude/state/project-state.md` are the live Claude Code entry points. `AGENTS.md` is the Codex entry point. If the files disagree, trust the newest verified artifact: live code, live data, recent commits, current PR, and the operator-mode rule. Then update the stale file rather than carrying the contradiction forward.
+
 ## Current State
 
 **This template has been built out for the D-DEE engagement.** Top-level folders are ordered to mirror the medallion pipeline diagram: raw landing → transform → BI.
@@ -15,15 +21,15 @@ Existing today (pipeline-shaped):
 - `2-dbt/` — dbt project with `models/{staging,warehouse,marts}/`, plus seeds, macros, tests, snapshots
 - `3-bi/metabase/` — self-hosted Metabase (`authoring/`, `runtime/`, `terraform/`)
 - `docs/` — `plans/`, `discovery/`, `runbooks/`, `conventions/`, `proposals/`, `_archive/`
-- `.Codex/` — rules, skills, agents, commands, scripts, state; corpus config; settings
+- `.claude/` — shared rules, skills, commands, scripts, state; corpus config; settings
 - `.github/workflows/` — CI (dbt + ingest + deploy workflows)
-- Root: `AGENTS.md`, `Codex.local.md`, `README.md`, `WORKLOG.md`
+- Root: `AGENTS.md`, `CLAUDE.md`, `CLAUDE.local.md`, `README.md`, `WORKLOG.md`
 
 The Project Structure section below is the canonical template shape (a target for a brand-new project). This specific repo has extended it into the pipeline-ordered form above.
 
 ## Corpus config
 
-Per-project NotebookLM corpus declaration lives in **`.Codex/corpus.yaml`** — notebook IDs are no longer hardcoded in the `ask-corpus` skill or in rule files. To swap or add a notebook, edit that file. The skill reads it at invocation time. See `.Codex/rules/using-the-notebook.md` for routing modes (`methodology.data_ops`, `methodology.metabase`, `methodology` cross-query, `engagement`).
+Per-project NotebookLM corpus declaration lives in **`.claude/corpus.yaml`** — notebook IDs are no longer hardcoded in the `ask-corpus` skill or in rule files. To swap or add a notebook, edit that file. The skill reads it at invocation time. See `.claude/rules/using-the-notebook.md` for routing modes (`methodology.data_ops`, `methodology.metabase`, `methodology` cross-query, `engagement`).
 
 ## Reference Corpus (NotebookLM)
 
@@ -35,7 +41,7 @@ This project is paired with a NotebookLM notebook containing ~50 expert sources 
 
 ### How to use it
 
-When writing a rule, scaffolding a dbt model, or answering a "why/how" question about data architecture, **query the notebook first**. The repo-local skill at `.Codex/skills/ask-corpus/SKILL.md` wraps `mcp__notebooklm-mcp__notebook_query` and returns source-linked answers. Cite the source title inline in the file you're writing so every convention is traceable back to an expert source.
+When writing a data architecture rule, scaffolding a dbt model, or answering a "why/how" question about data architecture, **query the notebook first**. The repo-local skill at `.claude/skills/ask-corpus/SKILL.md` wraps the project corpus workflow and returns source-linked answers. Cite the source title inline in the file you're writing so every convention is traceable back to an expert source.
 
 For SQL style, naming conventions, CTE patterns, and model-level configuration specifically, consult **`docs/conventions/dbt_style_guide.md`** — that's the canonical in-repo style reference, and it's also indexed in the notebook.
 
@@ -59,7 +65,7 @@ nlm download audio 7c7cd5d4-22df-4ef0-8b74-ed87e0ca4e6a -o "onboarding - dbt arc
 - Python 3.11+
 - Git
 - A data warehouse account (Snowflake, BigQuery, Redshift, etc.)
-- Codex CLI (`npm install -g @anthropic-ai/Codex`) or the desktop/IDE extension
+- Codex desktop/CLI or Claude Code
 
 ### 1. Create the virtual environment and install dbt
 ```bash
@@ -115,7 +121,7 @@ git checkout -b feature/<description>
 
 David is the sole operator on this engagement. When David asks Codex (in any session) to merge a PR, push a branch, delete a remote branch, close an issue, or otherwise execute an action on the default branch or shared GitHub state, **do it directly without a per-action confirmation round-trip.** This applies to `gh pr merge`, `gh pr create`, `gh pr close`, `git push`, `git push --delete`, and equivalent operations that the Bash allowlist already covers.
 
-This is pre-authorization in the spirit of the system prompt's "risky actions" guidance: David has weighed the blast radius for this single-operator engagement and accepts it. The `.Codex/settings.json` allowlist encodes the Bash layer; this clause encodes the Codex decision layer. Both are needed — the allowlist without this clause still triggers semantic confirmation prompts on "merge to default branch" and similar.
+This is pre-authorization in the spirit of the system prompt's "risky actions" guidance: David has weighed the blast radius for this single-operator engagement and accepts it. The `.claude/settings.json` allowlist encodes the Bash layer for Claude Code; this clause encodes the agent decision layer. Both are needed — the allowlist without this clause still triggers semantic confirmation prompts on "merge to default branch" and similar.
 
 Scope: this pre-authorization covers GitHub / git / Cloud Run / BigQuery operations against David's own projects. The active/consolidated GCP project is `project-41542e21-470f-4589-96d` (post-U2 retarget 2026-04-23); `dee-data-ops` and `dee-data-ops-prod` remain in scope during the transition until they are decommissioned at U14. It does **not** cover actions against third-party systems (Fivetran billing, Metabase public-dashboard URLs with outside viewers, client communication channels) — those still require explicit per-action sign-off.
 
@@ -147,7 +153,7 @@ Pipeline-shaped layout (this repo):
     warehouse/        # Kimball star schema (dim_ and fct_ tables)
       dimensions/
       facts/
-    marts/            # Wide, denormalized — business-friendly names (see .Codex/rules/mart-naming.md)
+    marts/            # Wide, denormalized — business-friendly names (see .claude/rules/mart-naming.md)
   macros/             # Includes generate_schema_name for env-based routing
   profiles.yml        # Dev/prod/ci targets, driven by env vars
 3-bi/                                     # BI Tools (pipeline stage 3)
@@ -158,14 +164,14 @@ Pipeline-shaped layout (this repo):
 
 .github/workflows/                        # CI on PR, prod deploy on merge
 docs/                                     # plans, discovery, runbooks, conventions, _archive
-.Codex/                                  # rules, skills, agents, commands, scripts, state
+.claude/                                 # rules, skills, commands, scripts, state
 .env                                      # your credentials, gitignored
 .env.example                              # template for .env
 ```
 
-## Codex Rules
+## Agent Rules
 
-Rules are markdown files in `.Codex/rules/` that Codex loads automatically based on which files you're working on. They're committed to git so every team member gets the same conventions.
+Rules are markdown files in `.claude/rules/`. Claude Code loads them automatically based on which files are open; Codex should treat them as the same shared convention source. They're committed to git so every team member, human or AI, gets the same conventions.
 
 ### How they work
 
@@ -173,7 +179,7 @@ Each rule file has a `paths:` frontmatter that controls when it loads. When you 
 
 ### How to create one
 
-Add a `.md` file to `.Codex/rules/` with this format:
+Add a `.md` file to `.claude/rules/` with this format:
 
 ```markdown
 ---
@@ -204,13 +210,13 @@ Start with what matters most to your team and add rules as you go. One file per 
 
 ### Hooks
 
-The `.Codex/settings.json` file contains hooks that **enforce** guardrails deterministically. For example, a hook can block `--target prod` commands so production deploys only happen through CI/CD. Unlike rules (which are guidance), hooks run as shell commands and can block actions before they execute.
+The `.claude/settings.json` file contains hooks that **enforce** guardrails deterministically. For example, a hook can block `--target prod` commands so production deploys only happen through CI/CD. Unlike rules (which are guidance), hooks run as shell commands and can block actions before they execute.
 
 ## Next Steps
 
 1. Update `2-dbt/profiles.yml` and `.env` for your warehouse
 2. Add your first source in `2-dbt/models/staging/<source_name>/`
 3. Build staging models, then layer up into warehouse dimensions/facts, then marts
-4. Create `.Codex/rules/` files for your team's conventions as they emerge
+4. Create `.claude/rules/` files for your team's conventions as they emerge
 
 If you have an existing dbt project, provide it to Codex and ask it to align with this structure.

@@ -16,7 +16,8 @@ models:
       - name: attribution_quality_flag
         tests:
           - accepted_values:
-              values: ['clean', 'no_sdr_touch', 'ambiguous_contact_match', 'pre_utm_era', 'role_unknown']
+              arguments:
+                values: ['clean', 'no_sdr_touch', 'ambiguous_contact_match', 'pre_utm_era', 'role_unknown']
 
   - name: revenue_detail
     description: |
@@ -34,21 +35,25 @@ models:
         tests:
           - not_null
           - accepted_values:
-              values: ['stripe', 'fanbasis']
+              arguments:
+                values: ['stripe', 'fanbasis']
       - name: match_method
         description: Identity-bridge tier used to link this payment to a contact (or `unmatched`).
         tests:
           - accepted_values:
-              values: ['email_exact', 'email_canonical', 'phone_last10', 'billing_email_direct', 'unmatched']
+              arguments:
+                values: ['email_exact', 'email_canonical', 'phone_last10', 'billing_email_direct', 'unmatched']
       - name: match_status
         description: Overall bridge outcome — alias of bridge_identity_contact_payment.bridge_status.
         tests:
           - accepted_values:
-              values: ['matched', 'ambiguous_multi_candidate', 'unmatched']
+              arguments:
+                values: ['matched', 'ambiguous_multi_candidate', 'unmatched']
       - name: attribution_quality_flag
         tests:
           - accepted_values:
-              values: ['clean', 'unmatched', 'ambiguous_contact_match', 'role_unknown']
+              arguments:
+                values: ['clean', 'unmatched', 'ambiguous_contact_match', 'role_unknown']
       - name: refunds_total_amount
         description: Sum of `fct_refunds.refund_amount` for this payment (gross refund returned to the customer). 0 when no refunds; never NULL.
         tests:
@@ -68,3 +73,107 @@ models:
           `net_amount - refunds_total_amount`. Mechanical branching keeps the math correct even if `fct_refunds` extends to Stripe later.
         tests:
           - not_null
+
+  - name: lead_magnet_detail
+    description: |
+      Opportunity-grain lead magnet mart — one row per GHL opportunity, treating each GHL pipeline as a lead-magnet funnel.
+      Uses opportunity windows to attribute outreach, bookings, and net revenue without double-counting multi-magnet contacts.
+      See `_marts__docs.md` for column documentation.
+    columns:
+      - name: opportunity_id
+        description: Primary key — native GHL opportunity id.
+        tests:
+          - unique
+          - not_null
+      - name: lead_magnet_id
+        description: GHL pipeline id; the durable lead-magnet/funnel identifier.
+        tests:
+          - not_null
+      - name: lead_magnet_name
+        description: Business-facing GHL pipeline name for the lead magnet/funnel.
+        tests:
+          - not_null
+      - name: lead_magnet_reporting_name
+        description: Clean dashboard label from `lead_magnet_pipeline_taxonomy`.
+        tests:
+          - not_null
+      - name: lead_magnet_category
+        description: Taxonomy class for comparing similar pipeline types.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['true_lead_magnet', 'launch_event', 'waitlist', 'sales_operating_pipeline', 'uncategorized']
+      - name: lead_magnet_offer_type
+        description: Creative/package format of the offer, such as template, guide, training, prompt pack, or sales pipeline.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['prompt_pack', 'template', 'guide_or_doc', 'resource_list', 'training_or_class', 'video_or_replay', 'giveaway', 'community', 'waitlist', 'sales_pipeline', 'launch_event', 'uncategorized']
+      - name: contact_id
+        description: Native GHL contact id attached to the opportunity.
+        tests:
+          - not_null
+      - name: attribution_quality_flag
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['clean', 'contact_not_matched', 'pipeline_not_mapped', 'multi_magnet_contact']
+      - name: touches_count
+        tests:
+          - not_null
+      - name: direct_bookings_count
+        tests:
+          - not_null
+      - name: window_bookings_count
+        tests:
+          - not_null
+      - name: payment_count
+        tests:
+          - not_null
+      - name: net_revenue_after_refunds
+        tests:
+          - not_null
+
+  - name: lead_magnet_buyer_detail
+    description: |
+      Buyer-grain lead magnet mart — one row per matched paid contact.
+      Connects first purchase, total collected revenue, payment-plan behavior,
+      bookings before purchase, and the latest known lead magnet before first purchase.
+      See `_marts__docs.md` for column documentation.
+    columns:
+      - name: contact_sk
+        description: Primary key — warehouse contact surrogate key for a matched paid buyer.
+        tests:
+          - unique
+          - not_null
+      - name: contact_id
+        description: Native GHL contact id for the buyer.
+        tests:
+          - not_null
+      - name: first_payment_id
+        description: First paid payment id for this buyer.
+        tests:
+          - not_null
+      - name: first_purchase_at
+        description: Timestamp of the buyer's first paid payment.
+        tests:
+          - not_null
+      - name: first_purchase_net_revenue
+        tests:
+          - not_null
+      - name: total_net_revenue_after_refunds
+        tests:
+          - not_null
+      - name: paid_payments_count
+        tests:
+          - not_null
+      - name: bookings_before_first_purchase_count
+        tests:
+          - not_null
+      - name: purchase_magnet_attribution_flag
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['latest_prior_magnet', 'purchase_before_first_magnet', 'no_known_magnet', 'missing_taxonomy', 'uncategorized_offer_type']
