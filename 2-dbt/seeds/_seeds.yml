@@ -1,6 +1,42 @@
 version: 2
 
 seeds:
+  - name: lead_magnet_pipeline_taxonomy
+    description: >
+      Human-maintained taxonomy layer for GHL pipelines used by the
+      lead_magnet_detail mart. The raw GHL pipeline name stays visible, while
+      this seed adds a cleaned reporting name and separates true lead magnets
+      from launch/event, waitlist, and sales/operating pipelines.
+    config:
+      column_types:
+        pipeline_id: string
+        pipeline_name: string
+        lead_magnet_reporting_name: string
+        lead_magnet_category: string
+        is_true_lead_magnet: boolean
+        is_launch: boolean
+        is_waitlist: boolean
+        is_sales_pipeline: boolean
+        include_in_lead_magnet_dashboard: boolean
+        taxonomy_confidence: string
+    columns:
+      - name: pipeline_id
+        description: GHL pipeline id; joins to `dim_pipeline_stages.pipeline_id`.
+        tests:
+          - unique
+          - not_null
+      - name: lead_magnet_category
+        description: Business-facing pipeline class for lead-magnet reporting.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['true_lead_magnet', 'launch_event', 'waitlist', 'sales_operating_pipeline', 'internal_test_retired']
+      - name: lead_magnet_reporting_name
+        description: Clean dashboard label for the raw GHL pipeline.
+        tests:
+          - not_null
+
   - name: ghl_sdr_roster
     description: >
       Human-maintained roster of GHL users with role assignments. GHL's built-in
@@ -35,4 +71,5 @@ seeds:
         tests:
           - not_null
           - accepted_values:
-              values: ['SDR', 'Setter', 'Triager', 'DM_Setter', 'Closer', 'Owner', 'unknown']
+              arguments:
+                values: ['SDR', 'Setter', 'Triager', 'DM_Setter', 'Closer', 'Owner', 'unknown']

@@ -16,7 +16,8 @@ models:
       - name: attribution_quality_flag
         tests:
           - accepted_values:
-              values: ['clean', 'no_sdr_touch', 'ambiguous_contact_match', 'pre_utm_era', 'role_unknown']
+              arguments:
+                values: ['clean', 'no_sdr_touch', 'ambiguous_contact_match', 'pre_utm_era', 'role_unknown']
 
   - name: revenue_detail
     description: |
@@ -34,21 +35,25 @@ models:
         tests:
           - not_null
           - accepted_values:
-              values: ['stripe', 'fanbasis']
+              arguments:
+                values: ['stripe', 'fanbasis']
       - name: match_method
         description: Identity-bridge tier used to link this payment to a contact (or `unmatched`).
         tests:
           - accepted_values:
-              values: ['email_exact', 'email_canonical', 'phone_last10', 'billing_email_direct', 'unmatched']
+              arguments:
+                values: ['email_exact', 'email_canonical', 'phone_last10', 'billing_email_direct', 'unmatched']
       - name: match_status
         description: Overall bridge outcome — alias of bridge_identity_contact_payment.bridge_status.
         tests:
           - accepted_values:
-              values: ['matched', 'ambiguous_multi_candidate', 'unmatched']
+              arguments:
+                values: ['matched', 'ambiguous_multi_candidate', 'unmatched']
       - name: attribution_quality_flag
         tests:
           - accepted_values:
-              values: ['clean', 'unmatched', 'ambiguous_contact_match', 'role_unknown']
+              arguments:
+                values: ['clean', 'unmatched', 'ambiguous_contact_match', 'role_unknown']
       - name: refunds_total_amount
         description: Sum of `fct_refunds.refund_amount` for this payment (gross refund returned to the customer). 0 when no refunds; never NULL.
         tests:
@@ -88,6 +93,17 @@ models:
         description: Business-facing GHL pipeline name for the lead magnet/funnel.
         tests:
           - not_null
+      - name: lead_magnet_reporting_name
+        description: Clean dashboard label from `lead_magnet_pipeline_taxonomy`.
+        tests:
+          - not_null
+      - name: lead_magnet_category
+        description: Taxonomy class for comparing similar pipeline types.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['true_lead_magnet', 'launch_event', 'waitlist', 'sales_operating_pipeline', 'uncategorized']
       - name: contact_id
         description: Native GHL contact id attached to the opportunity.
         tests:
@@ -95,7 +111,8 @@ models:
       - name: attribution_quality_flag
         tests:
           - accepted_values:
-              values: ['clean', 'contact_not_matched', 'pipeline_not_mapped', 'multi_magnet_contact']
+              arguments:
+                values: ['clean', 'contact_not_matched', 'pipeline_not_mapped', 'multi_magnet_contact']
       - name: touches_count
         tests:
           - not_null

@@ -1,0 +1,37 @@
+pipeline_id,pipeline_name,lead_magnet_reporting_name,lead_magnet_category,is_true_lead_magnet,is_launch,is_waitlist,is_sales_pipeline,include_in_lead_magnet_dashboard,taxonomy_confidence
+Km6WzLWXL6GnlW5iy4cf,$5000 Giveaway,$5000 Giveaway,true_lead_magnet,true,false,false,false,true,inferred_from_name
+c92CQV37zMmyRX2HHYy3,12/15 Launch,12/15 Launch,launch_event,false,true,false,false,true,inferred_from_name
+prs6JfTxv69G312Xrnss,AI Brand Building Prompts,AI Brand Building Prompts,true_lead_magnet,true,false,false,false,true,inferred_from_name
+56GjJEMT61PmLUfQO204,AI Sales Pipeline,AI Sales Pipeline,sales_operating_pipeline,false,false,false,true,true,inferred_from_name
+vxMvxFDhEI1cydw90QH5,Brand Scaling Blueprint Booked Calls,Brand Scaling Blueprint Booked Calls,sales_operating_pipeline,false,false,false,true,true,inferred_from_name
+3WmiHn0xsShVdpSOFn54,Content Guide,Content Guide,true_lead_magnet,true,false,false,false,true,inferred_from_name
+EAn6Ggi3Sr6IGgr5O48L,Dee Builds Brands MAIN Sales Pipeline,Dee Builds Brands Main Sales Pipeline,sales_operating_pipeline,false,false,false,true,true,inferred_from_name
+CJfRSuXBSYknKVUx93Ui,Dee Free Training,Dee Free Training,true_lead_magnet,true,false,false,false,true,inferred_from_name
+K9QNTgLXUrUtTpgnKrzf,Drop Blueprint,Drop Blueprint,true_lead_magnet,true,false,false,false,true,inferred_from_name
+rnqoLGX7vlTTe8SiGnHv,Elijah Video,Elijah Video,true_lead_magnet,true,false,false,false,true,inferred_from_name
+tKfKd9abBKcLqtpnWnpp,Free Class,Free Class,true_lead_magnet,true,false,false,false,true,inferred_from_name
+iRXae6AgvBaCt0KblWA0,Free Skool,Free Skool,true_lead_magnet,true,false,false,false,true,inferred_from_name
+I3JmUQOEYaps1EcXb6IV,Free Training,Free Training,true_lead_magnet,true,false,false,false,true,inferred_from_name
+hfB4fuaCoBBFeXB4W7vP,Giveaway + Free Class,Giveaway + Free Class,true_lead_magnet,true,false,false,false,true,inferred_from_name
+d7qrSwuUeMVQENLDlZIV,Google Docs,Google Docs,true_lead_magnet,true,false,false,false,true,inferred_from_name
+lxlosQvnySfVPQD8N9X2,IC 2.0 Waitlist,Inner Circle 2.0 Waitlist,waitlist,false,false,true,false,true,inferred_from_name
+CBXtRExRqOuGhwkV5EfK,IC Relaunch,Inner Circle Relaunch,launch_event,false,true,false,false,true,inferred_from_name
+ssruNdUlxNr3lvW2DcIz,Inner Circle 2.0 Launch,Inner Circle 2.0 Launch,launch_event,false,true,false,false,true,inferred_from_name
+QQcS3aGe3h8wfPsQT8Ne,Inner Circle Launch,Inner Circle Launch,launch_event,false,true,false,false,true,inferred_from_name
+Pn0zJJjlZO5q09MmBBOs,Instagram Waitlist,Instagram Waitlist,waitlist,false,false,true,false,true,inferred_from_name
+CuES6ZFGbfKblvK2thWB,Lead Magnet,Lead Magnet,true_lead_magnet,true,false,false,false,true,inferred_from_name
+OoVtG9mDi3L90GZBVcne,Lead Magnet Waitlist,Lead Magnet Waitlist,waitlist,false,false,true,false,true,inferred_from_name
+t4asXBAXl8yoJPuJCGoU,MR Waitlist,MR Waitlist,waitlist,false,false,true,false,true,inferred_from_name
+YMxFWzf1iIpD9q6LkZke,Main Sales Pipeline,Main Sales Pipeline,sales_operating_pipeline,false,false,false,true,true,inferred_from_name
+HcULPWinzvActPSEU2xZ,Manu Comm Templates,Manufacturer Communication Templates,true_lead_magnet,true,false,false,false,true,inferred_from_name
+ZwIeA4b5TFEgRbAYT6sW,Manu List,Manufacturer List,true_lead_magnet,true,false,false,false,true,inferred_from_name
+YlYwtV9Ilq9eTXMsmdpT,NEW Free Training,New Free Training,true_lead_magnet,true,false,false,false,true,inferred_from_name
+sZzEloQAie75BaXHma8J,New Free Training Funnel,New Free Training Funnel,true_lead_magnet,true,false,false,false,true,inferred_from_name
+IaZzBcWWR7M9JYIMShbR,Qualification,Qualification,sales_operating_pipeline,false,false,false,true,true,inferred_from_name
+tIYXQsMoWcmGW7mVtwjX,SMS Templates,SMS Templates,true_lead_magnet,true,false,false,false,true,inferred_from_name
+oCw2nbZbjw4s1YLjT7ua,Skool Waitlist,Skool Waitlist,waitlist,false,false,true,false,true,inferred_from_name
+Gy5yn0IVSPjWuugRwXCK,Speed to Lead Call,Speed-to-Lead Call,sales_operating_pipeline,false,false,false,true,true,inferred_from_name
+Q24hQ8bkdSMIldDHDb0X,Tarrif Manu List,Tariff Manufacturer List,true_lead_magnet,true,false,false,false,true,inferred_from_name
+XKUTRKaK4UTyLobBbwL4,TikTok Waitlist,TikTok Waitlist,waitlist,false,false,true,false,true,inferred_from_name
+cAj2aRY2r5exlz4C5E1V,Webinar Replay,Webinar Replay,true_lead_magnet,true,false,false,false,true,inferred_from_name
+JQrpuGjndnHdS4h3SgJo,YouTube Waitlist,YouTube Waitlist,waitlist,false,false,true,false,true,inferred_from_name
