@@ -189,8 +189,11 @@ Use it before building a lead-magnet dashboard, and keep three views separate:
 
 Do not treat every GHL pipeline name as the final business label. The branch
 now includes an initial `lead_magnet_pipeline_taxonomy` seed with 36 current
-pipelines classified from their names. Review that seed with David before
-calling the taxonomy final.
+pipelines classified from their names. It carries both `lead_magnet_category`
+and `lead_magnet_offer_type`, so the dashboard can compare prompts, templates,
+guides/docs, lists, trainings, videos, giveaways, communities, waitlists,
+launches, and sales pipelines. Review that seed with David before calling the
+taxonomy final.
 
 ### 6. Defer rep-ops rebuild until GHL source truth is resolved
 

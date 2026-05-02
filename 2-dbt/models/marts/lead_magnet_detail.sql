@@ -129,6 +129,7 @@ lead_magnet_taxonomy as (
         pipeline_id,
         lead_magnet_reporting_name,
         lead_magnet_category,
+        lead_magnet_offer_type,
         is_true_lead_magnet,
         is_launch,
         is_waitlist,
@@ -248,6 +249,10 @@ final as (
             lead_magnet_taxonomy.lead_magnet_category,
             'uncategorized'
         )                                                               as lead_magnet_category,
+        coalesce(
+            lead_magnet_taxonomy.lead_magnet_offer_type,
+            'uncategorized'
+        )                                                               as lead_magnet_offer_type,
         coalesce(lead_magnet_taxonomy.is_true_lead_magnet, false)       as is_true_lead_magnet,
         coalesce(lead_magnet_taxonomy.is_launch, false)                 as is_launch,
         coalesce(lead_magnet_taxonomy.is_waitlist, false)               as is_waitlist,

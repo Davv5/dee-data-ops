@@ -104,6 +104,13 @@ models:
           - accepted_values:
               arguments:
                 values: ['true_lead_magnet', 'launch_event', 'waitlist', 'sales_operating_pipeline', 'uncategorized']
+      - name: lead_magnet_offer_type
+        description: Creative/package format of the offer, such as template, guide, training, prompt pack, or sales pipeline.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['prompt_pack', 'template', 'guide_or_doc', 'resource_list', 'training_or_class', 'video_or_replay', 'giveaway', 'community', 'waitlist', 'sales_pipeline', 'launch_event', 'uncategorized']
       - name: contact_id
         description: Native GHL contact id attached to the opportunity.
         tests:

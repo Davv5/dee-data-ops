@@ -46,6 +46,13 @@ It passed 23 of 23 checks:
 - mart row-count parity still holds
 - category and attribution accepted-values tests passed
 
+After adding `lead_magnet_offer_type`, the same command passed 27 of 27
+checks with no warnings:
+
+- offer type loaded on all 36 taxonomy seed rows
+- offer type landed on every `lead_magnet_detail` row
+- accepted-values tests protect seed and mart offer types
+
 ## First Readout
 
 All opportunity windows:
@@ -100,6 +107,42 @@ Top sales / operating pipelines:
 | Dee Builds Brands Main Sales Pipeline | 4,600 | 400 | 55 | $20,681.03 | $4.50 |
 | Speed-to-Lead Call | 161 | 56 | 30 | $12,366.89 | $76.81 |
 
+## Offer Type Readout
+
+`lead_magnet_offer_type` answers the creative/package question that category
+does not: prompts vs templates vs guides vs lists vs trainings.
+
+All dashboard-included lanes:
+
+| Offer type | Opportunities | Bookings | Paid opps | Net revenue | Revenue / opp |
+|---|---:|---:|---:|---:|---:|
+| Sales pipeline | 7,418 | 1,709 | 560 | $200,479.04 | $27.03 |
+| Launch / event | 6,921 | 1,430 | 131 | $48,519.35 | $7.01 |
+| Guide / doc | 2,084 | 305 | 19 | $6,116.69 | $2.94 |
+| Template | 781 | 87 | 21 | $5,309.79 | $6.80 |
+| Prompt pack | 4,250 | 706 | 18 | $5,051.43 | $1.19 |
+| Resource list | 2,163 | 239 | 18 | $4,208.41 | $1.95 |
+| Training / class | 352 | 51 | 5 | $2,202.30 | $6.26 |
+| Community | 696 | 79 | 5 | $1,984.90 | $2.85 |
+| Waitlist | 541 | 37 | 1 | $969.00 | $1.79 |
+| Video / replay | 113 | 13 | 2 | $342.25 | $3.03 |
+| Giveaway | 780 | 15 | 1 | $45.00 | $0.06 |
+| Uncategorized | 130 | 0 | 0 | $0.00 | $0.00 |
+
+True lead magnets only:
+
+| Offer type | Opportunities | Bookings | Paid opps | Net revenue | Revenue / opp |
+|---|---:|---:|---:|---:|---:|
+| Guide / doc | 2,084 | 305 | 19 | $6,116.69 | $2.94 |
+| Template | 781 | 87 | 21 | $5,309.79 | $6.80 |
+| Prompt pack | 4,250 | 706 | 18 | $5,051.43 | $1.19 |
+| Resource list | 2,163 | 239 | 18 | $4,208.41 | $1.95 |
+| Training / class | 352 | 51 | 5 | $2,202.30 | $6.26 |
+| Community | 696 | 79 | 5 | $1,984.90 | $2.85 |
+| Video / replay | 113 | 13 | 2 | $342.25 | $3.03 |
+| Giveaway | 780 | 15 | 1 | $45.00 | $0.06 |
+| Uncategorized | 130 | 0 | 0 | $0.00 | $0.00 |
+
 First opportunity view, for acquisition quality:
 
 | First-touch lead magnet / pipeline | First-touch opps | Bookings | Paid opps | Net revenue | Revenue / opp |
@@ -130,6 +173,11 @@ its current form. It deserves segmentation before anyone calls it bad: the
 first-touch view says it creates a lot of bookers, but revenue per opportunity
 is low.
 
+Inside true lead magnets, templates are the strongest signal so far: lower
+volume than prompts, but better paid count and much higher revenue per
+opportunity. Prompt packs drive the most booking volume, but revenue per
+opportunity is low. Giveaways are the weakest tested offer type in this data.
+
 `Speed to Lead Call`, `Inner Circle 2.0 Launch`, and `Inner Circle Launch` are
 small-volume, high-value lanes. They should not be judged by volume alone.
 
@@ -152,6 +200,8 @@ Review the initial lead-magnet taxonomy with David:
 - waitlist
 - sales/operating pipeline
 - internal/test/retired
+- offer type labels, especially the generic `Lead Magnet` row currently marked
+  as `uncategorized`
 
 Then build the dashboard chapter so it answers the money question cleanly:
 
