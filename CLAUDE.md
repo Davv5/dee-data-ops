@@ -4,8 +4,13 @@ Always-on Claude operating instructions for the **D-DEE engagement** data ops re
 
 For human onboarding (initial setup, project layout, how the rules system works), see [`README.md`](README.md). Path-scoped conventions live under [`.claude/rules/`](.claude/rules/) and load automatically when matching files are open.
 
+## Operating mode
+
+Before planning or editing, read [`.claude/rules/operator-mode.md`](.claude/rules/operator-mode.md). This is the cross-agent agreement for how David wants the work done: revenue first, truth first, compact shipping, one next move, no corporate fog.
+
 ## Where to look
 
+- **Operating agreement:** [`.claude/rules/operator-mode.md`](.claude/rules/operator-mode.md) — default way of working across Claude Code and Codex
 - **Session-start state:** [`.claude/state/project-state.md`](.claude/state/project-state.md) — auto-injected at session start
 - **Session history:** [`WORKLOG.md`](WORKLOG.md) — `grep -n` for past decisions
 - **Engagement overlay (gitignored):** `CLAUDE.local.md` — locked metric, oracle numbers, client-specific context
