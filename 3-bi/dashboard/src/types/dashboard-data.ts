@@ -28,4 +28,11 @@ export type DashboardData = {
   filters: DashboardFilters;
   generatedAt: string;
   error?: string;
+  dataContract?: {
+    owner: "bq-ingest-report" | "dbt-mart";
+    projectId: string;
+    dataset: string;
+    tables: string[];
+    note: string;
+  };
 };
