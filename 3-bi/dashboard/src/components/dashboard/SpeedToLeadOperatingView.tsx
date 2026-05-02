@@ -80,7 +80,7 @@ export function SpeedToLeadOperatingView({ data }: { data: DashboardData }) {
   ];
 
   return (
-    <div className="pt-20 md:pt-0">
+    <div>
       <header className="flex flex-col gap-3 border-b border-[#dedbd2] pb-4 md:flex-row md:items-start md:justify-between">
         <div>
           <p className="text-sm font-medium text-[#0f766e]">bq-ingest-report</p>
