@@ -108,6 +108,56 @@ taxonomy fields:
 {% enddocs %}
 
 
+{% docs lead_magnet_buyer_detail %}
+
+# lead_magnet_buyer_detail
+
+**Grain:** one row per matched paid contact.
+**Primary key:** `contact_sk`.
+
+## Why it exists
+
+`lead_magnet_detail` is opportunity-grain. This mart is buyer-grain. It answers
+the dashboard questions that should not be counted at transaction grain:
+
+- how many people bought
+- first purchase revenue
+- total collected revenue
+- payment-plan behavior
+- latest known magnet before first purchase
+- days from magnet to purchase
+- bookings before purchase
+
+## What it's built from
+
+- `fct_payments` — paid matched payments by contact
+- `fct_refunds` — net-of-refunds adjustment for Fanbasis payments
+- `lead_magnet_detail` — first known magnet and latest prior magnet context
+- `fct_calls_booked` — active/canceled bookings before first purchase
+- `dim_contacts` — buyer identity and UTM context
+
+## Attribution language
+
+The latest prior magnet is **not** a source-system payment field. It is the
+latest known GHL opportunity before the buyer's first purchase timestamp. Use
+that label in dashboard UI: "Latest known magnet before first purchase."
+
+The mart keeps uncovered buyers visible:
+
+1. `latest_prior_magnet` — buyer has a known magnet before first purchase
+2. `purchase_before_first_magnet` — buyer has a later known magnet, but bought first
+3. `no_known_magnet` — buyer has no GHL opportunity/magnet
+4. `missing_taxonomy` — prior magnet exists but taxonomy is missing
+5. `uncategorized_offer_type` — prior magnet exists but offer type is still generic
+
+## Booking status caveat
+
+Calendly booking status currently supports `active` and `canceled`. This mart
+does not claim show/no-show truth.
+
+{% enddocs %}
+
+
 {% docs revenue_detail %}
 
 # revenue_detail

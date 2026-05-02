@@ -135,3 +135,45 @@ models:
       - name: net_revenue_after_refunds
         tests:
           - not_null
+
+  - name: lead_magnet_buyer_detail
+    description: |
+      Buyer-grain lead magnet mart — one row per matched paid contact.
+      Connects first purchase, total collected revenue, payment-plan behavior,
+      bookings before purchase, and the latest known lead magnet before first purchase.
+      See `_marts__docs.md` for column documentation.
+    columns:
+      - name: contact_sk
+        description: Primary key — warehouse contact surrogate key for a matched paid buyer.
+        tests:
+          - unique
+          - not_null
+      - name: contact_id
+        description: Native GHL contact id for the buyer.
+        tests:
+          - not_null
+      - name: first_payment_id
+        description: First paid payment id for this buyer.
+        tests:
+          - not_null
+      - name: first_purchase_at
+        description: Timestamp of the buyer's first paid payment.
+        tests:
+          - not_null
+      - name: first_purchase_net_revenue
+        tests:
+          - not_null
+      - name: total_net_revenue_after_refunds
+        tests:
+          - not_null
+      - name: paid_payments_count
+        tests:
+          - not_null
+      - name: bookings_before_first_purchase_count
+        tests:
+          - not_null
+      - name: purchase_magnet_attribution_flag
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['latest_prior_magnet', 'purchase_before_first_magnet', 'no_known_magnet', 'missing_taxonomy', 'uncategorized_offer_type']
