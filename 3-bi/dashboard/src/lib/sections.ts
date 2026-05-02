@@ -1,4 +1,4 @@
-import { BarChart3, Gauge, Users } from "lucide-react";
+import { BarChart3, Gauge, Target, Users } from "lucide-react";
 
 export const dashboardSections = [
   {
@@ -14,6 +14,13 @@ export const dashboardSections = [
     href: "/speed-to-lead#rep-breakdown",
     icon: Users,
     status: "planned",
+  },
+  {
+    slug: "lead-magnets",
+    label: "Lead Magnets",
+    href: "/lead-magnets",
+    icon: Target,
+    status: "active",
   },
   {
     slug: "revenue",
