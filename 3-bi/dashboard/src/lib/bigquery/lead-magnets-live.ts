@@ -38,7 +38,7 @@ function leadMagnetDataset() {
   const dataset =
     process.env.BIGQUERY_LEAD_MAGNET_DATASET ??
     process.env.BIGQUERY_DBT_DATASET ??
-    "dev_david";
+    deeConfig.bigQuery.dataset;
 
   if (!DATASET_NAME_PATTERN.test(dataset)) {
     throw new Error(`Invalid BigQuery dataset name for lead magnets: ${dataset}`);
