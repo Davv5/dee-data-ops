@@ -220,6 +220,55 @@
       }
     },
     {
+      "name": "fanbasis-identity-backfill",
+      "managed": true,
+      "canary": false,
+      "current": {
+        "image": "us-central1-docker.pkg.dev/project-41542e21-470f-4589-96d/cloud-run-source-deploy/fanbasis-python-runner:latest",
+        "command": [
+          "python3"
+        ],
+        "args": [
+          "-m",
+          "ops.runner.cli",
+          "run",
+          "backfill.fanbasis_identity"
+        ]
+      },
+      "target": {
+        "image": "us-central1-docker.pkg.dev/project-41542e21-470f-4589-96d/cloud-run-source-deploy/fanbasis-python-runner:latest",
+        "command": [
+          "python3"
+        ],
+        "args": [
+          "-m",
+          "ops.runner.cli",
+          "run",
+          "backfill.fanbasis_identity"
+        ]
+      },
+      "service_account": "id-sa-ingest@project-41542e21-470f-4589-96d.iam.gserviceaccount.com",
+      "cpu": "1000m",
+      "memory": "512Mi",
+      "timeout_seconds": 1800,
+      "max_retries": 1,
+      "tasks": 1,
+      "parallelism": null,
+      "env": {
+        "GCP_PROJECT_ID": "project-41542e21-470f-4589-96d",
+        "BQ_DATASET": "Raw",
+        "BQ_FANBASIS_OBJECTS_TABLE": "fanbasis_objects_raw",
+        "BQ_FANBASIS_OBJECT_STATE_TABLE": "fanbasis_object_backfill_state",
+        "FANBASIS_OBJECT_TYPES": "customers,subscribers",
+        "FANBASIS_PER_PAGE": "100",
+        "FANBASIS_OBJECT_START_PAGE": "1",
+        "FANBASIS_OBJECT_MAX_PAGES": "0"
+      },
+      "secrets": {
+        "FANBASIS_API_KEY": "Secret:latest"
+      }
+    },
+    {
       "name": "fathom-backfill",
       "managed": true,
       "canary": false,
@@ -799,6 +848,32 @@
         "audience": "https://bq-ingest-mjxxki4snq-uc.a.run.app"
       },
       "canary_cutover": false
+    },
+    {
+      "name": "fanbasis-identity-hourly",
+      "location": "us-central1",
+      "schedule": "5 * * * *",
+      "time_zone": "America/New_York",
+      "state": "ENABLED",
+      "http": {
+        "uri": "https://run.googleapis.com/v2/projects/project-41542e21-470f-4589-96d/locations/us-central1/jobs/fanbasis-identity-backfill:run",
+        "method": "POST",
+        "headers": {
+          "Content-Type": "application/octet-stream",
+          "User-Agent": "Google-Cloud-Scheduler"
+        },
+        "body_base64": "e30="
+      },
+      "auth": {
+        "type": "oauth",
+        "service_account_email": "sa-scheduler@project-41542e21-470f-4589-96d.iam.gserviceaccount.com",
+        "scope": "https://www.googleapis.com/auth/cloud-platform"
+      },
+      "canary_cutover": false,
+      "cloud_run_job_target": {
+        "job_name": "fanbasis-identity-backfill",
+        "api_version": "v2"
+      }
     },
     {
       "name": "fanbasis-hourly-models-refresh",

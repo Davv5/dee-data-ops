@@ -8,6 +8,7 @@ from sources.fanbasis.fanbasis_pipeline import (
     ensure_tables,
     fetch_transactions_page,
     read_backfill_state,
+    run_identity_backfill,
     upsert_transactions,
     write_backfill_state,
 )
@@ -15,6 +16,12 @@ from sources.fanbasis.fanbasis_pipeline import (
 
 def main() -> None:
     ensure_tables()
+
+    mode = os.getenv("FANBASIS_BACKFILL_MODE", "transactions").strip().lower()
+    if mode in {"identity", "objects", "customers_subscribers"}:
+        result = run_identity_backfill()
+        print(f"Fanbasis identity backfill completed: {result}")
+        return
 
     default_run_id = f"backfill-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:8]}"
     run_id = os.getenv("BACKFILL_RUN_ID", default_run_id)

@@ -3233,13 +3233,14 @@ SELECT
   END AS speed_to_lead_minutes,
   CASE
     WHEN r.first_touch_ts IS NULL THEN 'No Outbound Yet'
-    WHEN TIMESTAMP_DIFF(r.first_touch_ts, r.trigger_ts, SECOND) <= 300 THEN 'Gold (<5m)'
-    WHEN TIMESTAMP_DIFF(r.first_touch_ts, r.trigger_ts, SECOND) <= 1800 THEN 'Silver (5-30m)'
-    WHEN TIMESTAMP_DIFF(r.first_touch_ts, r.trigger_ts, SECOND) <= 7200 THEN 'Bronze (30m-2h)'
+    WHEN TIMESTAMP_DIFF(r.first_touch_ts, r.trigger_ts, SECOND) <= 300 THEN 'Fast (<5m)'
+    WHEN TIMESTAMP_DIFF(r.first_touch_ts, r.trigger_ts, SECOND) <= 1800 THEN 'On-Time (5-30m)'
+    WHEN TIMESTAMP_DIFF(r.first_touch_ts, r.trigger_ts, SECOND) <= 2700 THEN 'On-Time (30-45m)'
+    WHEN TIMESTAMP_DIFF(r.first_touch_ts, r.trigger_ts, SECOND) <= 7200 THEN 'SLA Breached (45m-2h)'
     ELSE 'SLA Breached (2h+)'
   END AS sla_status,
   CASE
-    WHEN r.first_touch_ts IS NOT NULL AND TIMESTAMP_DIFF(r.first_touch_ts, r.trigger_ts, SECOND) <= 300 THEN TRUE
+    WHEN r.first_touch_ts IS NOT NULL AND TIMESTAMP_DIFF(r.first_touch_ts, r.trigger_ts, SECOND) <= 2700 THEN TRUE
     ELSE FALSE
   END AS is_within_sla,
   r.setter_team_member_key,
@@ -3279,6 +3280,7 @@ SELECT
   COUNTIF(trigger_type = 'appointment_booking' AND speed_to_lead_seconds <= 60) AS sla_within_1m,
   COUNTIF(trigger_type = 'appointment_booking' AND speed_to_lead_seconds <= 300) AS sla_within_5m,
   COUNTIF(trigger_type = 'appointment_booking' AND speed_to_lead_seconds <= 900) AS sla_within_15m,
+  COUNTIF(trigger_type = 'appointment_booking' AND speed_to_lead_seconds <= 2700) AS sla_within_45m,
   COUNTIF(trigger_type = 'appointment_booking' AND speed_to_lead_seconds <= 3600) AS sla_within_60m,
   COUNT(*) AS total_triggers_all,
   COUNTIF(first_touch_ts IS NOT NULL) AS triggers_with_outbound_touch,
@@ -3321,6 +3323,13 @@ SELECT
     ),
     2
   ) AS pct_within_15m,
+  ROUND(
+    100 * SAFE_DIVIDE(
+      COUNTIF(trigger_type = 'appointment_booking' AND speed_to_lead_seconds <= 2700),
+      NULLIF(COUNTIF(trigger_type = 'appointment_booking'), 0)
+    ),
+    2
+  ) AS pct_within_45m,
   ROUND(
     100 * SAFE_DIVIDE(
       COUNTIF(trigger_type = 'appointment_booking' AND speed_to_lead_seconds <= 3600),

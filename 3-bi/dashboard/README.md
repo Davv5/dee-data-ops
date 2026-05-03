@@ -10,16 +10,19 @@ Architecture: **Cabinet shell, Kim simplicity**.
 
 ## Current Scope
 
-This scaffold is PR-1 only:
+This scaffold now includes the first live read-only Speed-to-Lead slice:
 
 - app shell
 - sidebar
 - D-DEE config seam
-- Speed-to-Lead dashboard definition skeleton
-- named-query contract placeholders
+- Speed-to-Lead dashboard definition
+- named-query contracts
+- server-side BigQuery reads against the current project
+- live KPI, trend, rep breakdown, and freshness state
 - `/api/health`
+- `/api/speed-to-lead`
 
-Live BigQuery access, auth, and deployment are intentionally deferred to later PRs.
+Auth and deployment are intentionally deferred to later PRs.
 
 ## Development
 
@@ -28,10 +31,14 @@ npm install
 npm run dev
 ```
 
+The dashboard uses Google Application Default Credentials or the deployed
+runtime service account. Keep BigQuery credentials server-side only.
+
 Health route:
 
 ```bash
 curl http://localhost:3000/api/health
+curl http://localhost:3000/api/speed-to-lead
 ```
 
 ## Data Contracts

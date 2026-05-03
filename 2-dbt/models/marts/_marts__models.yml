@@ -2,6 +2,51 @@ version: 2
 
 models:
 
+  - name: fanbasis_missing_ghl_contacts
+    description: >
+      Operator queue for Fanbasis paid buyers who exist in Fanbasis customer
+      and subscriber identity but still do not resolve to a GHL contact.
+      Grain: one row per Fanbasis customer/email identity needing GHL creation
+      or identity repair.
+    columns:
+      - name: missing_ghl_contact_sk
+        description: Surrogate key over Fanbasis customer id + buyer email.
+        tests:
+          - unique
+          - not_null
+      - name: fanbasis_customer_id
+        description: Fanbasis subscriber/customer id from transaction `fan_id`.
+      - name: fanbasis_directory_customer_id
+        description: Fanbasis customer-directory id from `/public-api/customers`.
+      - name: buyer_name
+        description: Best available Fanbasis buyer name.
+      - name: buyer_email
+        description: Best available Fanbasis buyer email.
+      - name: buyer_email_norm
+        description: Lowercased / trimmed buyer email.
+        tests:
+          - not_null
+      - name: paid_payments_count
+        description: Paid Fanbasis payments still missing GHL contact attribution.
+        tests:
+          - not_null
+      - name: total_net_revenue
+        description: Net paid Fanbasis revenue attached to the missing identity.
+        tests:
+          - not_null
+      - name: subscription_status
+        description: Latest Fanbasis subscriber status for this customer when available.
+      - name: recommended_action
+        description: Action needed to close the source-depth gap.
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['create_ghl_contact', 'repair_identity_bridge', 'review_duplicate_ghl_contacts']
+      - name: suggested_ghl_contact_payload_json
+        description: JSON string with a safe draft GHL contact payload for review/import.
+      - name: mart_refreshed_at
+        description: Build timestamp for freshness diagnostics.
+
   - name: lead_journey
     description: |
       Contact grain "golden lead" mart — one row per GHL contact whether booked or not (~15,598 rows vs oracle).
@@ -16,7 +61,8 @@ models:
       - name: attribution_quality_flag
         tests:
           - accepted_values:
-              values: ['clean', 'no_sdr_touch', 'ambiguous_contact_match', 'pre_utm_era', 'role_unknown']
+              arguments:
+                values: ['clean', 'no_sdr_touch', 'ambiguous_contact_match', 'pre_utm_era', 'role_unknown']
 
   - name: revenue_detail
     description: |
@@ -34,21 +80,25 @@ models:
         tests:
           - not_null
           - accepted_values:
-              values: ['stripe', 'fanbasis']
+              arguments:
+                values: ['stripe', 'fanbasis']
       - name: match_method
         description: Identity-bridge tier used to link this payment to a contact (or `unmatched`).
         tests:
           - accepted_values:
-              values: ['email_exact', 'email_canonical', 'phone_last10', 'billing_email_direct', 'unmatched']
+              arguments:
+                values: ['email_exact', 'email_canonical', 'phone_last10', 'stripe_customer_email', 'stripe_customer_phone', 'fanbasis_conversation_email', 'fanbasis_unique_crm_name', 'billing_email_direct', 'unmatched']
       - name: match_status
         description: Overall bridge outcome — alias of bridge_identity_contact_payment.bridge_status.
         tests:
           - accepted_values:
-              values: ['matched', 'ambiguous_multi_candidate', 'unmatched']
+              arguments:
+                values: ['matched', 'ambiguous_multi_candidate', 'unmatched']
       - name: attribution_quality_flag
         tests:
           - accepted_values:
-              values: ['clean', 'unmatched', 'ambiguous_contact_match', 'role_unknown']
+              arguments:
+                values: ['clean', 'unmatched', 'ambiguous_contact_match', 'payment_identity_only', 'role_unknown']
       - name: refunds_total_amount
         description: Sum of `fct_refunds.refund_amount` for this payment (gross refund returned to the customer). 0 when no refunds; never NULL.
         tests:
@@ -68,3 +118,210 @@ models:
           `net_amount - refunds_total_amount`. Mechanical branching keeps the math correct even if `fct_refunds` extends to Stripe later.
         tests:
           - not_null
+
+  - name: lead_magnet_detail
+    description: |
+      Opportunity-grain lead magnet mart — one row per GHL opportunity, treating each GHL pipeline as a lead-magnet funnel.
+      Uses opportunity windows to attribute outreach, bookings, and net revenue without double-counting multi-magnet contacts.
+      See `_marts__docs.md` for column documentation.
+    columns:
+      - name: opportunity_id
+        description: Primary key — native GHL opportunity id.
+        tests:
+          - unique
+          - not_null
+      - name: lead_magnet_id
+        description: GHL pipeline id; the durable lead-magnet/funnel identifier.
+        tests:
+          - not_null
+      - name: lead_magnet_name
+        description: Business-facing GHL pipeline name for the lead magnet/funnel.
+        tests:
+          - not_null
+      - name: lead_magnet_reporting_name
+        description: Clean dashboard label from `lead_magnet_pipeline_taxonomy`.
+        tests:
+          - not_null
+      - name: lead_magnet_category
+        description: Taxonomy class for comparing similar pipeline types.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['true_lead_magnet', 'launch_event', 'waitlist', 'sales_operating_pipeline', 'uncategorized']
+      - name: lead_magnet_offer_type
+        description: Creative/package format of the offer, such as template, guide, training, prompt pack, or sales pipeline.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['prompt_pack', 'template', 'guide_or_doc', 'resource_list', 'training_or_class', 'video_or_replay', 'giveaway', 'community', 'waitlist', 'sales_pipeline', 'launch_event', 'uncategorized']
+      - name: contact_id
+        description: Native GHL contact id attached to the opportunity.
+        tests:
+          - not_null
+      - name: attribution_quality_flag
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['clean', 'contact_not_matched', 'pipeline_not_mapped', 'multi_magnet_contact']
+      - name: touches_count
+        tests:
+          - not_null
+      - name: direct_bookings_count
+        tests:
+          - not_null
+      - name: window_bookings_count
+        tests:
+          - not_null
+      - name: payment_count
+        tests:
+          - not_null
+      - name: net_revenue_after_refunds
+        tests:
+          - not_null
+
+  - name: lead_magnet_buyer_detail
+    description: |
+      Buyer-grain lead magnet mart — one row per matched paid contact.
+      Connects first purchase, total collected revenue, payment-plan behavior,
+      bookings before purchase, and the latest known lead magnet before first purchase.
+      See `_marts__docs.md` for column documentation.
+    columns:
+      - name: contact_sk
+        description: Primary key — warehouse contact surrogate key for a matched paid buyer.
+        tests:
+          - unique
+          - not_null
+      - name: contact_id
+        description: Native GHL contact id for the buyer.
+        tests:
+          - not_null
+      - name: first_payment_id
+        description: First paid payment id for this buyer.
+        tests:
+          - not_null
+      - name: first_purchase_at
+        description: Timestamp of the buyer's first paid payment.
+        tests:
+          - not_null
+      - name: first_purchase_net_revenue
+        tests:
+          - not_null
+      - name: total_net_revenue_after_refunds
+        tests:
+          - not_null
+      - name: paid_payments_count
+        tests:
+          - not_null
+      - name: bookings_before_first_purchase_count
+        tests:
+          - not_null
+      - name: purchase_magnet_attribution_flag
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['latest_prior_magnet', 'purchase_before_first_magnet', 'no_known_magnet', 'missing_taxonomy', 'uncategorized_offer_type']
+
+  - name: revenue_funnel_detail
+    description: |
+      Buyer-journey revenue mart — one row per matched paid contact.
+      Connects collected revenue, payment-plan signal, product family,
+      latest magnet before purchase, bookings, pre-purchase outreach, and
+      best available operator attribution.
+      See `_marts__docs.md` for column documentation.
+    columns:
+      - name: contact_sk
+        description: Primary key — warehouse contact surrogate key for a matched paid buyer.
+        tests:
+          - unique
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_contacts')
+                field: contact_sk
+      - name: contact_id
+        description: Native GHL contact id for the buyer.
+        tests:
+          - not_null
+      - name: first_payment_id
+        description: First paid payment id for this buyer.
+        tests:
+          - not_null
+      - name: first_purchase_at
+        description: Timestamp of the buyer's first paid payment.
+        tests:
+          - not_null
+      - name: latest_purchase_at
+        description: Timestamp of the buyer's latest paid payment.
+        tests:
+          - not_null
+      - name: paid_payments_count
+        description: Paid payment events attached to the buyer.
+        tests:
+          - not_null
+      - name: total_net_revenue_after_refunds
+        description: Buyer-level net revenue after source-specific refund treatment.
+        tests:
+          - not_null
+      - name: payment_plan_status
+        description: Payment-plan signal derived from payment count, Fanbasis auto-renew, and plan-named product strings.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['auto_renew_plan', 'multi_payment_plan', 'plan_named_single_payment', 'single_payment']
+      - name: payment_plan_truth_status
+        description: Source-truth label that distinguishes collected-cash evidence from missing subscription-schedule evidence.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['fanbasis_auto_renew_cash_only', 'name_inferred_plan_cash_only', 'fanbasis_single_payment_cash', 'historical_stripe_cash_only', 'unknown_cash_only']
+      - name: fanbasis_net_revenue_after_refunds
+        description: Fanbasis-only collected net revenue after refunds attached to the buyer.
+        tests:
+          - not_null
+      - name: fanbasis_auto_renew_payments_count
+        description: Fanbasis payments with `payment_method = auto_renew`; this signals recurring/plan cash but not the remaining receivable schedule.
+        tests:
+          - not_null
+      - name: fanbasis_unreleased_payments_count
+        description: Fanbasis payments whose payout release flag is false.
+        tests:
+          - not_null
+      - name: top_product_family
+        description: Product-family label for the buyer's top product by net revenue.
+        tests:
+          - not_null
+      - name: purchase_magnet_attribution_flag
+        description: Lead-magnet attribution state inherited from `lead_magnet_buyer_detail`.
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['latest_prior_magnet', 'purchase_before_first_magnet', 'no_known_magnet', 'missing_taxonomy', 'uncategorized_offer_type']
+      - name: best_available_operator_name
+        description: Best available operator for the buyer journey, prioritizing successful call, first touch, latest prior owner, then booking owner.
+        tests:
+          - not_null
+      - name: best_available_operator_source
+        description: Source used to pick the best available operator.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['first_successful_call_before_purchase', 'first_touch_before_purchase', 'latest_prior_opportunity_owner', 'latest_booking_owner', 'unassigned']
+      - name: pre_purchase_funnel_path
+        description: Highest-known pre-purchase path signal for the buyer.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['booked_before_purchase', 'canceled_booking_before_purchase', 'reached_by_phone_before_purchase', 'worked_before_purchase', 'magnet_before_purchase_no_work_logged', 'buyer_without_known_pre_purchase_path']
+      - name: revenue_funnel_quality_flag
+        description: Data-quality bucket for the buyer journey row.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['clean', 'missing_taxonomy', 'uncategorized_offer_type', 'negative_net_revenue', 'contact_not_matched', 'no_known_magnet']
