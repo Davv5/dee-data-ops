@@ -2,6 +2,51 @@ version: 2
 
 models:
 
+  - name: fanbasis_missing_ghl_contacts
+    description: >
+      Operator queue for Fanbasis paid buyers who exist in Fanbasis customer
+      and subscriber identity but still do not resolve to a GHL contact.
+      Grain: one row per Fanbasis customer/email identity needing GHL creation
+      or identity repair.
+    columns:
+      - name: missing_ghl_contact_sk
+        description: Surrogate key over Fanbasis customer id + buyer email.
+        tests:
+          - unique
+          - not_null
+      - name: fanbasis_customer_id
+        description: Fanbasis subscriber/customer id from transaction `fan_id`.
+      - name: fanbasis_directory_customer_id
+        description: Fanbasis customer-directory id from `/public-api/customers`.
+      - name: buyer_name
+        description: Best available Fanbasis buyer name.
+      - name: buyer_email
+        description: Best available Fanbasis buyer email.
+      - name: buyer_email_norm
+        description: Lowercased / trimmed buyer email.
+        tests:
+          - not_null
+      - name: paid_payments_count
+        description: Paid Fanbasis payments still missing GHL contact attribution.
+        tests:
+          - not_null
+      - name: total_net_revenue
+        description: Net paid Fanbasis revenue attached to the missing identity.
+        tests:
+          - not_null
+      - name: subscription_status
+        description: Latest Fanbasis subscriber status for this customer when available.
+      - name: recommended_action
+        description: Action needed to close the source-depth gap.
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['create_ghl_contact', 'repair_identity_bridge', 'review_duplicate_ghl_contacts']
+      - name: suggested_ghl_contact_payload_json
+        description: JSON string with a safe draft GHL contact payload for review/import.
+      - name: mart_refreshed_at
+        description: Build timestamp for freshness diagnostics.
+
   - name: lead_journey
     description: |
       Contact grain "golden lead" mart — one row per GHL contact whether booked or not (~15,598 rows vs oracle).
@@ -42,7 +87,7 @@ models:
         tests:
           - accepted_values:
               arguments:
-                values: ['email_exact', 'email_canonical', 'phone_last10', 'billing_email_direct', 'unmatched']
+                values: ['email_exact', 'email_canonical', 'phone_last10', 'stripe_customer_email', 'stripe_customer_phone', 'fanbasis_conversation_email', 'fanbasis_unique_crm_name', 'billing_email_direct', 'unmatched']
       - name: match_status
         description: Overall bridge outcome — alias of bridge_identity_contact_payment.bridge_status.
         tests:
@@ -53,7 +98,7 @@ models:
         tests:
           - accepted_values:
               arguments:
-                values: ['clean', 'unmatched', 'ambiguous_contact_match', 'role_unknown']
+                values: ['clean', 'unmatched', 'ambiguous_contact_match', 'payment_identity_only', 'role_unknown']
       - name: refunds_total_amount
         description: Sum of `fct_refunds.refund_amount` for this payment (gross refund returned to the customer). 0 when no refunds; never NULL.
         tests:
@@ -226,6 +271,25 @@ models:
           - accepted_values:
               arguments:
                 values: ['auto_renew_plan', 'multi_payment_plan', 'plan_named_single_payment', 'single_payment']
+      - name: payment_plan_truth_status
+        description: Source-truth label that distinguishes collected-cash evidence from missing subscription-schedule evidence.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['fanbasis_auto_renew_cash_only', 'name_inferred_plan_cash_only', 'fanbasis_single_payment_cash', 'historical_stripe_cash_only', 'unknown_cash_only']
+      - name: fanbasis_net_revenue_after_refunds
+        description: Fanbasis-only collected net revenue after refunds attached to the buyer.
+        tests:
+          - not_null
+      - name: fanbasis_auto_renew_payments_count
+        description: Fanbasis payments with `payment_method = auto_renew`; this signals recurring/plan cash but not the remaining receivable schedule.
+        tests:
+          - not_null
+      - name: fanbasis_unreleased_payments_count
+        description: Fanbasis payments whose payout release flag is false.
+        tests:
+          - not_null
       - name: top_product_family
         description: Product-family label for the buyer's top product by net revenue.
         tests:

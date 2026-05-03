@@ -41,6 +41,39 @@ Singular test `release_gate_lead_journey.sql` asserts:
 {% enddocs %}
 
 
+{% docs fanbasis_missing_ghl_contacts %}
+
+# fanbasis_missing_ghl_contacts
+
+Operator queue for Fanbasis buyers who have paid revenue but still do not
+resolve to a GHL contact. This mart exists because the right fix for the final
+Fanbasis identity gap is source depth and CRM hygiene, not weaker fuzzy
+matching.
+
+**Grain:** one row per Fanbasis customer/email identity with paid Fanbasis
+payments and NULL `fct_payments.contact_sk`.
+
+Inputs:
+
+- `stg_fanbasis__transactions` — paid transaction identity from checkout
+- `stg_fanbasis__customers` — customer directory identity from
+  `/public-api/customers`
+- `stg_fanbasis__subscribers` — subscriber/customer id, product, and status
+  from `/public-api/subscribers`
+- `dim_contacts` — GHL contact presence check by email and phone
+
+`recommended_action` is the operator field:
+
+1. `create_ghl_contact` — Fanbasis buyer exists, but no GHL email/phone match
+2. `repair_identity_bridge` — GHL has exactly one candidate, but bridge did not
+   attach it
+3. `review_duplicate_ghl_contacts` — GHL has multiple candidates
+
+The `suggested_ghl_contact_payload_json` field is a draft payload for review.
+It is intentionally not pushed automatically into GHL from dbt.
+
+{% enddocs %}
+
 {% docs lead_magnet_detail %}
 
 # lead_magnet_detail
@@ -213,6 +246,14 @@ balance / payment-plan language. This is enough for funnel operations, but
 finance-grade installment schedules need a future Fanbasis subscription or
 plan-change source.
 
+`payment_plan_truth_status` is the guardrail label for that exact gap. The
+current Fanbasis extractor lands completed transactions from
+`/public-api/checkout-sessions/transactions`; it does not yet land
+`/public-api/subscribers` or checkout-session subscription rows, so the mart can
+say “cash collected” and “auto-renew signal” but not “remaining balance owed.”
+The Fanbasis API docs expose subscriber/subscription endpoints; landing those is
+the next source-layer step before this can become receivables truth.
+
 ## Quality flags
 
 `revenue_funnel_quality_flag` keeps messy rows visible:
@@ -276,8 +317,9 @@ to Stripe later — no doc-only future-Claude trap. Singular test
 
 1. `unmatched` — bridge could not link the payment to any contact
 2. `ambiguous_contact_match` — bridge matched to more than one candidate
-3. `role_unknown` — matched to a contact but no Closer-role attribution available
-4. `clean` — everything above is resolved
+3. `payment_identity_only` — payment has source identity, but no CRM contact row
+4. `role_unknown` — matched to a contact but no Closer-role attribution available
+5. `clean` — everything above is resolved
 
 ## Release gate
 

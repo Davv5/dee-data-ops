@@ -66,8 +66,19 @@ payments_net as (
         payments.gross_amount,
         payments.net_amount,
         payments.product,
+        payments.source_product_id,
+        payments.source_product_internal_name,
+        payments.source_product_price,
+        payments.source_service_id,
+        payments.source_service_title,
+        payments.source_service_internal_name,
+        payments.source_service_price,
+        payments.source_service_payment_id,
+        payments.source_fund_release_on,
+        payments.source_fund_released,
         payments.payment_method,
         payments.card_issue_country,
+        payments.is_refunded,
         payments.match_method,
         payments.match_score,
         payments.bridge_status,
@@ -161,6 +172,20 @@ payment_summary as (
                                                                         as fanbasis_upfront_payments_count,
         countif(source_platform = 'fanbasis' and payment_method = 'auto_renew')
                                                                         as fanbasis_auto_renew_payments_count,
+        count(distinct if(source_platform = 'fanbasis', source_service_payment_id, null))
+                                                                        as fanbasis_service_payment_ids_count,
+        sum(if(source_platform = 'fanbasis', gross_amount, 0))           as fanbasis_gross_revenue,
+        sum(if(source_platform = 'fanbasis', net_amount_after_refunds, 0))
+                                                                        as fanbasis_net_revenue_after_refunds,
+        countif(source_platform = 'fanbasis' and is_refunded)            as fanbasis_refunded_payments_count,
+        countif(source_platform = 'fanbasis' and source_fund_released)   as fanbasis_released_payments_count,
+        countif(
+            source_platform = 'fanbasis'
+            and source_fund_released is not null
+            and not source_fund_released
+        )                                                               as fanbasis_unreleased_payments_count,
+        max(if(source_platform = 'fanbasis', source_fund_release_on, null))
+                                                                        as latest_fanbasis_fund_release_on,
         countif(
             regexp_contains(
                 lower(coalesce(product, '')),
@@ -361,6 +386,13 @@ assembled as (
         payment_summary.fanbasis_payments_count,
         payment_summary.fanbasis_upfront_payments_count,
         payment_summary.fanbasis_auto_renew_payments_count,
+        payment_summary.fanbasis_service_payment_ids_count,
+        payment_summary.fanbasis_gross_revenue,
+        payment_summary.fanbasis_net_revenue_after_refunds,
+        payment_summary.fanbasis_refunded_payments_count,
+        payment_summary.fanbasis_released_payments_count,
+        payment_summary.fanbasis_unreleased_payments_count,
+        payment_summary.latest_fanbasis_fund_release_on,
         payment_summary.plan_named_payments_count,
         payment_summary.purchased_product_count,
         payment_summary.total_gross_revenue,
@@ -409,6 +441,28 @@ assembled as (
                 then 'plan_named_single_payment'
             else 'single_payment'
         end                                                           as payment_plan_status,
+        case
+            when payment_summary.fanbasis_auto_renew_payments_count > 0
+                then 'fanbasis_auto_renew_cash_only'
+            when payment_summary.plan_named_payments_count > 0
+                then 'name_inferred_plan_cash_only'
+            when payment_summary.fanbasis_payments_count > 0
+                then 'fanbasis_single_payment_cash'
+            when payment_summary.stripe_payments_count > 0
+                then 'historical_stripe_cash_only'
+            else 'unknown_cash_only'
+        end                                                           as payment_plan_truth_status,
+        case
+            when payment_summary.fanbasis_auto_renew_payments_count > 0
+                then 'Fanbasis transaction rows show auto_renew payments, but subscriber schedule and remaining balance are not landed yet.'
+            when payment_summary.plan_named_payments_count > 0
+                then 'Product naming implies a plan, but the source currently exposes collected payments only.'
+            when payment_summary.fanbasis_payments_count > 0
+                then 'Fanbasis transaction rows support collected cash, product, and payout status.'
+            when payment_summary.stripe_payments_count > 0
+                then 'Historical Stripe cash is preserved; Fanbasis subscription schedule does not apply.'
+            else 'No payment-plan source detail available.'
+        end                                                           as payment_plan_truth_note,
 
         buyers.first_known_opportunity_id,
         buyers.first_known_lead_magnet_id,

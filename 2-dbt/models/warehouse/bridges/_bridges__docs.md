@@ -35,8 +35,12 @@ model isolates it, makes the tier table testable, and lets the
 | 1. `email_exact` | `payment.email_norm = dim_contacts.email_norm` | 1.00 | `matched` |
 | 2. `phone_last10` | last 10 digits of phone equal | 1.00 | `matched` |
 | 3. `email_canonical` | gmail dot/plus normalized on both sides | 0.95 | `matched` |
-| 4. `billing_email_direct` | payment has email but no CRM contact — payment-only fallback | 0.80 | `matched` |
-| 5. `unmatched` | no email, no phone, no CRM match | 0.00 | `unmatched` |
+| 4. `stripe_customer_email` | Stripe charge failed billing identity, but linked Stripe customer email resolves to CRM | 0.90 | `matched` |
+| 5. `stripe_customer_phone` | Stripe charge failed billing identity, but linked Stripe customer phone resolves to CRM | 0.90 | `matched` |
+| 6. `fanbasis_conversation_email` | Fanbasis email matches a historical GHL conversation email for exactly one contact | 0.88 | `matched` |
+| 7. `fanbasis_unique_crm_name` | Fanbasis buyer name matches exactly one CRM contact full name | 0.82 | `matched` |
+| 8. `billing_email_direct` | payment has email but no CRM contact — payment-only fallback | 0.80 | `matched` |
+| 9. `unmatched` | no email, no phone, no CRM match | 0.00 | `unmatched` |
 
 `ambiguous_multi_candidate` is surfaced when > 1 distinct `contact_sk`
 tied at the highest observed score for a payment. The `qualify
@@ -47,8 +51,12 @@ owners can decide whether to trust the pick or suppress the row.
 
 | `source_platform` | Email column | Phone column |
 |---|---|---|
-| `stripe` | `stg_stripe__charges.billing_email` | `stg_stripe__charges.billing_phone` |
-| `fanbasis` | `stg_fanbasis__transactions.fan_email` | `stg_fanbasis__transactions.fan_phone` |
+| `stripe` | `stg_stripe__charges.billing_email`; fallback `stg_stripe__customers.email` | `stg_stripe__charges.billing_phone`; fallback `stg_stripe__customers.phone` |
+| `fanbasis` | `stg_fanbasis__transactions.fan_email`; fallback `stg_ghl__conversations.contact_email` | `stg_fanbasis__transactions.fan_phone` |
+
+Fanbasis also exposes `fan.name`. The bridge only uses it after email,
+phone, Stripe-customer, and GHL-conversation identity fail, and only when
+the normalized full name resolves to exactly one CRM contact.
 
 ### Gmail canonical normalization
 

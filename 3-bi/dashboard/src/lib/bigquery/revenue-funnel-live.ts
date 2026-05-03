@@ -99,6 +99,10 @@ function buildRevenueFunnelQueries(timeRange: RevenueFunnelTimeRange) {
         COUNTIF(is_payment_plan_buyer) AS payment_plan_buyers,
         SAFE_DIVIDE(COUNTIF(is_payment_plan_buyer), NULLIF(COUNT(*), 0)) AS payment_plan_buyer_rate,
         SUM(IF(is_payment_plan_buyer, total_net_revenue_after_refunds, 0)) AS payment_plan_net_revenue,
+        SUM(fanbasis_auto_renew_payments_count) AS fanbasis_auto_renew_payments,
+        COUNTIF(payment_plan_truth_status IN ('fanbasis_auto_renew_cash_only', 'name_inferred_plan_cash_only')) AS cash_only_plan_signal_buyers,
+        COUNTIF(fanbasis_unreleased_payments_count > 0) AS buyers_with_unreleased_fanbasis_payments,
+        SUM(fanbasis_unreleased_payments_count) AS fanbasis_unreleased_payments,
         COUNTIF(has_booking_before_first_purchase) AS buyers_with_booking_before_purchase,
         SAFE_DIVIDE(COUNTIF(has_booking_before_first_purchase), NULLIF(COUNT(*), 0)) AS booking_before_purchase_rate,
         COUNTIF(has_latest_prior_magnet_before_first_purchase) AS buyers_with_latest_prior_magnet,
@@ -131,6 +135,27 @@ function buildRevenueFunnelQueries(timeRange: RevenueFunnelTimeRange) {
       FROM ${revenueTable}
       ${buyerWhere}
       GROUP BY payment_plan_status, payment_plan_label
+      ORDER BY total_net_revenue_after_refunds DESC
+    `,
+    revenue_funnel_payment_truth: `
+      SELECT
+        payment_plan_truth_status,
+        CASE payment_plan_truth_status
+          WHEN 'fanbasis_auto_renew_cash_only' THEN 'Fanbasis auto-renew cash'
+          WHEN 'name_inferred_plan_cash_only' THEN 'Name-inferred plan cash'
+          WHEN 'fanbasis_single_payment_cash' THEN 'Fanbasis single-payment cash'
+          WHEN 'historical_stripe_cash_only' THEN 'Historical Stripe cash'
+          ELSE INITCAP(REPLACE(payment_plan_truth_status, '_', ' '))
+        END AS truth_label,
+        COUNT(*) AS buyers,
+        SUM(total_net_revenue_after_refunds) AS total_net_revenue_after_refunds,
+        SUM(fanbasis_net_revenue_after_refunds) AS fanbasis_net_revenue_after_refunds,
+        SUM(fanbasis_auto_renew_payments_count) AS fanbasis_auto_renew_payments,
+        SUM(fanbasis_unreleased_payments_count) AS fanbasis_unreleased_payments,
+        SAFE_DIVIDE(SUM(total_net_revenue_after_refunds), NULLIF(COUNT(*), 0)) AS revenue_per_buyer
+      FROM ${revenueTable}
+      ${buyerWhere}
+      GROUP BY payment_plan_truth_status, truth_label
       ORDER BY total_net_revenue_after_refunds DESC
     `,
     revenue_funnel_product_families: `
@@ -247,6 +272,7 @@ export async function getRevenueFunnelData(options: GetRevenueFunnelDataOptions 
     const [
       summary,
       paymentPlans,
+      paymentTruth,
       productFamilies,
       paths,
       magnets,
@@ -255,6 +281,7 @@ export async function getRevenueFunnelData(options: GetRevenueFunnelDataOptions 
     ] = await Promise.all([
       runBigQuery(revenueFunnelQueries.revenue_funnel_summary),
       runBigQuery(revenueFunnelQueries.revenue_funnel_payment_plans),
+      runBigQuery(revenueFunnelQueries.revenue_funnel_payment_truth),
       runBigQuery(revenueFunnelQueries.revenue_funnel_product_families),
       runBigQuery(revenueFunnelQueries.revenue_funnel_paths),
       runBigQuery(revenueFunnelQueries.revenue_funnel_magnets),
@@ -266,6 +293,7 @@ export async function getRevenueFunnelData(options: GetRevenueFunnelDataOptions 
       rows: {
         revenue_funnel_summary: summary,
         revenue_funnel_payment_plans: paymentPlans,
+        revenue_funnel_payment_truth: paymentTruth,
         revenue_funnel_product_families: productFamilies,
         revenue_funnel_paths: paths,
         revenue_funnel_magnets: magnets,
@@ -281,7 +309,7 @@ export async function getRevenueFunnelData(options: GetRevenueFunnelDataOptions 
         dataset,
         tables: ["revenue_funnel_detail"],
         note:
-          "Revenue Funnel is buyer-journey grain. It is useful for money, product, payment-plan, magnet, and booking-path analysis; operator attribution is diagnostic only.",
+          "Revenue Funnel is buyer-journey grain. It is useful for money, product, payment-plan, magnet, and booking-path analysis; Fanbasis plan fields are collected-cash truth until subscriber schedules land.",
       },
     };
   } catch (error) {
@@ -301,7 +329,7 @@ export async function getRevenueFunnelData(options: GetRevenueFunnelDataOptions 
         dataset,
         tables: ["revenue_funnel_detail"],
         note:
-          "Revenue Funnel is buyer-journey grain. It is useful for money, product, payment-plan, magnet, and booking-path analysis; operator attribution is diagnostic only.",
+          "Revenue Funnel is buyer-journey grain. It is useful for money, product, payment-plan, magnet, and booking-path analysis; Fanbasis plan fields are collected-cash truth until subscriber schedules land.",
       },
     };
   }

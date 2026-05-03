@@ -22,6 +22,7 @@ const toneClasses = {
 export function RevenueFunnelOperatingView({ data }: { data: DashboardData }) {
   const summary = data.rows.revenue_funnel_summary?.[0];
   const paymentPlans = data.rows.revenue_funnel_payment_plans ?? [];
+  const paymentTruth = data.rows.revenue_funnel_payment_truth ?? [];
   const productFamilies = data.rows.revenue_funnel_product_families ?? [];
   const paths = data.rows.revenue_funnel_paths ?? [];
   const magnets = data.rows.revenue_funnel_magnets ?? [];
@@ -31,6 +32,7 @@ export function RevenueFunnelOperatingView({ data }: { data: DashboardData }) {
   const buyers = numberValue(summary?.buyers);
   const netRevenue = numberValue(summary?.total_net_revenue_after_refunds);
   const paymentPlanBuyers = numberValue(summary?.payment_plan_buyers);
+  const autoRenewPayments = numberValue(summary?.fanbasis_auto_renew_payments);
   const bookingRate = numberValue(summary?.booking_before_purchase_rate);
   const magnetCoverage = numberValue(summary?.latest_prior_magnet_buyer_coverage);
   const unassignedRate = numberValue(summary?.unassigned_operator_rate);
@@ -53,7 +55,7 @@ export function RevenueFunnelOperatingView({ data }: { data: DashboardData }) {
     {
       title: "Payment-Plan Buyers",
       value: formatPercent(numberValue(summary?.payment_plan_buyer_rate)),
-      helper: `${formatNumber(paymentPlanBuyers)} buyers inferred as plans`,
+      helper: `${formatNumber(paymentPlanBuyers)} buyers · ${formatNumber(autoRenewPayments)} auto-renew payments`,
       tone: "amber",
       icon: CreditCard,
     },
@@ -113,17 +115,21 @@ export function RevenueFunnelOperatingView({ data }: { data: DashboardData }) {
 
         <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,1.05fr)_minmax(22rem,0.95fr)]">
           <PaymentPlanPanel rows={paymentPlans} />
-          <ProductFamilyPanel rows={productFamilies} />
+          <FanbasisTruthPanel rows={paymentTruth} />
         </div>
 
         <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,1.05fr)_minmax(22rem,0.95fr)]">
+          <ProductFamilyPanel rows={productFamilies} />
           <FunnelPathPanel rows={paths} />
-          <TopMagnetsPanel rows={magnets} />
         </div>
 
-        <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(22rem,0.9fr)]">
-          <OperatorDiagnosticPanel rows={operatorDiagnostic} />
+        <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,1.05fr)_minmax(22rem,0.95fr)]">
+          <TopMagnetsPanel rows={magnets} />
           <QualityPanel rows={quality} />
+        </div>
+
+        <div className="mt-3">
+          <OperatorDiagnosticPanel rows={operatorDiagnostic} />
         </div>
       </section>
 
@@ -214,6 +220,60 @@ function PaymentPlanPanel({ rows }: { rows: DashboardRow[] }) {
               </div>
               <MetricCell label="per buyer" value={formatCurrency(numberValue(row.revenue_per_buyer))} />
               <MetricCell label="booked" value={formatPercent(numberValue(row.booking_before_purchase_rate))} />
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function FanbasisTruthPanel({ rows }: { rows: DashboardRow[] }) {
+  return (
+    <section className="rounded-lg border border-[#dedbd2] bg-white p-4 shadow-sm">
+      <PanelHeader
+        title="Payment Source Truth"
+        helper="This separates collected cash from subscription schedule truth that is not landed yet."
+        badge="source gap"
+      />
+      <div className="mt-3 space-y-2">
+        {rows.map((row) => {
+          const status = stringValue(row.payment_plan_truth_status);
+          const isGap = status === "fanbasis_auto_renew_cash_only" || status === "name_inferred_plan_cash_only";
+
+          return (
+            <div key={status ?? "truth"} className="rounded-md border border-[#ece9e1] p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-semibold text-[#2d2b28]">
+                    {stringValue(row.truth_label)}
+                  </div>
+                  <div className="mt-1 text-[11px] text-[#66635f]">
+                    {isGap ? "Cash is real; receivables schedule is not landed" : "Cash evidence is transaction-grain"}
+                  </div>
+                </div>
+                <MetricCell label="buyers" value={formatNumber(numberValue(row.buyers))} />
+              </div>
+              <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                <SignalBox
+                  label="net"
+                  value={formatCurrency(numberValue(row.total_net_revenue_after_refunds))}
+                  helper="Collected net"
+                  tone="green"
+                />
+                <SignalBox
+                  label="auto-renew"
+                  value={formatNumber(numberValue(row.fanbasis_auto_renew_payments))}
+                  helper="Payment rows"
+                  tone={isGap ? "amber" : "green"}
+                />
+                <SignalBox
+                  label="unreleased"
+                  value={formatNumber(numberValue(row.fanbasis_unreleased_payments))}
+                  helper="Payout flag false"
+                  tone={numberValue(row.fanbasis_unreleased_payments) ? "amber" : "green"}
+                />
+              </div>
             </div>
           );
         })}

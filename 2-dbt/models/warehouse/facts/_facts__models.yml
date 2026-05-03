@@ -193,12 +193,28 @@ models:
         description: ISO 4217 currency code.
       - name: product
         description: Free-text product description from the payment.
+      - name: source_product_id
+        description: Native product id from the payment source when available; populated for Fanbasis.
+      - name: source_product_price
+        description: Native product price in source payload currency major units when available. Fanbasis auto-renew rows expose the charged installment amount, not a full receivables schedule.
+      - name: source_service_id
+        description: Native service id from the payment source when available; populated for Fanbasis.
+      - name: source_service_title
+        description: Native service title from the payment source when available; populated for Fanbasis.
+      - name: source_service_price
+        description: Native service price in source payload currency major units when available.
+      - name: source_service_payment_id
+        description: Native Fanbasis service-payment id. Current raw data is one-to-one with transaction id, so this is not treated as an installment-plan grouping key.
+      - name: source_fund_release_on
+        description: Fanbasis payout release timestamp when available.
+      - name: source_fund_released
+        description: Fanbasis payout release flag when available.
       - name: payment_method
         description: Channel metadata from the source (e.g. Stripe `outcome_network_status`).
       - name: card_issue_country
         description: ISO country code from billing address.
       - name: match_method
-        description: Tier used by the bridge (`email_exact` / `email_canonical` / `phone_last10` / `billing_email_direct` / `unmatched`).
+        description: Tier used by the bridge (`email_exact` / `email_canonical` / `phone_last10` / `stripe_customer_email` / `stripe_customer_phone` / `fanbasis_conversation_email` / `fanbasis_unique_crm_name` / `billing_email_direct` / `unmatched`).
         tests:
           - not_null
           - accepted_values:
@@ -206,6 +222,10 @@ models:
                 - email_exact
                 - email_canonical
                 - phone_last10
+                - stripe_customer_email
+                - stripe_customer_phone
+                - fanbasis_conversation_email
+                - fanbasis_unique_crm_name
                 - billing_email_direct
                 - unmatched
       - name: match_score
@@ -295,6 +315,10 @@ models:
                 - email_exact
                 - email_canonical
                 - phone_last10
+                - stripe_customer_email
+                - stripe_customer_phone
+                - fanbasis_conversation_email
+                - fanbasis_unique_crm_name
                 - billing_email_direct
                 - unmatched
       - name: bridge_status
