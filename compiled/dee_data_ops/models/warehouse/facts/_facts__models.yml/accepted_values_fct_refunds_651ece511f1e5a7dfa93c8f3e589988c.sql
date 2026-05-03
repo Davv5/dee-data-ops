@@ -16,7 +16,7 @@ with all_values as (
 select *
 from all_values
 where value_field not in (
-    'email_exact','email_canonical','phone_last10','billing_email_direct','unmatched'
+    'email_exact','email_canonical','phone_last10','stripe_customer_email','stripe_customer_phone','fanbasis_conversation_email','fanbasis_unique_crm_name','billing_email_direct','unmatched'
 )
 
 

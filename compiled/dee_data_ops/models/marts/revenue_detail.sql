@@ -118,6 +118,16 @@ final as (
         payments.net_amount,
         payments.currency,
         payments.product,
+        payments.source_product_id,
+        payments.source_product_internal_name,
+        payments.source_product_price,
+        payments.source_service_id,
+        payments.source_service_title,
+        payments.source_service_internal_name,
+        payments.source_service_price,
+        payments.source_service_payment_id,
+        payments.source_fund_release_on,
+        payments.source_fund_released,
 
         -- Identity link (NULL contact_sk means unmatched — kept on purpose)
         bridge.contact_sk,
@@ -152,6 +162,8 @@ final as (
             when bridge.bridge_status = 'unmatched' then 'unmatched'
             when bridge.bridge_status = 'ambiguous_multi_candidate'
                 then 'ambiguous_contact_match'
+            when bridge.contact_sk is null
+                then 'payment_identity_only'
             when
                 bridge.bridge_status = 'matched'
                 and closer_lookup.closer_name is null
