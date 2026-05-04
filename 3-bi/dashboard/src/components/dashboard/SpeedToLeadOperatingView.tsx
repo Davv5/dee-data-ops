@@ -398,13 +398,28 @@ function AuditDetails({ data }: { data: DashboardData }) {
         />
         <TablePanel
           title="Reached examples"
+          filters={data.filters}
+          customerReason="reached_by_phone"
           rows={(data.rows.speed_to_lead_reached_examples ?? []).slice(0, 8)}
           columns={[
             { key: "reached_at_et", label: "Reached At" },
-            { key: "lead_name", label: "Lead" },
+            { key: "lead_name", label: "Lead", linkToCustomer: true },
             { key: "source_label", label: "Source" },
             { key: "reached_by", label: "Reached By" },
             { key: "identity_source", label: "Source" },
+          ]}
+        />
+        <TablePanel
+          title="Unworked examples"
+          filters={data.filters}
+          customerReason="not_worked"
+          rows={(data.rows.speed_to_lead_no_touch_examples ?? []).slice(0, 8)}
+          columns={[
+            { key: "trigger_date", label: "Date" },
+            { key: "lead_name", label: "Lead", linkToCustomer: true },
+            { key: "trigger_type", label: "Type" },
+            { key: "source_label", label: "Source" },
+            { key: "age_hours", label: "Age Hrs", format: "number" },
           ]}
         />
       </div>
@@ -441,10 +456,14 @@ function TablePanel({
   title,
   rows,
   columns,
+  filters,
+  customerReason,
 }: {
   title: string;
   rows: DashboardRow[];
-  columns: Array<{ key: string; label: string; format?: "number" | "percent" | "duration" }>;
+  columns: Array<{ key: string; label: string; format?: "number" | "percent" | "duration"; linkToCustomer?: boolean }>;
+  filters?: DashboardFilters;
+  customerReason?: string;
 }) {
   return (
     <section className="min-w-0 rounded-md border border-[#ece9e1] p-3">
@@ -465,9 +484,18 @@ function TablePanel({
               <tr key={`${title}-${index}`}>
                 {columns.map((column) => (
                   <td key={column.key} className="max-w-44 border-b border-[#ece9e1] px-2 py-2 first:pl-0">
-                    <span className="block truncate">
-                      {formatValue(row[column.key], column.format)}
-                    </span>
+                    {column.linkToCustomer && filters && stringValue(row.contact_sk) ? (
+                      <a
+                        href={customerHref(row, filters, customerReason)}
+                        className="block truncate font-semibold text-[#0f766e] hover:text-[#115e59]"
+                      >
+                        {formatValue(row[column.key], column.format)}
+                      </a>
+                    ) : (
+                      <span className="block truncate">
+                        {formatValue(row[column.key], column.format)}
+                      </span>
+                    )}
                   </td>
                 ))}
               </tr>
@@ -477,6 +505,20 @@ function TablePanel({
       </div>
     </section>
   );
+}
+
+function customerHref(row: DashboardRow, filters: DashboardFilters, reason?: string) {
+  const contactSk = stringValue(row.contact_sk);
+  if (!contactSk) return `/speed-to-lead?range=${filters.timeRange}`;
+
+  const params = new URLSearchParams({
+    from: "speed-to-lead",
+    range: filters.timeRange,
+  });
+
+  if (reason) params.set("reason", reason);
+
+  return `/customers/${contactSk}?${params.toString()}`;
 }
 
 function metricRow(rows: DashboardRow[], metric: string) {

@@ -272,6 +272,46 @@ function buildLeadMagnetQueries(timeRange: LeadMagnetTimeRange) {
       ORDER BY window_attributed_net_revenue DESC, direct_bookings DESC, opportunities DESC
       LIMIT 12
     `,
+    lead_magnet_buyer_worklist: `
+      SELECT
+        contact_sk,
+        contact_id,
+        COALESCE(NULLIF(contact_name, ''), NULLIF(email_norm, ''), NULLIF(phone, ''), 'Unknown buyer') AS customer_display_name,
+        email_norm,
+        phone,
+        FORMAT_TIMESTAMP('%b %e, %Y', first_purchase_at, 'America/New_York') AS first_purchase_label,
+        FORMAT_TIMESTAMP('%b %e, %Y', latest_purchase_at, 'America/New_York') AS latest_purchase_label,
+        first_purchase_product,
+        purchased_products,
+        first_purchase_net_revenue,
+        total_net_revenue_after_refunds,
+        paid_payments_count,
+        is_multi_payment_buyer,
+        latest_prior_lead_magnet_name,
+        latest_prior_lead_magnet_category,
+        latest_prior_lead_magnet_offer_type,
+        FORMAT_TIMESTAMP('%b %e, %Y', latest_prior_opportunity_created_at, 'America/New_York') AS latest_prior_opportunity_label,
+        days_latest_prior_magnet_to_first_purchase,
+        bookings_before_first_purchase_count,
+        active_bookings_before_first_purchase_count,
+        canceled_bookings_before_first_purchase_count,
+        has_booking_before_first_purchase,
+        purchase_magnet_attribution_flag
+      FROM ${buyerTable}
+      ${buyerWhere}
+      ORDER BY
+        CASE purchase_magnet_attribution_flag
+          WHEN 'latest_prior_magnet' THEN 3
+          WHEN 'uncategorized_offer_type' THEN 2
+          WHEN 'missing_taxonomy' THEN 1
+          WHEN 'purchase_before_first_magnet' THEN 0
+          WHEN 'no_known_magnet' THEN 0
+          ELSE 1
+        END,
+        total_net_revenue_after_refunds DESC,
+        first_purchase_at DESC
+      LIMIT 30
+    `,
   } satisfies Record<string, string>;
 }
 
@@ -290,6 +330,7 @@ export async function getLeadMagnetData(options: GetLeadMagnetDataOptions = {}):
       topMagnets,
       opportunityOfferTypes,
       pipelineActivity,
+      buyerWorklist,
     ] = await Promise.all([
       runBigQuery(leadMagnetQueries.lead_magnet_summary),
       runBigQuery(leadMagnetQueries.lead_magnet_attribution_flags),
@@ -297,6 +338,7 @@ export async function getLeadMagnetData(options: GetLeadMagnetDataOptions = {}):
       runBigQuery(leadMagnetQueries.lead_magnet_top_magnets),
       runBigQuery(leadMagnetQueries.lead_magnet_opportunity_offer_types),
       runBigQuery(leadMagnetQueries.lead_magnet_pipeline_activity),
+      runBigQuery(leadMagnetQueries.lead_magnet_buyer_worklist),
     ]);
 
     return {
@@ -307,6 +349,7 @@ export async function getLeadMagnetData(options: GetLeadMagnetDataOptions = {}):
         lead_magnet_top_magnets: topMagnets,
         lead_magnet_opportunity_offer_types: opportunityOfferTypes,
         lead_magnet_pipeline_activity: pipelineActivity,
+        lead_magnet_buyer_worklist: buyerWorklist,
       },
       freshness: buildFreshness(summary),
       filters,

@@ -1,6 +1,59 @@
 version: 2
 
 models:
+  - name: stg_stripe__balance_transactions
+    description: >
+      1:1 staging view on `Raw.stripe_objects_raw` where
+      `object_type = 'balance_transactions'`. Deduped on Stripe balance
+      transaction id, keeping the latest ingested payload.
+
+      Used by `fct_payments` to report historical Stripe charges in settlement
+      currency instead of blindly presenting the original charge currency as
+      USD. Amounts stay in Stripe minor units here; conversion to major units
+      happens downstream.
+    columns:
+      - name: balance_transaction_id
+        description: Stripe balance transaction id. Primary key.
+        tests:
+          - unique
+          - not_null
+
+      - name: source_id
+        description: Source object for this balance transaction, usually a Stripe charge or refund id.
+
+      - name: balance_transaction_type
+        description: Stripe balance transaction type, such as `charge` or `refund`.
+
+      - name: reporting_category
+        description: Stripe reporting category for accounting rollups.
+
+      - name: status
+        description: Stripe balance transaction status.
+
+      - name: currency
+        description: Settlement ISO 4217 currency code for the balance transaction.
+
+      - name: amount_minor
+        description: Gross settlement amount in minor units.
+
+      - name: fee_minor
+        description: Stripe fee amount in settlement-currency minor units.
+
+      - name: net_minor
+        description: Net settlement amount in minor units after Stripe fees.
+
+      - name: exchange_rate
+        description: Exchange rate from presentment currency into settlement currency when Stripe converted the charge.
+
+      - name: available_on_at
+        description: UTC timestamp when Stripe made the balance transaction available.
+
+      - name: balance_transaction_created_at
+        description: UTC timestamp when Stripe created the balance transaction.
+
+      - name: _ingested_at
+        description: Wall-clock UTC time the raw payload was written into BigQuery.
+
   - name: stg_stripe__charges
     description: >
       1:1 staging view on `raw_stripe.charge`. Deduped on `id` keeping the

@@ -10,9 +10,9 @@ models:
       `classification_confidence`, `classification_reason`) alongside the
       JSON-decoded recorder / meeting / URL fields.
 
-      Transcript coverage is 0% as of 2026-04-23 (U1 preflight §9) —
-      `transcript` is null on every row. U6 ports the Fathom extractor
-      with a transcript fix.
+      Fathom stores transcript as nested JSON segments. `transcript` preserves
+      that raw JSON at call grain; use `stg_fathom__transcript_segments` for
+      analysis-ready speaker/text rows.
     columns:
       - name: call_id
         description: Fathom recording id.
@@ -34,6 +34,66 @@ models:
       - name: classification_label
         description: BQML classifier label (free-form, model-dependent).
       - name: transcript
-        description: Full call transcript. Null for 100% of rows as of U1 preflight.
+        description: Raw transcript JSON array from Fathom, when present.
+      - name: transcript_segment_count
+        description: Count of transcript segments embedded in the raw Fathom payload.
       - name: _ingested_at
         description: Wall-clock UTC time this row landed in BigQuery.
+
+  - name: stg_fathom__transcript_segments
+    description: >
+      Source-shaped child extraction from `Raw.fathom_calls_raw`: one row per
+      transcript segment embedded in Fathom's `$.transcript[]` payload. Used
+      for speaker/text evidence without changing the call-grain staging model.
+    columns:
+      - name: transcript_segment_sk
+        description: Surrogate key over call id and segment index.
+        tests:
+          - unique
+          - not_null
+      - name: call_id
+        description: Fathom recording id.
+        tests:
+          - not_null
+      - name: segment_index
+        description: Zero-based segment position within the Fathom transcript.
+        tests:
+          - not_null
+      - name: segment_offset_seconds
+        description: Segment offset from the start of the recording, in seconds when supplied by Fathom.
+      - name: speaker_name
+        description: Fathom's speaker display label for this segment.
+      - name: speaker_email_norm
+        description: Lowercased matched calendar invitee email for the speaker, when Fathom can resolve it.
+      - name: segment_text
+        description: Spoken text for this transcript segment.
+      - name: segment_json
+        description: Raw transcript segment JSON.
+      - name: _ingested_at
+        description: Wall-clock UTC time this row landed in BigQuery.
+
+  - name: stg_fathom__call_invitees
+    description: >
+      Source-shaped child extraction from `Raw.fathom_calls_raw`:
+      one row per calendar invitee embedded in a Fathom call payload. This
+      preserves the raw call invitee identities so downstream marts can match
+      a buyer's email directly to the Fathom sales call they attended, instead
+      of relying only on Calendly/GHL booking joins.
+    columns:
+      - name: call_invitee_sk
+        description: Surrogate key over call id, participant email, participant name, and internal/external flag.
+        tests:
+          - unique
+          - not_null
+      - name: call_id
+        description: Fathom recording id.
+        tests:
+          - not_null
+      - name: participant_email_norm
+        description: Lowercased and trimmed participant email, used for direct contact matching.
+      - name: participant_name
+        description: Participant display name from Fathom's calendar invitee payload.
+      - name: is_external
+        description: Whether Fathom classified this invitee as external to the workspace.
+      - name: participant_json
+        description: Raw participant JSON object from `$.calendar_invitees[]`.

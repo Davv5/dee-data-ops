@@ -39,7 +39,7 @@ model isolates it, makes the tier table testable, and lets the
 | 5. `stripe_customer_phone` | Stripe charge failed billing identity, but linked Stripe customer phone resolves to CRM | 0.90 | `matched` |
 | 6. `fanbasis_conversation_email` | Fanbasis email matches a historical GHL conversation email for exactly one contact | 0.88 | `matched` |
 | 7. `fanbasis_unique_crm_name` | Fanbasis buyer name matches exactly one CRM contact full name | 0.82 | `matched` |
-| 8. `billing_email_direct` | payment has email but no CRM contact — payment-only fallback | 0.80 | `matched` |
+| 8. `billing_email_direct` | payment has email but no CRM contact — payment-only fallback | 0.80 | `payment_identity_only` |
 | 9. `unmatched` | no email, no phone, no CRM match | 0.00 | `unmatched` |
 
 `ambiguous_multi_candidate` is surfaced when > 1 distinct `contact_sk`
@@ -89,5 +89,27 @@ Hard ship gates remain:
 If the warn fires and persists past a backfill window, retune the tier
 set or backfill upstream contact data before treating that source's
 `fct_payments` rows as report-grade — and escalate to David.
+
+{% enddocs %}
+
+{% docs bridge_stripe_payment_product_repair__overview %}
+
+Historical Stripe direct charges frequently omit product identity: no invoice,
+no charge description, no metadata, and no Stripe customer id. This bridge
+keeps those rows from becoming permanent `Unknown / historical Stripe` by
+repairing product labels with traceable evidence.
+
+### Repair priority
+
+1. **GHL opportunity context** — nearby opportunity pipeline/stage/name
+   mentions a known product family.
+2. **Calendly booking context** — nearby booked/scheduled call event name
+   mentions a known product family.
+3. **Stripe amount pattern** — no context match exists, but the historical
+   charge amount matches a known repeated Stripe product pattern.
+
+`fct_payments` only uses this bridge when source Stripe product fields are
+missing. Invoice line products, invoice descriptions, and charge descriptions
+remain higher authority than repairs.
 
 {% enddocs %}

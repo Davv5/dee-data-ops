@@ -10,7 +10,8 @@
 --     5. stripe_customer_phone — score 0.90  (Stripe customer object fallback)
 --     6. fanbasis_conversation_email — score 0.88
 --     7. fanbasis_unique_crm_name    — score 0.82
---     8. billing_email_direct        — score 0.80  (payment-only fallback)
+--     8. billing_email_direct        — score 0.80  (payment-only fallback;
+--        bridge_status = payment_identity_only because no CRM contact exists)
 --     9. unmatched                   — score 0.00
 -- Keeping the bridge payment-centric (not contact-centric) means every
 -- charge / Fanbasis transaction gets exactly one row here; `fct_payments`
@@ -681,10 +682,12 @@ final as (
 
         case
             when best_match.match_method = 'unmatched'
-            then 'unmatched'
+                then 'unmatched'
+            when best_match.match_method = 'billing_email_direct'
+                then 'payment_identity_only'
             when candidate_counts.distinct_candidate_count > 1
               and best_match.match_score = candidate_counts.best_score
-            then 'ambiguous_multi_candidate'
+                then 'ambiguous_multi_candidate'
             else 'matched'
         end                                                       as bridge_status
 

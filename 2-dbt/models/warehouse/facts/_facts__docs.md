@@ -127,10 +127,21 @@ One row per payment event, unioned across Stripe and Fanbasis.
 
 ### Union shape
 
-- **Stripe side:** `stg_stripe__charges`, one row per charge. Amounts
-  converted from minor units (cents) to major units here — staging
-  preserves Stripe's minor-unit contract for multi-currency fidelity,
-  warehouse normalizes to major units for mart-friendly aggregation.
+- **Stripe side:** `stg_stripe__charges`, one row per charge, enriched with
+  `stg_stripe__balance_transactions` when Stripe provides a settlement row.
+  Reporting `gross_amount`, `net_amount`, and `currency` use settlement
+  currency major units so historical non-USD charges do not display as USD
+  face value. Native charge/presentment amounts remain in
+  `source_presentment_*` columns for auditability. Failed or unpaid Stripe
+  attempts stay in the fact as source events but contribute zero reporting
+  revenue. Direct Stripe charges with no invoice, description, or metadata can
+  be product-repaired through `bridge_stripe_payment_product_repair`; the
+  product label then carries `product_attribution_*` evidence columns.
+  Historical subscription charges whose Stripe charge description is only
+  `Subscription creation` / `Subscription update` are enriched from
+  invoice-line product payloads in `Raw.stripe_objects_raw` when the charge
+  carries an invoice id. Direct Stripe charges with no invoice and no
+  description remain intentionally unknown rather than guessed from amount.
 - **Fanbasis side:** `stg_fanbasis__transactions`, one row per
   Fanbasis transaction. Live forward-going revenue source for D-DEE
   post-Stripe-ban (per memory `project_stripe_historical_only.md`).
@@ -141,10 +152,11 @@ One row per payment event, unioned across Stripe and Fanbasis.
 ### Contact attribution
 
 Flows through `bridge_identity_contact_payment`. When the bridge
-returns `unmatched`, `contact_sk` is NULL and `bridge_status` /
-`match_method` carry the diagnostic. Mart-level revenue rollups
-should decide explicitly whether to include unmatched revenue (it is
-real money) or exclude it (it can't be attributed to a SDR / AE).
+returns `unmatched` or `payment_identity_only`, `contact_sk` is NULL
+and `bridge_status` / `match_method` carry the diagnostic. Mart-level
+revenue rollups should decide explicitly whether to include unattributed
+revenue (it is real money) or exclude it (it can't be attributed to a
+SDR / AE).
 
 {% enddocs %}
 

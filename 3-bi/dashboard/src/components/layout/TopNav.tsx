@@ -1,27 +1,32 @@
 "use client";
 
-import { Activity, DollarSign, Gauge, Target } from "lucide-react";
+import { Activity, DollarSign, Gauge, ListChecks, Repeat2, Target } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { CustomerSearch } from "@/components/layout/CustomerSearch";
 
 const navItems = [
   { href: "/speed-to-lead", label: "Speed-to-Lead", icon: Gauge },
   { href: "/lead-magnets", label: "Lead Magnets", icon: Target },
   { href: "/revenue", label: "Revenue", icon: DollarSign },
+  { href: "/retention", label: "Retention", icon: Repeat2 },
+  { href: "/actions", label: "Actions", icon: ListChecks },
 ];
 
 export function TopNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="mb-4 flex flex-col gap-3 border-b border-[#dedbd2] pb-3 sm:flex-row sm:items-center sm:justify-between">
+    <nav className="mb-4 flex flex-col gap-3 border-b border-[#dedbd2] pb-3 xl:flex-row xl:items-center xl:justify-between">
       <Link href="/speed-to-lead" className="flex items-center gap-2 text-sm font-semibold">
         <span className="flex h-8 w-8 items-center justify-center rounded-md bg-[#0f766e] text-white">
           <Activity className="h-4 w-4" aria-hidden />
         </span>
         <span>D-DEE Dashboard</span>
       </Link>
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+        <CustomerSearch />
+        <div className="flex flex-wrap gap-2">
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = pathname === item.href;
@@ -42,6 +47,7 @@ export function TopNav() {
             </Link>
           );
         })}
+        </div>
       </div>
     </nav>
   );

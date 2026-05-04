@@ -1,0 +1,16 @@
+version: 2
+
+sources:
+  - name: marts_app
+    description: >
+      App-owned mutable ledgers that live in the Marts dataset beside dbt-built
+      tables. dbt reads them as sources so operator review state can be joined
+      into business-facing marts without pretending mutable human decisions are
+      rebuilt source truth.
+    database: "{{ env_var('GCP_PROJECT_ID_PROD', 'project-41542e21-470f-4589-96d') }}"
+    schema: Marts
+    tables:
+      - name: operator_action_reviews
+        description: Dashboard-written ledger of operator review outcomes.
+      - name: contract_terms_reviews
+        description: Dashboard-written ledger of confirmed contract terms.

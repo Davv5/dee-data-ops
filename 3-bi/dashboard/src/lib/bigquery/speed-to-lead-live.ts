@@ -486,17 +486,30 @@ function buildSpeedToLeadQueries(timeRange: SpeedToLeadTimeRange) {
   `,
   speed_to_lead_no_touch_examples: `
     SELECT
-      FORMAT_TIMESTAMP('%FT%TZ', trigger_ts) AS trigger_ts,
-      FORMAT_DATE('%Y-%m-%d', trigger_date) AS trigger_date,
-      trigger_type,
-      COALESCE(NULLIF(trigger_source_label, ''), 'Unknown') AS source_label,
-      COALESCE(NULLIF(utm_source, ''), 'N/A') AS utm_source,
-      COALESCE(NULLIF(utm_campaign, ''), 'N/A') AS utm_campaign,
-      TIMESTAMP_DIFF(CURRENT_TIMESTAMP(), trigger_ts, HOUR) AS age_hours
-    FROM ${tableRef("freshness")}
-    WHERE first_touch_ts IS NULL
+      dc.contact_sk,
+      FORMAT_TIMESTAMP('%FT%TZ', stl.trigger_ts) AS trigger_ts,
+      FORMAT_DATE('%Y-%m-%d', stl.trigger_date) AS trigger_date,
+      COALESCE(
+        NULLIF(gc.full_name, ''),
+        NULLIF(dc.contact_name, ''),
+        NULLIF(dc.email_norm, ''),
+        'Unknown lead'
+      ) AS lead_name,
+      COALESCE(NULLIF(dc.email_norm, ''), NULLIF(gc.email_norm, ''), 'No email') AS lead_email,
+      stl.trigger_type,
+      COALESCE(NULLIF(stl.trigger_source_label, ''), 'Unknown') AS source_label,
+      COALESCE(NULLIF(stl.utm_source, ''), 'N/A') AS utm_source,
+      COALESCE(NULLIF(stl.utm_campaign, ''), 'N/A') AS utm_campaign,
+      TIMESTAMP_DIFF(CURRENT_TIMESTAMP(), stl.trigger_ts, HOUR) AS age_hours
+    FROM ${tableRef("freshness")} stl
+    LEFT JOIN \`project-41542e21-470f-4589-96d.Marts.dim_golden_contact\` gc
+      ON gc.golden_contact_key = stl.golden_contact_key
+    LEFT JOIN \`project-41542e21-470f-4589-96d.Core.dim_contacts\` dc
+      ON dc.location_id = stl.location_id
+     AND dc.contact_id = stl.ghl_contact_id
+    WHERE stl.first_touch_ts IS NULL
       ${triggerAnd}
-    ORDER BY trigger_ts DESC
+    ORDER BY stl.trigger_ts DESC
     LIMIT 12
   `,
   speed_to_lead_quality_summary: `
@@ -752,13 +765,16 @@ function buildSpeedToLeadQueries(timeRange: SpeedToLeadTimeRange) {
   speed_to_lead_reached_examples: `
     ${qualityCte}
     SELECT
+      dc.contact_sk,
       FORMAT_TIMESTAMP('%Y-%m-%d %I:%M %p ET', tr.first_successful_connection.touch_ts, 'America/New_York') AS reached_at_et,
       COALESCE(
         NULLIF(gc.full_name, ''),
+        NULLIF(dc.contact_name, ''),
+        NULLIF(dc.email_norm, ''),
         NULLIF(TRIM(CONCAT(COALESCE(gc.first_name, ''), ' ', COALESCE(gc.last_name, ''))), ''),
         'Unknown lead'
       ) AS lead_name,
-      COALESCE(NULLIF(gc.email, ''), 'No email') AS lead_email,
+      COALESCE(NULLIF(dc.email_norm, ''), NULLIF(gc.email, ''), 'No email') AS lead_email,
       COALESCE(NULLIF(tr.trigger_source_label, ''), NULLIF(tr.utm_campaign, ''), 'Unknown') AS source_label,
       CASE
         WHEN tr.first_successful_connection.is_automated_workflow_touch THEN 'Workflow automation'
@@ -770,6 +786,9 @@ function buildSpeedToLeadQueries(timeRange: SpeedToLeadTimeRange) {
     FROM trigger_rollup tr
     LEFT JOIN \`project-41542e21-470f-4589-96d.Marts.dim_golden_contact\` gc
       ON gc.golden_contact_key = tr.golden_contact_key
+    LEFT JOIN \`project-41542e21-470f-4589-96d.Core.dim_contacts\` dc
+      ON dc.location_id = gc.location_id
+     AND dc.contact_id = gc.ghl_contact_id
     WHERE tr.first_successful_connection.touch_ts IS NOT NULL
     ORDER BY tr.first_successful_connection.touch_ts DESC
     LIMIT 12

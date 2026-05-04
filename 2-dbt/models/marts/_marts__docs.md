@@ -191,6 +191,55 @@ does not claim show/no-show truth.
 {% enddocs %}
 
 
+{% docs canceled_booking_recovery_detail %}
+
+# canceled_booking_recovery_detail
+
+**Grain:** one row per canceled Calendly booking.
+**Primary key:** `canceled_booking_sk`.
+
+## Why it exists
+
+Canceled bookings are not automatically lost demand at D-DEE. Triagers and
+hosts can cancel for qualification, rescheduling, wrong-calendar cleanup, or
+duplicate hygiene. This mart follows the next observable event after a canceled
+booking so the Revenue Funnel can separate true leakage from recovered demand.
+
+It answers:
+
+- how many canceled bookings later rebooked
+- whether the later booking likely showed
+- whether Fathom gives stronger recorded-call evidence
+- whether the contact later bought
+- whether host/triager cancellations behave differently from invitee cancellations
+
+## What it's built from
+
+- `fct_calls_booked` — canceled booking spine and next active booking
+- `stg_calendly__events` — cancellation reason and cancellation actor
+- `stg_calendly__event_invitees` — no-show marker for the later active booking
+- `stg_fathom__calls` — recorded-call evidence near the later active booking time
+- `revenue_funnel_detail` — first purchase after cancellation and buyer revenue
+
+## Show language
+
+`has_likely_show_after_cancel` is intentionally called a **show signal**, not
+attendance truth. It is true when the next active booking is due and was not
+marked no-show. `has_fathom_show_evidence` is stronger because it requires a
+revenue-relevant Fathom call within 15 minutes of the next active booking's
+scheduled start.
+
+## Revenue crediting
+
+A buyer can have more than one canceled booking. `total_net_revenue_after_cancel`
+answers this row's local question: did this cancellation precede the buyer's
+first purchase? `credited_net_revenue_after_first_cancel` credits buyer revenue
+only to the first canceled booking for the contact so dashboard totals do not
+duplicate recovered revenue.
+
+{% enddocs %}
+
+
 {% docs revenue_funnel_detail %}
 
 # revenue_funnel_detail
@@ -212,7 +261,8 @@ It answers:
 - which lead magnet was latest before first purchase
 - whether the buyer booked before buying
 - whether the buyer was touched or reached before buying
-- which operator is most defensibly tied to the path
+- which closer or sales-call owner is most defensibly tied to the revenue
+- which setter or first-touch rep is most defensibly tied to the path
 
 ## What it's built from
 
@@ -221,9 +271,55 @@ It answers:
 - `fct_payments` + `fct_refunds` — paid payments, product, payment-plan signal, net revenue
 - `fct_outreach` — pre-purchase call/SMS path
 - `fct_calls_booked` — latest booking before first purchase
+- `stg_fathom__calls` — recorded-call evidence near bookings and purchases
+- `stg_fathom__call_invitees` — buyer-email matches to Fathom calendar invitees
+- `stg_calendly__event_memberships` — Calendly host/calendar account evidence
+- `operator_identity_aliases` — manual aliases for operator emails not in GHL users
 - `dim_users` — operator labels
 
 ## Attribution language
+
+`credited_closer_*` is the primary Revenue Credit surface. It is not a
+commission rule. It is a buyer-grain operating read that chooses the strongest
+available closer / sales-call evidence in this order:
+
+1. closer-role owner of the latest prior opportunity
+2. closer-role Fathom recorder on a revenue-relevant call where the buyer's
+   email appears as an external calendar invitee before purchase
+3. closer-role Fathom recorder on a revenue-relevant call within 15 minutes of
+   the latest booking before purchase
+4. closer-role booking owner
+5. closer self-introduction in the Fathom transcript on a team-account recording
+6. closer-role Calendly host on the latest booking before purchase
+7. non-closer owner / Fathom recorder / booking owner fallback
+8. Calendly host account for Fathom team-account recordings, marked low confidence
+9. Fathom team-account recorder fallback, marked low confidence
+10. latest booking Calendly host fallback, marked low confidence when it is not a known closer
+11. unassigned
+
+Direct Fathom contact-email matching is intentionally separate from the
+booking-time match. It catches sales calls where the buyer was on the Fathom
+calendar invite but Calendly/GHL did not tie the booking cleanly. Team recorder
+accounts are first checked against the matched Calendly scheduled-event host.
+If that host is still a shared calendar account, it stays low confidence instead
+of being treated as an individual closer.
+When the recording itself is a shared Fathom/team account, transcript evidence
+can upgrade the row only when the internal speaker says a rostered closer's
+first name in a direct self-introduction pattern such as "my name is Ethan".
+Transcript-only aliases, such as Jaden/Jayden, live in
+`operator_speech_aliases` and are marked medium confidence. Plain name mentions
+are intentionally ignored.
+Calendly event titles can also upgrade a row when the latest booking title ends
+with a rostered parenthetical operator name, such as "Brand Scaling Blueprint
+Access Call (Hammad)". This is stronger than a shared host account but still
+kept below direct Fathom / GHL ownership evidence.
+Generic Calendly host fallback is intentionally low confidence for shared
+calendar accounts such as Mind of Dee / Manny; it means "we know the booking
+account," not "we know the human closer."
+
+`credited_setter_*` stays separate. It credits the first successful pre-purchase
+call when available, then first touch. This lets the dashboard distinguish
+"who handled/closed the sales path" from "who first worked the buyer."
 
 `best_available_operator_*` is not a commission rule. It is an operating
 diagnostic that chooses the most concrete path evidence in this order:
@@ -231,8 +327,9 @@ diagnostic that chooses the most concrete path evidence in this order:
 1. first successful call before purchase
 2. first human touch before purchase
 3. owner of the latest prior opportunity/magnet
-4. booking-time owner
-5. unassigned
+4. rostered operator named in the latest booking title
+5. booking-time owner
+6. unassigned
 
 Use the source column beside the name so a user can see why a person was
 credited.
@@ -268,6 +365,193 @@ the next source-layer step before this can become receivables truth.
 {% enddocs %}
 
 
+{% docs customer_retention_detail %}
+
+# customer_retention_detail
+
+**Grain:** one row per matched paid contact per calendar month.
+**Primary key:** `customer_retention_sk`.
+
+## Why it exists
+
+`revenue_funnel_detail` tells the buyer story once. `customer_retention_detail`
+turns that buyer into a month-by-month operating surface: when they first paid,
+whether they paid again, whether a refund hit later, what LTV looked like over
+time, and what source/product/operator context those retained dollars belong to.
+
+It answers:
+
+- which cohorts created repeat paid months
+- which products produced multi-payment or auto-renew behavior
+- which lead magnets and operators drove customers with higher LTV
+- where refunds changed the customer value curve
+- which Fanbasis buyers have subscriber/customer evidence versus cash-only rows
+
+## What it's built from
+
+- `revenue_funnel_detail` — buyer identity, product family, lead-magnet, closer,
+  setter, and lifetime revenue context
+- `fct_payments` — paid payment events; this is the cash spine
+- `fct_refunds` — Fanbasis refund events by refund month
+- `stg_fanbasis__transactions` — Fanbasis customer ids attached to payment rows
+- `stg_fanbasis__subscribers` — subscriber/subscription status evidence
+- `stg_fanbasis__customers` — Fanbasis customer-directory evidence
+
+## Truth boundary
+
+This mart does **not** claim full churn or remaining-balance truth yet. Payment
+activity is treated as audited cash activity. Fanbasis subscriber rows are used
+as lifecycle evidence, especially for current active/completed/failed/onetime
+status, but they are not used to invent unpaid future receivables.
+
+`retention_state` is month-specific:
+
+1. `new_paid_month` — first purchase month
+2. `repeat_paid_month` — later month with a paid payment
+3. `refund_only_month` — refund activity without same-month paid cash
+4. `active_subscriber_current_month_no_payment` — current month has active
+   Fanbasis subscriber evidence but no paid payment yet
+5. `post_latest_payment_month` — month after latest paid activity
+6. `observed_gap_month` — between purchase months with no payment/refund signal
+
+`customer_lifecycle_status` is current best evidence, not a historical monthly
+SCD. If a buyer has an active Fanbasis subscriber record today, prior months
+will carry that current lifecycle label while `retention_state` remains the
+month-specific activity label.
+
+## Payment-plan health
+
+`repeat_payment_type` separates repeat cash into buckets a human can act on:
+
+1. Fanbasis auto-renew / installment evidence
+2. Fanbasis subscription installment evidence
+3. multi-product repeat or upsell
+4. same-product multi-payment
+5. single-payment / no-repeat-yet states
+
+`payment_plan_health_status` is the operator layer. It translates lifecycle and
+payment timing into actions such as failed-plan recovery, active-plan due/no
+payment yet, active-plan not-yet-due, completed-plan paid off, one-time upsell
+candidate, or historical Stripe product repair.
+
+Expected-payment dates are heuristic. They use the latest Fanbasis subscription
+payment frequency when present, defaulting to 30 days for subscription rows
+without a frequency. They are not a receivables ledger and should not be used as
+finance-grade balance truth.
+
+## Quality flags
+
+`retention_quality_flag` keeps caveats visible:
+
+1. `clean` — usable customer-month row
+2. `missing_product_family` — product still falls into Unknown / historical Stripe
+3. `no_subscriber_record` — Fanbasis cash exists but no subscriber row matched
+4. `negative_lifetime_value` — refunds exceed net revenue for the buyer
+
+{% enddocs %}
+
+
+{% docs collection_contract_evidence_detail %}
+
+# collection_contract_evidence_detail
+
+**Grain:** one row per current matched paid customer.
+**Primary key:** `collection_contract_evidence_sk`.
+
+## Why it exists
+
+Manual collections changed the retention question. We still do not have a
+finance-grade promised contract value or remaining balance source, but we do
+have two strong evidence streams:
+
+- payment rows that prove how much cash was collected and what product was sold
+- Fathom transcript snippets where the sales call mentions payment terms
+
+This mart puts those two streams together without pretending transcript amounts
+are a receivables ledger.
+
+## What it's built from
+
+- `customer_retention_detail` — current customer row, collected cash, product,
+  collection motion, and operator next action
+- `revenue_funnel_detail` — candidate Fathom sales-call ids and closer/setter
+  attribution
+- `stg_fathom__transcript_segments` — raw transcript snippets searched for
+  amount + payment-context language
+
+## Truth boundary
+
+`lifetime_net_revenue_after_refunds`, `upfront_collected_net_revenue`, and
+`post_first_collected_net_revenue` are payment facts.
+
+`payment_terms_evidence_text`, `mentioned_payment_amounts_text`, and
+`largest_mentioned_payment_amount` are transcript evidence. Use them to review
+what was discussed on the call. Do not use them as contract value or balance
+owed until a proper promise/contract source lands.
+
+`contract_evidence_status` keeps coverage plain:
+
+1. `transcript_payment_terms_found` — candidate sales-call transcript has
+   payment-term snippets
+2. `sales_call_found_no_payment_terms` — sales call exists, but no matching
+   payment-term snippet was found
+3. `no_sales_call_transcript` — no candidate Fathom sales call was available
+
+{% enddocs %}
+
+
+{% docs customer_action_queue %}
+
+# customer_action_queue
+
+**Grain:** one row per matched customer x action surface.
+**Primary key:** `customer_action_id`.
+
+## Why it exists
+
+This is the bridge from dashboards to a future action-handler agent. Revenue,
+Retention, Contract Terms, and the operator review ledger all had useful action
+logic, but each lived in its own surface. This mart makes one readable queue:
+who needs attention, why, how much money is at stake, which route to use, what
+source table produced the signal, and whether a human already handled it.
+
+## Product boundary
+
+Expose this queue as its own Action Queue tab/workspace. Do not blend it into
+Revenue, Retention, or Customer 360 as another chart section. Speed-to-Lead,
+Lead Magnets, Revenue, Retention, and Customer 360 remain truth/exploration
+surfaces. `customer_action_queue` is an execution surface where actions can be
+reviewed, routed, completed, and written back to app-owned ledgers.
+
+## What it's built from
+
+- `revenue_funnel_detail` — revenue/data/product/attribution action candidates
+- `customer_retention_detail` — recovery, renewal, upsell, watchlist, and
+  manual-collection action candidates
+- `collection_contract_evidence_detail` — contract-terms review candidates
+- `operator_action_reviews` — app-owned review ledger for fixed/wont-fix state
+- `contract_terms_reviews` — app-owned confirmed contract terms ledger
+
+The app-owned ledgers are declared as `marts_app` sources because they are
+mutable human decisions, not dbt-derived source truth.
+
+## Truth boundary
+
+`revenue_credit_*` is the strongest known revenue attribution. It is not the
+same thing as current follow-up ownership.
+
+`current_owner_name` is intentionally `Unknown` and `current_owner_source` is
+`not_modeled_yet` until a real assignment/ownership source exists. The queue is
+therefore safe for a future agent to read without inventing accountability.
+
+`is_action_open` respects the operator review ledger. `fixed` and `wont_fix`
+rows close the action unless the review has expired. Confirmed contract terms
+also close the contract-terms review action even if the separate review row is
+missing.
+
+{% enddocs %}
+
+
 {% docs revenue_detail %}
 
 # revenue_detail
@@ -286,7 +570,8 @@ is lower than Stripe's dashboard — eroding trust. Every payment stays visible;
 
 - `fct_payments` — row source (union of Stripe + Fanbasis; either arm can be empty during ingest outages)
 - `bridge_identity_contact_payment` — left-join for `contact_sk`, `match_method`,
-  `match_score`, `bridge_status`; unmatched payments survive with NULL contact_sk
+  `match_score`, `bridge_status`; unmatched and payment-identity-only payments
+  survive with NULL contact_sk
 - `fct_refunds` — pre-aggregated per `(source_platform, parent_payment_id)` and left-joined
   to expose `refunds_total_amount`, `refunds_total_amount_net`, `refunds_count`,
   and `net_amount_after_refunds`

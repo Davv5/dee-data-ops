@@ -84,3 +84,90 @@ seeds:
           - accepted_values:
               arguments:
                 values: ['SDR', 'Setter', 'Triager', 'DM_Setter', 'Closer', 'Owner', 'unknown']
+
+  - name: operator_identity_aliases
+    description: >
+      Human-maintained aliases for operator identities that do not resolve
+      through `dim_users.email`. Use this sparingly for alternate emails,
+      Fathom-only internal users, Calendly host accounts, and team recorder
+      accounts so marts can show the best available attribution. Shared or
+      calendar accounts should map to an individual only when the operator has
+      confirmed the identity behind that account.
+    config:
+      column_types:
+        alias_email: string
+        canonical_user_id: string
+        display_name: string
+        role: string
+        alias_type: string
+        confidence: string
+    columns:
+      - name: alias_email
+        description: Lowercased Fathom recorder email to map.
+        tests:
+          - unique
+          - not_null
+      - name: display_name
+        description: Dashboard-safe display name for the Fathom identity.
+        tests:
+          - not_null
+      - name: alias_type
+        description: Type of alias represented by this row.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['alternate_email', 'fathom_only_user', 'calendly_host_account', 'team_account']
+      - name: confidence
+        description: Confidence tier for using this alias in revenue attribution.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['high', 'medium', 'low']
+
+  - name: operator_speech_aliases
+    description: >
+      Human-maintained spoken-name aliases used only for conservative Fathom
+      transcript self-introduction attribution. These do not create GHL users;
+      they let shared-account recordings surface transcript-only closer
+      identities when the speaker directly introduces themselves.
+    config:
+      column_types:
+        spoken_alias: string
+        canonical_user_id: string
+        display_name: string
+        role: string
+        alias_type: string
+        confidence: string
+    columns:
+      - name: spoken_alias
+        description: Lowercase spoken first-name alias to match in transcript self-introduction patterns.
+        tests:
+          - unique
+          - not_null
+      - name: display_name
+        description: Dashboard-safe display name for the spoken identity.
+        tests:
+          - not_null
+      - name: role
+        description: Functional role for attribution.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['SDR', 'Setter', 'Triager', 'DM_Setter', 'Closer', 'Owner', 'unknown']
+      - name: alias_type
+        description: Type of speech alias represented by this row.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['transcript_self_intro']
+      - name: confidence
+        description: Confidence tier for using this speech alias in revenue attribution.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['high', 'medium', 'low']

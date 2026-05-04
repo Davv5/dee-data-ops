@@ -4,10 +4,10 @@
 -- external_participant_count) with JSON-decoded payload fields (recorder,
 -- meeting_title, urls, transcript).
 --
--- Known gap (U1 preflight §9): `$.transcript` is null for every row (0%
--- coverage across 1,157 calls). The column is preserved so that when U6
--- fixes the extractor, transcripts will flow through without a staging
--- rewrite.
+-- Transcript payload note: Fathom stores transcript as a nested JSON array,
+-- not a scalar string. `stg_fathom__transcript_segments` is the analysis-ready
+-- child model; this view keeps the raw transcript JSON for call-grain
+-- observability.
 --
 -- TODO: retire when `raw_fathom.fathom__calls_raw` (U6) is populated.
 
@@ -48,8 +48,8 @@ source as (
         json_value(payload_json, '$.url')                               as fathom_url,
         json_value(payload_json, '$.transcript_language')               as transcript_language,
 
-        -- Null for every row as of 2026-04-23; U6 fix.
-        json_value(payload_json, '$.transcript')                        as transcript,
+        json_query(payload_json, '$.transcript')                        as transcript,
+        array_length(json_query_array(payload_json, '$.transcript'))     as transcript_segment_count,
 
         ingested_at                                                     as _ingested_at
     from {{ source('raw_fathom', 'fathom_calls_raw') }}

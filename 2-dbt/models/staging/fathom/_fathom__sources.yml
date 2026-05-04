@@ -14,9 +14,9 @@ sources:
       tables are populated (U6 Phase-2 Fathom upgrade — ported from GTM with
       transcript fix).
 
-      Known gap (U1 preflight §9): 0% transcript coverage across 1,157 calls.
-      `$.transcript` is null in every row. Stg passes the null through; root
-      cause + fix are scoped to U6 (port + fix Fathom extractor).
+      Transcript note: Fathom stores `$.transcript` as a nested JSON array,
+      not a scalar string. Use `stg_fathom__transcript_segments` for transcript
+      analysis; call-grain staging preserves the raw transcript JSON.
     schema: Raw
     config:
       loaded_at_field: ingested_at
@@ -52,6 +52,6 @@ sources:
               `$.recording_start_time`, `$.scheduled_start_time`,
               `$.meeting_title`, `$.recorded_by.{email,name}`,
               `$.calendar_invitees[]`, `$.share_url`, `$.url`,
-              `$.transcript` (currently null; U6 fix).
+              `$.transcript` as a nested segment array when present.
             tests:
               - not_null

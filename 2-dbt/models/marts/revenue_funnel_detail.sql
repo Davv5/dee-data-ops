@@ -311,6 +311,7 @@ latest_booking_before_purchase as (
         buyers.contact_sk,
         bookings.booking_sk                                           as latest_booking_sk,
         bookings.calendly_event_id                                    as latest_booking_event_id,
+        bookings.event_name                                           as latest_booking_event_name,
         bookings.booked_at                                            as latest_booking_booked_at,
         bookings.scheduled_for                                        as latest_booking_scheduled_for,
         bookings.event_status                                         as latest_booking_status,
@@ -332,8 +333,424 @@ users as (
         user_sk,
         user_id,
         name,
+        email,
         role
     from {{ ref('dim_users') }}
+
+),
+
+fathom_call_invitees as (
+
+    select
+        call_id,
+        participant_email_norm,
+        is_external
+    from {{ ref('stg_fathom__call_invitees') }}
+
+),
+
+operator_identity_aliases as (
+
+    select
+        nullif(lower(trim(alias_email)), '')                           as alias_email_norm,
+        nullif(canonical_user_id, '')                                  as canonical_user_id,
+        display_name,
+        role,
+        alias_type,
+        confidence
+    from {{ ref('operator_identity_aliases') }}
+
+),
+
+operator_identities as (
+
+    select
+        lower(trim(email))                                             as operator_email_norm,
+        user_sk,
+        user_id,
+        name,
+        role,
+        'dim_users'                                                    as identity_type,
+        'high'                                                         as identity_confidence
+    from users
+    where email is not null
+
+    union all
+
+    select
+        operator_identity_aliases.alias_email_norm                     as operator_email_norm,
+        users.user_sk,
+        coalesce(
+            operator_identity_aliases.canonical_user_id,
+            users.user_id
+        )                                                             as user_id,
+        coalesce(
+            users.name,
+            operator_identity_aliases.display_name
+        )                                                             as name,
+        coalesce(users.role, operator_identity_aliases.role)           as role,
+        operator_identity_aliases.alias_type                           as identity_type,
+        operator_identity_aliases.confidence                           as identity_confidence
+    from operator_identity_aliases
+    left join users
+        on operator_identity_aliases.canonical_user_id = users.user_id
+    where operator_identity_aliases.alias_email_norm is not null
+
+),
+
+operator_speech_aliases as (
+
+    select
+        nullif(lower(trim(spoken_alias)), '')                          as spoken_alias_norm,
+        nullif(canonical_user_id, '')                                  as canonical_user_id,
+        display_name,
+        role,
+        alias_type,
+        confidence
+    from {{ ref('operator_speech_aliases') }}
+
+),
+
+operator_spoken_identities as (
+
+    select
+        lower(split(name, ' ')[safe_offset(0)])                        as spoken_alias_norm,
+        user_sk,
+        user_id,
+        name,
+        role,
+        'dim_users_first_name'                                         as identity_type,
+        'high'                                                         as identity_confidence
+    from users
+    where name is not null
+
+    union all
+
+    select
+        operator_speech_aliases.spoken_alias_norm,
+        users.user_sk,
+        coalesce(
+            operator_speech_aliases.canonical_user_id,
+            users.user_id
+        )                                                             as user_id,
+        coalesce(
+            users.name,
+            operator_speech_aliases.display_name
+        )                                                             as name,
+        coalesce(users.role, operator_speech_aliases.role)             as role,
+        operator_speech_aliases.alias_type                             as identity_type,
+        operator_speech_aliases.confidence                             as identity_confidence
+    from operator_speech_aliases
+    left join users
+        on operator_speech_aliases.canonical_user_id = users.user_id
+    where operator_speech_aliases.spoken_alias_norm is not null
+
+),
+
+fathom_near_latest_booking as (
+
+    select
+        buyers.contact_sk,
+        fathom.call_id                                             as latest_booking_fathom_call_id,
+        fathom.scheduled_start_at                                  as latest_booking_fathom_scheduled_start_at,
+        fathom.recorded_by_email                                   as latest_booking_fathom_recorded_by_email,
+        fathom.recorded_by_name                                    as latest_booking_fathom_recorded_by_name,
+        fathom.is_revenue_relevant                                 as latest_booking_fathom_is_revenue_relevant,
+        abs(
+            timestamp_diff(
+                fathom.scheduled_start_at,
+                latest_booking_before_purchase.latest_booking_scheduled_for,
+                second
+            )
+        )                                                          as latest_booking_fathom_schedule_delta_seconds,
+        operator_identities.user_sk                                as latest_booking_fathom_user_sk,
+        operator_identities.user_id                                as latest_booking_fathom_user_id,
+        coalesce(
+            operator_identities.name,
+            fathom.recorded_by_name
+        )                                                          as latest_booking_fathom_user_name,
+        coalesce(
+            operator_identities.role,
+            'unknown'
+        )                                                          as latest_booking_fathom_user_role,
+        operator_identities.identity_type                          as latest_booking_fathom_identity_type,
+        operator_identities.identity_confidence                    as latest_booking_fathom_identity_confidence
+
+    from buyers
+    inner join latest_booking_before_purchase
+        on buyers.contact_sk = latest_booking_before_purchase.contact_sk
+    inner join {{ ref('stg_fathom__calls') }} as fathom
+        on latest_booking_before_purchase.latest_booking_scheduled_for is not null
+       and fathom.scheduled_start_at <= buyers.first_purchase_at
+       and abs(
+            timestamp_diff(
+                fathom.scheduled_start_at,
+                latest_booking_before_purchase.latest_booking_scheduled_for,
+                minute
+            )
+        ) <= 15
+    left join operator_identities
+        on lower(trim(fathom.recorded_by_email))
+           = operator_identities.operator_email_norm
+    qualify row_number() over (
+        partition by buyers.contact_sk
+        order by
+            fathom.is_revenue_relevant desc,
+            operator_identities.role = 'Closer' desc,
+            abs(
+                timestamp_diff(
+                    fathom.scheduled_start_at,
+                    latest_booking_before_purchase.latest_booking_scheduled_for,
+                    second
+                )
+            ),
+            fathom.scheduled_start_at desc,
+            fathom.call_id
+    ) = 1
+
+),
+
+fathom_by_contact_email_before_purchase as (
+
+    select
+        buyers.contact_sk,
+        fathom.call_id                                             as contact_email_fathom_call_id,
+        fathom.scheduled_start_at                                  as contact_email_fathom_scheduled_start_at,
+        fathom.recorded_by_email                                   as contact_email_fathom_recorded_by_email,
+        fathom.recorded_by_name                                    as contact_email_fathom_recorded_by_name,
+        fathom.is_revenue_relevant                                 as contact_email_fathom_is_revenue_relevant,
+        timestamp_diff(
+            buyers.first_purchase_at,
+            fathom.scheduled_start_at,
+            hour
+        )                                                          as contact_email_fathom_hours_to_purchase,
+        operator_identities.user_sk                                as contact_email_fathom_user_sk,
+        operator_identities.user_id                                as contact_email_fathom_user_id,
+        coalesce(
+            operator_identities.name,
+            fathom.recorded_by_name
+        )                                                          as contact_email_fathom_user_name,
+        coalesce(
+            operator_identities.role,
+            'unknown'
+        )                                                          as contact_email_fathom_user_role,
+        operator_identities.identity_type                          as contact_email_fathom_identity_type,
+        operator_identities.identity_confidence                    as contact_email_fathom_identity_confidence
+
+    from buyers
+    inner join fathom_call_invitees
+        on fathom_call_invitees.participant_email_norm = buyers.email_norm
+       and fathom_call_invitees.is_external
+    inner join {{ ref('stg_fathom__calls') }} as fathom
+        on fathom.call_id = fathom_call_invitees.call_id
+       and fathom.scheduled_start_at <= buyers.first_purchase_at
+       and fathom.scheduled_start_at >= timestamp_sub(
+            buyers.first_purchase_at,
+            interval 90 day
+        )
+    left join operator_identities
+        on lower(trim(fathom.recorded_by_email))
+           = operator_identities.operator_email_norm
+    qualify row_number() over (
+        partition by buyers.contact_sk
+        order by
+            fathom.is_revenue_relevant desc,
+            operator_identities.role = 'Closer' desc,
+            fathom.scheduled_start_at desc,
+            fathom.call_id desc
+    ) = 1
+
+),
+
+calendly_host_by_contact_email_fathom as (
+
+    select
+        buyers.contact_sk,
+        calendly_events.event_id                                    as contact_email_calendly_event_id,
+        calendly_event_memberships.calendly_user_uri                as contact_email_calendly_host_user_uri,
+        calendly_event_memberships.user_email                       as contact_email_calendly_host_email,
+        calendly_event_memberships.user_email_norm                  as contact_email_calendly_host_email_norm,
+        calendly_event_memberships.user_name                        as contact_email_calendly_host_name,
+        abs(
+            timestamp_diff(
+                calendly_events.scheduled_for,
+                fathom_by_contact_email_before_purchase.contact_email_fathom_scheduled_start_at,
+                minute
+            )
+        )                                                          as contact_email_calendly_host_match_minutes,
+        operator_identities.user_sk                                as contact_email_calendly_host_user_sk,
+        operator_identities.user_id                                as contact_email_calendly_host_user_id,
+        coalesce(
+            operator_identities.name,
+            calendly_event_memberships.user_name
+        )                                                          as contact_email_calendly_host_user_name,
+        coalesce(
+            operator_identities.role,
+            'unknown'
+        )                                                          as contact_email_calendly_host_user_role,
+        operator_identities.identity_type                          as contact_email_calendly_host_identity_type,
+        operator_identities.identity_confidence                    as contact_email_calendly_host_identity_confidence
+
+    from buyers
+    inner join fathom_by_contact_email_before_purchase
+        on buyers.contact_sk = fathom_by_contact_email_before_purchase.contact_sk
+    inner join {{ ref('stg_calendly__event_invitees') }} as calendly_invitees
+        on calendly_invitees.invitee_email_norm = buyers.email_norm
+    inner join {{ ref('stg_calendly__events') }} as calendly_events
+        on calendly_events.event_id = calendly_invitees.event_id
+       and abs(
+            timestamp_diff(
+                calendly_events.scheduled_for,
+                fathom_by_contact_email_before_purchase.contact_email_fathom_scheduled_start_at,
+                minute
+            )
+        ) <= 120
+    inner join {{ ref('stg_calendly__event_memberships') }} as calendly_event_memberships
+        on calendly_event_memberships.event_id = calendly_events.event_id
+    left join operator_identities
+        on calendly_event_memberships.user_email_norm
+           = operator_identities.operator_email_norm
+    qualify row_number() over (
+        partition by buyers.contact_sk
+        order by
+            abs(
+                timestamp_diff(
+                    calendly_events.scheduled_for,
+                    fathom_by_contact_email_before_purchase.contact_email_fathom_scheduled_start_at,
+                    minute
+                )
+            ),
+            operator_identities.role = 'Closer' desc,
+            calendly_events.booked_at desc,
+            calendly_event_memberships.calendly_user_uri
+    ) = 1
+
+),
+
+latest_booking_calendly_host as (
+
+    select
+        buyers.contact_sk,
+        calendly_event_memberships.calendly_user_uri                as latest_booking_calendly_host_user_uri,
+        calendly_event_memberships.user_email                       as latest_booking_calendly_host_email,
+        calendly_event_memberships.user_email_norm                  as latest_booking_calendly_host_email_norm,
+        calendly_event_memberships.user_name                        as latest_booking_calendly_host_name,
+        operator_identities.user_sk                                as latest_booking_calendly_host_user_sk,
+        operator_identities.user_id                                as latest_booking_calendly_host_user_id,
+        coalesce(
+            operator_identities.name,
+            calendly_event_memberships.user_name
+        )                                                          as latest_booking_calendly_host_user_name,
+        coalesce(
+            operator_identities.role,
+            'unknown'
+        )                                                          as latest_booking_calendly_host_user_role,
+        operator_identities.identity_type                          as latest_booking_calendly_host_identity_type,
+        operator_identities.identity_confidence                    as latest_booking_calendly_host_identity_confidence
+    from buyers
+    inner join latest_booking_before_purchase
+        on buyers.contact_sk = latest_booking_before_purchase.contact_sk
+    inner join {{ ref('stg_calendly__event_memberships') }} as calendly_event_memberships
+        on latest_booking_before_purchase.latest_booking_event_id
+           = calendly_event_memberships.event_id
+    left join operator_identities
+        on calendly_event_memberships.user_email_norm
+           = operator_identities.operator_email_norm
+    qualify row_number() over (
+        partition by buyers.contact_sk
+        order by
+            operator_identities.role = 'Closer' desc,
+            case operator_identities.identity_confidence
+                when 'high' then 3
+                when 'medium' then 2
+                when 'low' then 1
+                else 0
+            end desc,
+            calendly_event_memberships.calendly_user_uri
+    ) = 1
+
+),
+
+latest_booking_event_name_operator as (
+
+    select
+        buyers.contact_sk,
+        regexp_extract(
+            lower(latest_booking_before_purchase.latest_booking_event_name),
+            r'\(([^)]+)\)\s*$'
+        )                                                          as latest_booking_event_name_operator_alias,
+        operator_spoken_identities.user_sk                         as latest_booking_event_name_operator_user_sk,
+        operator_spoken_identities.user_id                         as latest_booking_event_name_operator_user_id,
+        operator_spoken_identities.name                            as latest_booking_event_name_operator_name,
+        operator_spoken_identities.role                            as latest_booking_event_name_operator_role,
+        operator_spoken_identities.identity_type                   as latest_booking_event_name_operator_identity_type,
+        operator_spoken_identities.identity_confidence             as latest_booking_event_name_operator_identity_confidence
+    from buyers
+    inner join latest_booking_before_purchase
+        on buyers.contact_sk = latest_booking_before_purchase.contact_sk
+    left join operator_spoken_identities
+        on regexp_extract(
+            lower(latest_booking_before_purchase.latest_booking_event_name),
+            r'\(([^)]+)\)\s*$'
+        ) = operator_spoken_identities.spoken_alias_norm
+    where latest_booking_before_purchase.latest_booking_event_name is not null
+    qualify row_number() over (
+        partition by buyers.contact_sk
+        order by
+            operator_spoken_identities.role = 'Closer' desc,
+            case operator_spoken_identities.identity_confidence
+                when 'high' then 3
+                when 'medium' then 2
+                when 'low' then 1
+                else 0
+            end desc,
+            operator_spoken_identities.name
+    ) = 1
+
+),
+
+fathom_transcript_self_intro_closer as (
+
+    select
+        buyers.contact_sk,
+        transcript_segments.call_id                               as transcript_closer_call_id,
+        transcript_segments.segment_index                         as transcript_closer_segment_index,
+        transcript_segments.segment_text                          as transcript_closer_evidence_text,
+        operator_spoken_identities.user_sk                        as transcript_closer_user_sk,
+        operator_spoken_identities.user_id                        as transcript_closer_user_id,
+        operator_spoken_identities.name                           as transcript_closer_user_name,
+        operator_spoken_identities.role                           as transcript_closer_user_role,
+        operator_spoken_identities.identity_type                  as transcript_closer_identity_type,
+        operator_spoken_identities.identity_confidence            as transcript_closer_identity_confidence
+    from buyers
+    inner join fathom_by_contact_email_before_purchase
+        on buyers.contact_sk = fathom_by_contact_email_before_purchase.contact_sk
+       and fathom_by_contact_email_before_purchase.contact_email_fathom_identity_type = 'team_account'
+       and fathom_by_contact_email_before_purchase.contact_email_fathom_is_revenue_relevant
+    inner join {{ ref('stg_fathom__transcript_segments') }} as transcript_segments
+        on fathom_by_contact_email_before_purchase.contact_email_fathom_call_id
+           = transcript_segments.call_id
+       and transcript_segments.speaker_email_norm = lower(trim(
+            fathom_by_contact_email_before_purchase.contact_email_fathom_recorded_by_email
+        ))
+       and transcript_segments.segment_index < 200
+    inner join operator_spoken_identities
+        on operator_spoken_identities.role = 'Closer'
+       and regexp_contains(
+            lower(transcript_segments.segment_text),
+            concat(
+                r'\b(my name.?s|name is|this is|it.?s|i.?m)\s+',
+                operator_spoken_identities.spoken_alias_norm,
+                r'\b'
+            )
+        )
+    qualify row_number() over (
+        partition by buyers.contact_sk
+        order by
+            operator_spoken_identities.identity_confidence = 'high' desc,
+            transcript_segments.segment_index,
+            operator_spoken_identities.name
+    ) = 1
 
 ),
 
@@ -514,6 +931,7 @@ assembled as (
 
         latest_booking_before_purchase.latest_booking_sk,
         latest_booking_before_purchase.latest_booking_event_id,
+        latest_booking_before_purchase.latest_booking_event_name,
         latest_booking_before_purchase.latest_booking_booked_at,
         latest_booking_before_purchase.latest_booking_scheduled_for,
         latest_booking_before_purchase.latest_booking_status,
@@ -521,6 +939,74 @@ assembled as (
         latest_booking_user.user_id                                   as latest_booking_assigned_user_id,
         latest_booking_user.name                                      as latest_booking_assigned_user_name,
         latest_booking_user.role                                      as latest_booking_assigned_user_role,
+
+        fathom_near_latest_booking.latest_booking_fathom_call_id,
+        fathom_near_latest_booking.latest_booking_fathom_scheduled_start_at,
+        fathom_near_latest_booking.latest_booking_fathom_recorded_by_email,
+        fathom_near_latest_booking.latest_booking_fathom_recorded_by_name,
+        fathom_near_latest_booking.latest_booking_fathom_is_revenue_relevant,
+        fathom_near_latest_booking.latest_booking_fathom_schedule_delta_seconds,
+        fathom_near_latest_booking.latest_booking_fathom_user_sk,
+        fathom_near_latest_booking.latest_booking_fathom_user_id,
+        fathom_near_latest_booking.latest_booking_fathom_user_name,
+        fathom_near_latest_booking.latest_booking_fathom_user_role,
+        fathom_near_latest_booking.latest_booking_fathom_identity_type,
+        fathom_near_latest_booking.latest_booking_fathom_identity_confidence,
+
+        fathom_by_contact_email_before_purchase.contact_email_fathom_call_id,
+        fathom_by_contact_email_before_purchase.contact_email_fathom_scheduled_start_at,
+        fathom_by_contact_email_before_purchase.contact_email_fathom_recorded_by_email,
+        fathom_by_contact_email_before_purchase.contact_email_fathom_recorded_by_name,
+        fathom_by_contact_email_before_purchase.contact_email_fathom_is_revenue_relevant,
+        fathom_by_contact_email_before_purchase.contact_email_fathom_hours_to_purchase,
+        fathom_by_contact_email_before_purchase.contact_email_fathom_user_sk,
+        fathom_by_contact_email_before_purchase.contact_email_fathom_user_id,
+        fathom_by_contact_email_before_purchase.contact_email_fathom_user_name,
+        fathom_by_contact_email_before_purchase.contact_email_fathom_user_role,
+        fathom_by_contact_email_before_purchase.contact_email_fathom_identity_type,
+        fathom_by_contact_email_before_purchase.contact_email_fathom_identity_confidence,
+
+        calendly_host_by_contact_email_fathom.contact_email_calendly_event_id,
+        calendly_host_by_contact_email_fathom.contact_email_calendly_host_user_uri,
+        calendly_host_by_contact_email_fathom.contact_email_calendly_host_email,
+        calendly_host_by_contact_email_fathom.contact_email_calendly_host_email_norm,
+        calendly_host_by_contact_email_fathom.contact_email_calendly_host_name,
+        calendly_host_by_contact_email_fathom.contact_email_calendly_host_match_minutes,
+        calendly_host_by_contact_email_fathom.contact_email_calendly_host_user_sk,
+        calendly_host_by_contact_email_fathom.contact_email_calendly_host_user_id,
+        calendly_host_by_contact_email_fathom.contact_email_calendly_host_user_name,
+        calendly_host_by_contact_email_fathom.contact_email_calendly_host_user_role,
+        calendly_host_by_contact_email_fathom.contact_email_calendly_host_identity_type,
+        calendly_host_by_contact_email_fathom.contact_email_calendly_host_identity_confidence,
+
+        fathom_transcript_self_intro_closer.transcript_closer_call_id,
+        fathom_transcript_self_intro_closer.transcript_closer_segment_index,
+        fathom_transcript_self_intro_closer.transcript_closer_evidence_text,
+        fathom_transcript_self_intro_closer.transcript_closer_user_sk,
+        fathom_transcript_self_intro_closer.transcript_closer_user_id,
+        fathom_transcript_self_intro_closer.transcript_closer_user_name,
+        fathom_transcript_self_intro_closer.transcript_closer_user_role,
+        fathom_transcript_self_intro_closer.transcript_closer_identity_type,
+        fathom_transcript_self_intro_closer.transcript_closer_identity_confidence,
+
+        latest_booking_event_name_operator.latest_booking_event_name_operator_alias,
+        latest_booking_event_name_operator.latest_booking_event_name_operator_user_sk,
+        latest_booking_event_name_operator.latest_booking_event_name_operator_user_id,
+        latest_booking_event_name_operator.latest_booking_event_name_operator_name,
+        latest_booking_event_name_operator.latest_booking_event_name_operator_role,
+        latest_booking_event_name_operator.latest_booking_event_name_operator_identity_type,
+        latest_booking_event_name_operator.latest_booking_event_name_operator_identity_confidence,
+
+        latest_booking_calendly_host.latest_booking_calendly_host_user_uri,
+        latest_booking_calendly_host.latest_booking_calendly_host_email,
+        latest_booking_calendly_host.latest_booking_calendly_host_email_norm,
+        latest_booking_calendly_host.latest_booking_calendly_host_name,
+        latest_booking_calendly_host.latest_booking_calendly_host_user_sk,
+        latest_booking_calendly_host.latest_booking_calendly_host_user_id,
+        latest_booking_calendly_host.latest_booking_calendly_host_user_name,
+        latest_booking_calendly_host.latest_booking_calendly_host_user_role,
+        latest_booking_calendly_host.latest_booking_calendly_host_identity_type,
+        latest_booking_calendly_host.latest_booking_calendly_host_identity_confidence,
 
         coalesce(outreach_before_first_purchase.touches_before_purchase_count, 0)
                                                                         as touches_before_purchase_count,
@@ -566,12 +1052,272 @@ assembled as (
         )                                                             as hours_latest_booking_to_purchase,
 
         case
+            when latest_prior_opportunities.assigned_user_role = 'Closer'
+                then latest_prior_opportunities.assigned_user_sk
+            when fathom_by_contact_email_before_purchase.contact_email_fathom_user_role = 'Closer'
+                and fathom_by_contact_email_before_purchase.contact_email_fathom_is_revenue_relevant
+                then fathom_by_contact_email_before_purchase.contact_email_fathom_user_sk
+            when fathom_near_latest_booking.latest_booking_fathom_user_role = 'Closer'
+                and fathom_near_latest_booking.latest_booking_fathom_is_revenue_relevant
+                then fathom_near_latest_booking.latest_booking_fathom_user_sk
+            when latest_booking_user.role = 'Closer'
+                then latest_booking_user.user_sk
+            when fathom_transcript_self_intro_closer.transcript_closer_user_role = 'Closer'
+                then fathom_transcript_self_intro_closer.transcript_closer_user_sk
+            when latest_booking_event_name_operator.latest_booking_event_name_operator_role = 'Closer'
+                then latest_booking_event_name_operator.latest_booking_event_name_operator_user_sk
+            when latest_booking_calendly_host.latest_booking_calendly_host_user_role = 'Closer'
+                then latest_booking_calendly_host.latest_booking_calendly_host_user_sk
+            when latest_prior_opportunities.assigned_user_sk is not null
+                then latest_prior_opportunities.assigned_user_sk
+            when fathom_by_contact_email_before_purchase.contact_email_fathom_identity_type = 'team_account'
+                and calendly_host_by_contact_email_fathom.contact_email_calendly_host_user_name is not null
+                then calendly_host_by_contact_email_fathom.contact_email_calendly_host_user_sk
+            when fathom_by_contact_email_before_purchase.contact_email_fathom_identity_type != 'team_account'
+                then fathom_by_contact_email_before_purchase.contact_email_fathom_user_sk
+            when fathom_near_latest_booking.latest_booking_fathom_user_sk is not null
+                then fathom_near_latest_booking.latest_booking_fathom_user_sk
+            when latest_booking_user.user_sk is not null
+                then latest_booking_user.user_sk
+            when latest_booking_event_name_operator.latest_booking_event_name_operator_user_sk is not null
+                then latest_booking_event_name_operator.latest_booking_event_name_operator_user_sk
+            when latest_booking_calendly_host.latest_booking_calendly_host_user_name is not null
+                then latest_booking_calendly_host.latest_booking_calendly_host_user_sk
+        end                                                           as credited_closer_user_sk,
+        case
+            when latest_prior_opportunities.assigned_user_role = 'Closer'
+                then latest_prior_opportunities.assigned_user_id
+            when fathom_by_contact_email_before_purchase.contact_email_fathom_user_role = 'Closer'
+                and fathom_by_contact_email_before_purchase.contact_email_fathom_is_revenue_relevant
+                then fathom_by_contact_email_before_purchase.contact_email_fathom_user_id
+            when fathom_near_latest_booking.latest_booking_fathom_user_role = 'Closer'
+                and fathom_near_latest_booking.latest_booking_fathom_is_revenue_relevant
+                then fathom_near_latest_booking.latest_booking_fathom_user_id
+            when latest_booking_user.role = 'Closer'
+                then latest_booking_user.user_id
+            when fathom_transcript_self_intro_closer.transcript_closer_user_role = 'Closer'
+                then fathom_transcript_self_intro_closer.transcript_closer_user_id
+            when latest_booking_event_name_operator.latest_booking_event_name_operator_role = 'Closer'
+                then latest_booking_event_name_operator.latest_booking_event_name_operator_user_id
+            when latest_booking_calendly_host.latest_booking_calendly_host_user_role = 'Closer'
+                then latest_booking_calendly_host.latest_booking_calendly_host_user_id
+            when latest_prior_opportunities.assigned_user_sk is not null
+                then latest_prior_opportunities.assigned_user_id
+            when fathom_by_contact_email_before_purchase.contact_email_fathom_identity_type = 'team_account'
+                and calendly_host_by_contact_email_fathom.contact_email_calendly_host_user_name is not null
+                then calendly_host_by_contact_email_fathom.contact_email_calendly_host_user_id
+            when fathom_by_contact_email_before_purchase.contact_email_fathom_identity_type != 'team_account'
+                then fathom_by_contact_email_before_purchase.contact_email_fathom_user_id
+            when fathom_near_latest_booking.latest_booking_fathom_user_sk is not null
+                then fathom_near_latest_booking.latest_booking_fathom_user_id
+            when latest_booking_user.user_sk is not null
+                then latest_booking_user.user_id
+            when latest_booking_event_name_operator.latest_booking_event_name_operator_user_sk is not null
+                then latest_booking_event_name_operator.latest_booking_event_name_operator_user_id
+            when latest_booking_calendly_host.latest_booking_calendly_host_user_name is not null
+                then latest_booking_calendly_host.latest_booking_calendly_host_user_id
+        end                                                           as credited_closer_user_id,
+        case
+            when latest_prior_opportunities.assigned_user_role = 'Closer'
+                then latest_prior_opportunities.assigned_user_name
+            when fathom_by_contact_email_before_purchase.contact_email_fathom_user_role = 'Closer'
+                and fathom_by_contact_email_before_purchase.contact_email_fathom_is_revenue_relevant
+                then fathom_by_contact_email_before_purchase.contact_email_fathom_user_name
+            when fathom_near_latest_booking.latest_booking_fathom_user_role = 'Closer'
+                and fathom_near_latest_booking.latest_booking_fathom_is_revenue_relevant
+                then fathom_near_latest_booking.latest_booking_fathom_user_name
+            when latest_booking_user.role = 'Closer'
+                then latest_booking_user.name
+            when fathom_transcript_self_intro_closer.transcript_closer_user_role = 'Closer'
+                then fathom_transcript_self_intro_closer.transcript_closer_user_name
+            when latest_booking_event_name_operator.latest_booking_event_name_operator_role = 'Closer'
+                then latest_booking_event_name_operator.latest_booking_event_name_operator_name
+            when latest_booking_calendly_host.latest_booking_calendly_host_user_role = 'Closer'
+                then latest_booking_calendly_host.latest_booking_calendly_host_user_name
+            when latest_prior_opportunities.assigned_user_sk is not null
+                then latest_prior_opportunities.assigned_user_name
+            when fathom_by_contact_email_before_purchase.contact_email_fathom_identity_type = 'team_account'
+                and calendly_host_by_contact_email_fathom.contact_email_calendly_host_user_name is not null
+                then calendly_host_by_contact_email_fathom.contact_email_calendly_host_user_name
+            when fathom_by_contact_email_before_purchase.contact_email_fathom_user_name is not null
+                and fathom_by_contact_email_before_purchase.contact_email_fathom_identity_type != 'team_account'
+                then fathom_by_contact_email_before_purchase.contact_email_fathom_user_name
+            when fathom_near_latest_booking.latest_booking_fathom_user_sk is not null
+                then fathom_near_latest_booking.latest_booking_fathom_user_name
+            when latest_booking_user.user_sk is not null
+                then latest_booking_user.name
+            when latest_booking_event_name_operator.latest_booking_event_name_operator_user_sk is not null
+                then latest_booking_event_name_operator.latest_booking_event_name_operator_name
+            when latest_booking_calendly_host.latest_booking_calendly_host_user_name is not null
+                then latest_booking_calendly_host.latest_booking_calendly_host_user_name
+            else 'Unassigned / unknown'
+        end                                                           as credited_closer_name,
+        case
+            when latest_prior_opportunities.assigned_user_role = 'Closer'
+                then latest_prior_opportunities.assigned_user_role
+            when fathom_by_contact_email_before_purchase.contact_email_fathom_user_role = 'Closer'
+                and fathom_by_contact_email_before_purchase.contact_email_fathom_is_revenue_relevant
+                then fathom_by_contact_email_before_purchase.contact_email_fathom_user_role
+            when fathom_near_latest_booking.latest_booking_fathom_user_role = 'Closer'
+                and fathom_near_latest_booking.latest_booking_fathom_is_revenue_relevant
+                then fathom_near_latest_booking.latest_booking_fathom_user_role
+            when latest_booking_user.role = 'Closer'
+                then latest_booking_user.role
+            when fathom_transcript_self_intro_closer.transcript_closer_user_role = 'Closer'
+                then fathom_transcript_self_intro_closer.transcript_closer_user_role
+            when latest_booking_event_name_operator.latest_booking_event_name_operator_role = 'Closer'
+                then latest_booking_event_name_operator.latest_booking_event_name_operator_role
+            when latest_booking_calendly_host.latest_booking_calendly_host_user_role = 'Closer'
+                then latest_booking_calendly_host.latest_booking_calendly_host_user_role
+            when latest_prior_opportunities.assigned_user_sk is not null
+                then latest_prior_opportunities.assigned_user_role
+            when fathom_by_contact_email_before_purchase.contact_email_fathom_identity_type = 'team_account'
+                and calendly_host_by_contact_email_fathom.contact_email_calendly_host_user_name is not null
+                then calendly_host_by_contact_email_fathom.contact_email_calendly_host_user_role
+            when fathom_by_contact_email_before_purchase.contact_email_fathom_user_name is not null
+                and fathom_by_contact_email_before_purchase.contact_email_fathom_identity_type != 'team_account'
+                then fathom_by_contact_email_before_purchase.contact_email_fathom_user_role
+            when fathom_near_latest_booking.latest_booking_fathom_user_sk is not null
+                then fathom_near_latest_booking.latest_booking_fathom_user_role
+            when latest_booking_user.user_sk is not null
+                then latest_booking_user.role
+            when latest_booking_event_name_operator.latest_booking_event_name_operator_user_sk is not null
+                then latest_booking_event_name_operator.latest_booking_event_name_operator_role
+            when latest_booking_calendly_host.latest_booking_calendly_host_user_name is not null
+                then latest_booking_calendly_host.latest_booking_calendly_host_user_role
+            else 'unknown'
+        end                                                           as credited_closer_role,
+        case
+            when latest_prior_opportunities.assigned_user_role = 'Closer'
+                then 'latest_prior_opportunity_closer'
+            when fathom_by_contact_email_before_purchase.contact_email_fathom_user_role = 'Closer'
+                and fathom_by_contact_email_before_purchase.contact_email_fathom_is_revenue_relevant
+                then 'fathom_contact_email_revenue_call_recorder'
+            when fathom_near_latest_booking.latest_booking_fathom_user_role = 'Closer'
+                and fathom_near_latest_booking.latest_booking_fathom_is_revenue_relevant
+                then 'fathom_revenue_call_recorder'
+            when latest_booking_user.role = 'Closer'
+                then 'latest_booking_closer'
+            when fathom_transcript_self_intro_closer.transcript_closer_user_role = 'Closer'
+                then 'fathom_transcript_self_intro_closer'
+            when latest_booking_event_name_operator.latest_booking_event_name_operator_role = 'Closer'
+                then 'latest_booking_event_name_closer'
+            when latest_booking_calendly_host.latest_booking_calendly_host_user_role = 'Closer'
+                then 'latest_booking_calendly_host_closer'
+            when latest_prior_opportunities.assigned_user_sk is not null
+                then 'latest_prior_opportunity_owner'
+            when fathom_by_contact_email_before_purchase.contact_email_fathom_identity_type = 'team_account'
+                and calendly_host_by_contact_email_fathom.contact_email_calendly_host_user_name is not null
+                then 'calendly_host_for_fathom_team_account'
+            when fathom_by_contact_email_before_purchase.contact_email_fathom_identity_type = 'team_account'
+                then 'fathom_contact_email_team_account'
+            when fathom_by_contact_email_before_purchase.contact_email_fathom_user_name is not null
+                then 'fathom_contact_email_recorder'
+            when fathom_near_latest_booking.latest_booking_fathom_user_sk is not null
+                then 'fathom_call_recorder'
+            when latest_booking_user.user_sk is not null
+                then 'latest_booking_owner'
+            when latest_booking_event_name_operator.latest_booking_event_name_operator_user_sk is not null
+                then 'latest_booking_event_name_operator'
+            when latest_booking_calendly_host.latest_booking_calendly_host_user_name is not null
+                then 'latest_booking_calendly_host'
+            else 'unassigned'
+        end                                                           as credited_closer_source,
+        case
+            when latest_prior_opportunities.assigned_user_role = 'Closer'
+                then 'high'
+            when fathom_by_contact_email_before_purchase.contact_email_fathom_user_role = 'Closer'
+                and fathom_by_contact_email_before_purchase.contact_email_fathom_is_revenue_relevant
+                then 'high'
+            when fathom_near_latest_booking.latest_booking_fathom_user_role = 'Closer'
+                and fathom_near_latest_booking.latest_booking_fathom_is_revenue_relevant
+                then 'high'
+            when latest_booking_user.role = 'Closer'
+                then 'medium'
+            when fathom_transcript_self_intro_closer.transcript_closer_user_role = 'Closer'
+                then coalesce(
+                    fathom_transcript_self_intro_closer.transcript_closer_identity_confidence,
+                    'medium'
+                )
+            when latest_booking_event_name_operator.latest_booking_event_name_operator_role = 'Closer'
+                then 'medium'
+            when latest_booking_calendly_host.latest_booking_calendly_host_user_role = 'Closer'
+                then coalesce(
+                    latest_booking_calendly_host.latest_booking_calendly_host_identity_confidence,
+                    'medium'
+                )
+            when latest_prior_opportunities.assigned_user_sk is not null
+                then 'medium'
+            when fathom_by_contact_email_before_purchase.contact_email_fathom_identity_type = 'team_account'
+                and calendly_host_by_contact_email_fathom.contact_email_calendly_host_user_name is not null
+                then coalesce(
+                    calendly_host_by_contact_email_fathom.contact_email_calendly_host_identity_confidence,
+                    'low'
+                )
+            when fathom_by_contact_email_before_purchase.contact_email_fathom_identity_type = 'team_account'
+                then 'low'
+            when fathom_by_contact_email_before_purchase.contact_email_fathom_user_name is not null
+                and fathom_by_contact_email_before_purchase.contact_email_fathom_is_revenue_relevant
+                then 'medium'
+            when fathom_by_contact_email_before_purchase.contact_email_fathom_user_name is not null
+                then 'low'
+            when fathom_near_latest_booking.latest_booking_fathom_user_sk is not null
+                then 'medium'
+            when latest_booking_user.user_sk is not null
+                then 'low'
+            when latest_booking_event_name_operator.latest_booking_event_name_operator_user_sk is not null
+                then coalesce(
+                    latest_booking_event_name_operator.latest_booking_event_name_operator_identity_confidence,
+                    'low'
+                )
+            when latest_booking_calendly_host.latest_booking_calendly_host_user_name is not null
+                then 'low'
+            else 'missing'
+        end                                                           as credited_closer_confidence,
+
+        case
+            when first_successful_call_user.user_sk is not null
+                then first_successful_call_user.user_sk
+            when first_touch_user.user_sk is not null
+                then first_touch_user.user_sk
+        end                                                           as credited_setter_user_sk,
+        case
+            when first_successful_call_user.user_sk is not null
+                then first_successful_call_user.user_id
+            when first_touch_user.user_sk is not null
+                then first_touch_user.user_id
+        end                                                           as credited_setter_user_id,
+        case
+            when first_successful_call_user.user_sk is not null
+                then first_successful_call_user.name
+            when first_touch_user.user_sk is not null
+                then first_touch_user.name
+            else 'Unassigned / unknown'
+        end                                                           as credited_setter_name,
+        case
+            when first_successful_call_user.user_sk is not null
+                then first_successful_call_user.role
+            when first_touch_user.user_sk is not null
+                then first_touch_user.role
+            else 'unknown'
+        end                                                           as credited_setter_role,
+        case
+            when first_successful_call_user.user_sk is not null
+                then 'first_successful_call_before_purchase'
+            when first_touch_user.user_sk is not null
+                then 'first_touch_before_purchase'
+            else 'unassigned'
+        end                                                           as credited_setter_source,
+
+        case
             when first_successful_call_user.user_sk is not null
                 then first_successful_call_user.user_sk
             when first_touch_user.user_sk is not null
                 then first_touch_user.user_sk
             when latest_prior_opportunities.assigned_user_sk is not null
                 then latest_prior_opportunities.assigned_user_sk
+            when latest_booking_event_name_operator.latest_booking_event_name_operator_user_sk is not null
+                then latest_booking_event_name_operator.latest_booking_event_name_operator_user_sk
             when latest_booking_user.user_sk is not null
                 then latest_booking_user.user_sk
         end                                                           as best_available_operator_user_sk,
@@ -582,6 +1328,8 @@ assembled as (
                 then first_touch_user.user_id
             when latest_prior_opportunities.assigned_user_sk is not null
                 then latest_prior_opportunities.assigned_user_id
+            when latest_booking_event_name_operator.latest_booking_event_name_operator_user_sk is not null
+                then latest_booking_event_name_operator.latest_booking_event_name_operator_user_id
             when latest_booking_user.user_sk is not null
                 then latest_booking_user.user_id
         end                                                           as best_available_operator_user_id,
@@ -592,6 +1340,8 @@ assembled as (
                 then first_touch_user.name
             when latest_prior_opportunities.assigned_user_sk is not null
                 then latest_prior_opportunities.assigned_user_name
+            when latest_booking_event_name_operator.latest_booking_event_name_operator_user_sk is not null
+                then latest_booking_event_name_operator.latest_booking_event_name_operator_name
             when latest_booking_user.user_sk is not null
                 then latest_booking_user.name
             else 'Unassigned / unknown'
@@ -603,6 +1353,8 @@ assembled as (
                 then first_touch_user.role
             when latest_prior_opportunities.assigned_user_sk is not null
                 then latest_prior_opportunities.assigned_user_role
+            when latest_booking_event_name_operator.latest_booking_event_name_operator_user_sk is not null
+                then latest_booking_event_name_operator.latest_booking_event_name_operator_role
             when latest_booking_user.user_sk is not null
                 then latest_booking_user.role
             else 'unknown'
@@ -614,6 +1366,8 @@ assembled as (
                 then 'first_touch_before_purchase'
             when latest_prior_opportunities.assigned_user_sk is not null
                 then 'latest_prior_opportunity_owner'
+            when latest_booking_event_name_operator.latest_booking_event_name_operator_user_sk is not null
+                then 'latest_booking_event_name_operator'
             when latest_booking_user.user_sk is not null
                 then 'latest_booking_owner'
             else 'unassigned'
@@ -670,6 +1424,18 @@ assembled as (
         on buyers.contact_sk = outreach_before_first_purchase.contact_sk
     left join latest_booking_before_purchase
         on buyers.contact_sk = latest_booking_before_purchase.contact_sk
+    left join fathom_near_latest_booking
+        on buyers.contact_sk = fathom_near_latest_booking.contact_sk
+    left join fathom_by_contact_email_before_purchase
+        on buyers.contact_sk = fathom_by_contact_email_before_purchase.contact_sk
+    left join calendly_host_by_contact_email_fathom
+        on buyers.contact_sk = calendly_host_by_contact_email_fathom.contact_sk
+    left join fathom_transcript_self_intro_closer
+        on buyers.contact_sk = fathom_transcript_self_intro_closer.contact_sk
+    left join latest_booking_event_name_operator
+        on buyers.contact_sk = latest_booking_event_name_operator.contact_sk
+    left join latest_booking_calendly_host
+        on buyers.contact_sk = latest_booking_calendly_host.contact_sk
     left join users as latest_booking_user
         on latest_booking_before_purchase.latest_booking_assigned_user_sk
            = latest_booking_user.user_sk

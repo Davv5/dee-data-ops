@@ -1,4 +1,4 @@
-import { BarChart3, Gauge, Target, Users } from "lucide-react";
+import { BarChart3, Gauge, ListChecks, Repeat2, Target, Users } from "lucide-react";
 
 export const dashboardSections = [
   {
@@ -27,6 +27,20 @@ export const dashboardSections = [
     label: "Revenue",
     href: "/revenue",
     icon: BarChart3,
+    status: "active",
+  },
+  {
+    slug: "retention",
+    label: "Retention",
+    href: "/retention",
+    icon: Repeat2,
+    status: "active",
+  },
+  {
+    slug: "actions",
+    label: "Actions",
+    href: "/actions",
+    icon: ListChecks,
     status: "active",
   },
 ] as const;

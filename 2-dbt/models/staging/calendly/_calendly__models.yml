@@ -93,6 +93,29 @@ models:
       - name: invitee_email_norm
         description: Lowercased + trimmed email; join key to dim_contacts.email_norm.
 
+  - name: stg_calendly__event_memberships
+    description: >
+      Host/calendar membership rows extracted from scheduled-event
+      `event_memberships[]`. One row per event host membership. This exposes
+      Calendly's host account for attribution diagnostics without forcing marts
+      to parse raw JSON.
+    columns:
+      - name: event_membership_sk
+        description: Surrogate key over event id, Calendly user URI, and user email.
+        tests:
+          - unique
+          - not_null
+      - name: event_id
+        description: Foreign key into stg_calendly__events.event_id.
+        tests:
+          - not_null
+      - name: calendly_user_uri
+        description: Calendly user URI for the host/calendar membership.
+      - name: user_email_norm
+        description: Lowercased and trimmed Calendly host email.
+      - name: user_name
+        description: Calendly host display name.
+
   - name: stg_calendly__event_types
     description: >
       1:1 staging view over `Raw.calendly_objects_raw` filtered by

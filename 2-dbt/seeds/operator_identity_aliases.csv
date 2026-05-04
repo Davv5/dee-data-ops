@@ -1,0 +1,6 @@
+alias_email,canonical_user_id,display_name,role,alias_type,confidence
+david@precisionscaling.io,NBLGgp7crDRWtPHkdJLx,David Forero,Owner,alternate_email,high
+manav@precisionscaling.io,,Manav Shah,Closer,fathom_only_user,high
+beautyacceleratedteam@gmail.com,,Beauty Accelerated Team,team_account,team_account,low
+mannyshah4344@gmail.com,,Manav Shah,Closer,calendly_host_account,medium
+ethangerstenberg2@gmail.com,BKc6beDhtuJIW1Gfp0wI,Ethan Gerstenberg,Closer,alternate_email,high

@@ -26,6 +26,7 @@ export function LeadMagnetsOperatingView({ data }: { data: DashboardData }) {
   const attributionFlags = data.rows.lead_magnet_attribution_flags ?? [];
   const opportunityOfferTypes = data.rows.lead_magnet_opportunity_offer_types ?? [];
   const pipelineActivity = data.rows.lead_magnet_pipeline_activity ?? [];
+  const buyerWorklist = data.rows.lead_magnet_buyer_worklist ?? [];
 
   const buyers = numberValue(summary?.buyers);
   const firstPurchaseRevenue = numberValue(summary?.first_purchase_net_revenue);
@@ -126,6 +127,8 @@ export function LeadMagnetsOperatingView({ data }: { data: DashboardData }) {
           <TopMagnetsPanel rows={topMagnets} />
           <ActivityPanel rows={opportunityOfferTypes} />
         </div>
+
+        <BuyerWorklistPanel rows={buyerWorklist} filters={data.filters} />
       </section>
 
       <AuditDetails
@@ -133,6 +136,77 @@ export function LeadMagnetsOperatingView({ data }: { data: DashboardData }) {
         pipelineActivityRows={pipelineActivity}
       />
     </div>
+  );
+}
+
+function BuyerWorklistPanel({ rows, filters }: { rows: DashboardRow[]; filters: DashboardFilters }) {
+  return (
+    <section className="mt-3 rounded-lg border border-[#dedbd2] bg-white p-4 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold">Buyer Drilldowns</h2>
+          <p className="mt-1 text-xs text-[#66635f]">
+            Buyer-level rows behind the magnet-to-money read. Open a person to see payment, call, and source evidence.
+          </p>
+        </div>
+        <span className="rounded-md border border-[#bbf7d0] bg-[#f0fdf4] px-2 py-1 text-xs font-semibold text-[#166534]">
+          Customer 360
+        </span>
+      </div>
+
+      <div className="mt-3 overflow-x-auto">
+        <table className="min-w-full border-separate border-spacing-0 text-left text-xs">
+          <thead>
+            <tr className="text-[#66635f]">
+              <th className="border-b border-[#dedbd2] px-2 py-2 pl-0 font-semibold">Buyer</th>
+              <th className="border-b border-[#dedbd2] px-2 py-2 font-semibold">Latest Magnet</th>
+              <th className="border-b border-[#dedbd2] px-2 py-2 font-semibold">First Buy</th>
+              <th className="border-b border-[#dedbd2] px-2 py-2 font-semibold">Bookings</th>
+              <th className="border-b border-[#dedbd2] px-2 py-2 font-semibold">Net</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, index) => (
+              <tr key={`${stringValue(row.contact_sk) ?? "buyer"}-${index}`}>
+                <td className="max-w-56 border-b border-[#ece9e1] px-2 py-2 pl-0">
+                  <a href={customerHref(row, filters)} className="block truncate font-semibold text-[#0f766e] hover:text-[#115e59]">
+                    {stringValue(row.customer_display_name) ?? "Unknown buyer"}
+                  </a>
+                  <span className="mt-0.5 block truncate text-[11px] text-[#66635f]">
+                    {stringValue(row.email_norm) ?? stringValue(row.phone) ?? "No contact info"}
+                  </span>
+                </td>
+                <td className="max-w-64 border-b border-[#ece9e1] px-2 py-2">
+                  <span className="block truncate font-medium text-[#2d2b28]">
+                    {stringValue(row.latest_prior_lead_magnet_name) ?? labelize(stringValue(row.purchase_magnet_attribution_flag))}
+                  </span>
+                  <span className="mt-0.5 block truncate text-[11px] text-[#66635f]">
+                    {labelize(stringValue(row.latest_prior_lead_magnet_offer_type))} · {stringValue(row.latest_prior_opportunity_label) ?? "No prior date"}
+                  </span>
+                </td>
+                <td className="border-b border-[#ece9e1] px-2 py-2">
+                  <span className="block font-medium text-[#2d2b28]">{stringValue(row.first_purchase_label) ?? "N/A"}</span>
+                  <span className="mt-0.5 block truncate text-[11px] text-[#66635f]">
+                    {formatNumber(numberValue(row.paid_payments_count))} payments
+                  </span>
+                </td>
+                <td className="border-b border-[#ece9e1] px-2 py-2">
+                  <span className="block font-medium text-[#2d2b28]">
+                    {formatNumber(numberValue(row.bookings_before_first_purchase_count))}
+                  </span>
+                  <span className="mt-0.5 block truncate text-[11px] text-[#66635f]">
+                    {formatNumber(numberValue(row.canceled_bookings_before_first_purchase_count))} canceled
+                  </span>
+                </td>
+                <td className="border-b border-[#ece9e1] px-2 py-2 font-semibold text-[#2d2b28]">
+                  {formatCurrency(numberValue(row.total_net_revenue_after_refunds))}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }
 
@@ -548,6 +622,29 @@ function formatValue(value: DashboardRowValue | undefined, format?: "number" | "
   if (format === "percent") return formatPercent(numberValue(value));
   if (format === "currency") return formatCurrency(numberValue(value));
   return stringValue(value) ?? "N/A";
+}
+
+function customerHref(row: DashboardRow, filters: DashboardFilters) {
+  const contactSk = stringValue(row.contact_sk);
+  if (!contactSk) return `/lead-magnets?range=${filters.timeRange}`;
+
+  const params = new URLSearchParams({
+    from: "lead-magnets",
+    range: filters.timeRange,
+    reason: "magnet_buyer",
+  });
+
+  return `/customers/${contactSk}?${params.toString()}`;
+}
+
+function labelize(value: string | null) {
+  if (!value) return "N/A";
+  return value
+    .replaceAll("_", " ")
+    .replaceAll("/", " / ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 function formatNumber(value: number | null) {

@@ -1,6 +1,66 @@
 version: 2
 
 models:
+  - name: bridge_stripe_payment_product_repair
+    description: >
+      Grain: one row per historical Stripe payment with a repaired product
+      label. Repairs direct Stripe charges that lack invoice lines,
+      descriptions, and metadata by using high-confidence nearby GHL
+      opportunity context first, nearby Calendly booking context second, and
+      amount-pattern fallback last. Downstream `fct_payments` only uses this
+      bridge when source Stripe product fields are missing.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - source_platform
+            - payment_id
+    columns:
+      - name: source_platform
+        description: Always `stripe`.
+        tests:
+          - not_null
+          - accepted_values:
+              values:
+                - stripe
+      - name: payment_id
+        description: Stripe charge/payment id.
+        tests:
+          - not_null
+      - name: repaired_product
+        description: Product label inferred for reporting.
+        tests:
+          - not_null
+          - accepted_values:
+              values:
+                - Brand Scaling Blueprint
+                - Mind of Dee Inner Circle
+                - Rich Of Clothes
+      - name: product_repair_source
+        description: Evidence tier used for the repair.
+        tests:
+          - not_null
+          - accepted_values:
+              values:
+                - ghl_pipeline_context
+                - calendly_booking_context
+                - stripe_amount_pattern
+      - name: product_repair_confidence
+        description: Confidence assigned to the repair rule.
+        tests:
+          - not_null
+          - accepted_values:
+              values:
+                - high
+                - medium
+      - name: product_repair_note
+        description: Human-readable reason for the repair.
+      - name: context_id
+        description: Native context id when the repair came from an opportunity or booking.
+      - name: context_name
+        description: Pipeline/event/amount context used by the repair.
+      - name: context_detail
+        description: Stage/currency context used by the repair.
+
   - name: bridge_identity_contact_payment
     description: >
       Grain: one row per `(source_platform, payment_id)`.
@@ -72,8 +132,9 @@ models:
               inclusive: true
       - name: bridge_status
         description: >
-          Summary flag. `matched` when the payment has been accounted for by
-          either a CRM contact or a payment-identity-only fallback;
+          Summary flag. `matched` when the payment resolves to a CRM contact;
+          `payment_identity_only` when source identity exists but no CRM contact
+          exists;
           `ambiguous_multi_candidate` when > 1 contact tied at the
           best score; `unmatched` otherwise.
         tests:
@@ -81,5 +142,6 @@ models:
           - accepted_values:
               values:
                 - matched
+                - payment_identity_only
                 - ambiguous_multi_candidate
                 - unmatched

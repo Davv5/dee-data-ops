@@ -158,7 +158,7 @@ models:
       2026-04-27). Contact attribution flows through
       `bridge_identity_contact_payment`, joined on
       `(source_platform, payment_id)`; `contact_sk` is nullable when
-      the bridge returns `unmatched`.
+      the bridge returns `unmatched` or `payment_identity_only`.
     columns:
       - name: payment_sk
         description: Surrogate key over `(source_platform, payment_id)`.
@@ -166,7 +166,7 @@ models:
           - unique
           - not_null
       - name: contact_sk
-        description: FK to `dim_contacts.contact_sk`. Nullable when unmatched.
+        description: FK to `dim_contacts.contact_sk`. Nullable when unmatched or payment-identity-only.
         tests:
           - relationships:
               to: ref('dim_contacts')
@@ -186,17 +186,48 @@ models:
         tests:
           - not_null
       - name: gross_amount
-        description: Gross amount in major units (e.g. USD). Charge amount before refunds.
+        description: >
+          Reporting gross amount in major units. Stripe uses settlement
+          currency from balance transactions when available; failed or unpaid
+          Stripe attempts report zero revenue. Fanbasis is USD.
       - name: net_amount
-        description: Net amount in major units — captured minus refunded.
+        description: >
+          Reporting net amount in major units. Stripe uses settlement net
+          after Stripe fees, with charge-level refunds converted through the
+          balance transaction exchange rate when present. Failed or unpaid
+          Stripe attempts report zero net revenue. Fanbasis is net after
+          Fanbasis fees before mart-level refund subtraction.
       - name: currency
-        description: ISO 4217 currency code.
+        description: Reporting ISO 4217 currency code.
+      - name: source_presentment_gross_amount
+        description: Native amount charged to the customer in source presentment currency major units.
+      - name: source_presentment_net_amount
+        description: Native captured-minus-refunded amount in source presentment currency major units for paid rows; zero for unpaid Stripe attempts.
+      - name: source_presentment_currency
+        description: Native ISO 4217 currency code shown to the customer at purchase time.
+      - name: source_settlement_fee_amount
+        description: Processor fee amount in reporting/settlement currency major units when available.
+      - name: source_exchange_rate
+        description: Stripe exchange rate from presentment currency into settlement currency when available; null for Fanbasis.
+      - name: source_balance_transaction_id
+        description: Stripe balance transaction id used for settlement reconciliation when available.
       - name: product
-        description: Free-text product description from the payment.
+        description: >
+          Free-text product description from the payment. Stripe subscription
+          creation/update charges are enriched from invoice line product data
+          when the charge carries an invoice id; direct historical Stripe
+          charges with no product metadata can be repaired via
+          `bridge_stripe_payment_product_repair`.
+      - name: product_attribution_source
+        description: Source tier used for the product label.
+      - name: product_attribution_confidence
+        description: Confidence label for the product attribution tier.
+      - name: product_attribution_note
+        description: Human-readable note explaining repaired product labels.
       - name: source_product_id
-        description: Native product id from the payment source when available; populated for Fanbasis.
+        description: Native product id from the payment source when available; populated for Fanbasis and invoice-backed Stripe rows.
       - name: source_product_price
-        description: Native product price in source payload currency major units when available. Fanbasis auto-renew rows expose the charged installment amount, not a full receivables schedule.
+        description: Native product price in source payload currency major units when available. Fanbasis auto-renew rows expose the charged installment amount, not a full receivables schedule; Stripe invoice rows expose the invoice-line price amount.
       - name: source_service_id
         description: Native service id from the payment source when available; populated for Fanbasis.
       - name: source_service_title
@@ -231,12 +262,13 @@ models:
       - name: match_score
         description: Confidence score attached to the chosen tier (0.00-1.00).
       - name: bridge_status
-        description: Summary flag — `matched` / `ambiguous_multi_candidate` / `unmatched`.
+        description: Summary flag — `matched` / `payment_identity_only` / `ambiguous_multi_candidate` / `unmatched`.
         tests:
           - not_null
           - accepted_values:
               values:
                 - matched
+                - payment_identity_only
                 - ambiguous_multi_candidate
                 - unmatched
 
@@ -262,7 +294,7 @@ models:
           - unique
           - not_null
       - name: contact_sk
-        description: FK to `dim_contacts.contact_sk`. Nullable when bridge returns `unmatched`.
+        description: FK to `dim_contacts.contact_sk`. Nullable when bridge returns `unmatched` or `payment_identity_only`.
         tests:
           - relationships:
               to: ref('dim_contacts')
@@ -322,11 +354,12 @@ models:
                 - billing_email_direct
                 - unmatched
       - name: bridge_status
-        description: Overall bridge outcome — `matched`, `ambiguous_multi_candidate`, or `unmatched`.
+        description: Overall bridge outcome — `matched`, `payment_identity_only`, `ambiguous_multi_candidate`, or `unmatched`.
         tests:
           - not_null
           - accepted_values:
               values:
                 - matched
+                - payment_identity_only
                 - ambiguous_multi_candidate
                 - unmatched
