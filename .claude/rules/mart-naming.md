@@ -79,6 +79,8 @@ The prefix switch is exactly what makes the mart layer recognizable as "the part
 
 For the full thought process behind grain selection, fewer-wider-marts, and the upstream-DQ-test posture, read `.claude/rules/data-modeling-process.md` (it loads on the same `2-dbt/models/**` paths). This rule covers WHAT to name marts; the process rule covers HOW to think before you write them.
 
+For mart-to-UI translation — which columns surface, what they're called on screen, what visualization carries them, how unknowns and gaps are honored — read `docs/conventions/mart_presentation_style_guide.md`. This rule governs the **table layer**; the style guide governs the **operator surface** that consumes it.
+
 ## Lessons Learned
 
 - **Fact-first-then-wide-mart refactors are safe when the parity test is the gate.**
