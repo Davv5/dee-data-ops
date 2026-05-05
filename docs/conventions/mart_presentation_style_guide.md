@@ -138,6 +138,8 @@ Each data **shape** has a default visualization. Match the shape to the question
 
 Defaults are starting points. Deviations require a one-line justification in the per-mart presentation file.
 
+The table above is the **quick reference**. For the full chart-selection taxonomy — every common operator question with priority-ordered chart options, anti-patterns per category, and twelve cross-cutting honesty rules — read `docs/conventions/chart_style_guide.md`. That guide is the source of truth for visual encoding decisions; this table stays as the skim-level lookup.
+
 ## Cross-cutting rules
 
 These apply across all surfaces, not just one.
@@ -264,6 +266,7 @@ Every defect maps to a checklist question. If a defect doesn't map, the checklis
 
 ## Related rules and conventions
 
+- `docs/conventions/chart_style_guide.md` — companion guide for visual encoding. Expands the Loop-3 quick-reference table above into a full chart-selection taxonomy organized by operator question, with anti-patterns per category and twelve cross-cutting honesty rules.
 - `.claude/rules/mart-naming.md` — table-layer naming (drop `fct_`/`dim_`, plural entities, singular `_detail`/`_summary`). This guide is its UI counterpart.
 - `.claude/rules/operator-mode.md` — voice and tone defaults for operator-facing communication.
 - `.claude/rules/data-modeling-process.md` — grain selection and the upstream DQ-test posture that a well-presented mart depends on.
