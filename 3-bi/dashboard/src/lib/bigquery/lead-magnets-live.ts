@@ -186,7 +186,7 @@ function contactSourceToReportingNameSql(field: string) {
   `;
 }
 
-function buildLeadMagnetQueries(timeRange: LeadMagnetTimeRange) {
+export function buildLeadMagnetQueries(timeRange: LeadMagnetTimeRange) {
   const buyerTable = tableRef("lead_magnet_buyer_detail");
   const opportunityTable = tableRef("lead_magnet_detail");
   const performanceTable = tableRef("lead_magnet_performance_summary");

@@ -190,7 +190,7 @@ function worklistPredicate(worklist: RetentionWorklist) {
   return `customer_latest.payment_plan_health_status = '${worklist}'`;
 }
 
-function buildRetentionQueries(timeRange: RetentionTimeRange, worklist: RetentionWorklist) {
+export function buildRetentionQueries(timeRange: RetentionTimeRange, worklist: RetentionWorklist) {
   const retentionTable = tableRef();
   const contractEvidenceTable = martTableRef("collection_contract_evidence_detail");
   const contractTermsReviewsTable = martTableRef("contract_terms_reviews");

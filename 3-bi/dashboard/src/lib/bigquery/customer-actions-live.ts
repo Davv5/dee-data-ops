@@ -72,7 +72,7 @@ function buildDashboardFilters(area: string, includeClosed: boolean, limit: numb
   };
 }
 
-function buildQueries(area: string, includeClosed: boolean, limit: number) {
+export function buildCustomerActionsQueries(area: string, includeClosed: boolean, limit: number) {
   const actionsTable = tableRef();
   const areaWhere = areaPredicate(area);
   const openWhere = openPredicate(includeClosed);
@@ -178,7 +178,7 @@ export async function getCustomerActionsData(options: GetCustomerActionsOptions 
   const limit = normalizeLimit(options.limit);
   const filters = buildDashboardFilters(area, includeClosed, limit);
   const dataset = customerActionsDataset();
-  const queries = buildQueries(area, includeClosed, limit);
+  const queries = buildCustomerActionsQueries(area, includeClosed, limit);
   const params = area === "all" ? undefined : { area };
 
   try {

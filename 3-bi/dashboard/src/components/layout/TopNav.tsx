@@ -1,11 +1,12 @@
 "use client";
 
-import { Activity, DollarSign, Gauge, ListChecks, Repeat2, RotateCcw, Target } from "lucide-react";
+import { Activity, DollarSign, Gauge, Home, ListChecks, Repeat2, RotateCcw, Target } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { CustomerSearch } from "@/components/layout/CustomerSearch";
 
 const navItems = [
+  { href: "/", label: "Home", icon: Home },
   { href: "/speed-to-lead", label: "Speed-to-Lead", icon: Gauge },
   { href: "/recovery", label: "Recovery", icon: RotateCcw },
   { href: "/lead-magnets", label: "Lead Magnets", icon: Target },
@@ -19,7 +20,7 @@ export function TopNav() {
 
   return (
     <nav className="mb-4 flex flex-col gap-3 border-b border-[#dedbd2] pb-3 xl:flex-row xl:items-center xl:justify-between">
-      <Link href="/speed-to-lead" className="flex items-center gap-2 text-sm font-semibold">
+      <Link href="/" className="flex items-center gap-2 text-sm font-semibold">
         <span className="flex h-8 w-8 items-center justify-center rounded-md bg-[#0f766e] text-white">
           <Activity className="h-4 w-4" aria-hidden />
         </span>
