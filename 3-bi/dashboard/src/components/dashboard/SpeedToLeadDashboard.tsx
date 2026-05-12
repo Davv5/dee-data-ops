@@ -35,6 +35,7 @@ import type {
   DashboardFreshness,
   DashboardRow,
 } from "@/types/dashboard-data";
+import Link from "next/link";
 
 const BOOKING_SLA_MIN = 45;
 const STRICT_SLA_MIN = 5;
@@ -85,7 +86,7 @@ export function SpeedToLeadDashboard({ data }: { data: DashboardData }) {
         </div>
       ) : null}
 
-      <NowBand queue={queue} lanes={lanes} />
+      <NowBand queue={queue} lanes={lanes} timeRange={data.filters.timeRange} />
       <HourPulseBand overall={overall} triggers={triggers} quality={quality} />
       <TodayBand
         reps={reps}
@@ -421,7 +422,15 @@ const LANE_TOOLTIP: Record<string, string> = {
     "Booking that came from an outbound dial or an existing customer rebook",
 };
 
-function NowBand({ queue, lanes }: { queue: DashboardRow[]; lanes: DashboardRow[] }) {
+function NowBand({
+  queue,
+  lanes,
+  timeRange,
+}: {
+  queue: DashboardRow[];
+  lanes: DashboardRow[];
+  timeRange: string;
+}) {
   const [activeLane, setActiveLane] = useState<LaneFilter>("all");
   // Sort by action priority: actionable leads (warning > ok > danger) first,
   // then within the same tier put the freshest at the top.
@@ -518,6 +527,7 @@ function NowBand({ queue, lanes }: { queue: DashboardRow[]; lanes: DashboardRow[
             <QueueRow
               key={`${stringValue(row.trigger_event_id) ?? stringValue(row.lead_email) ?? "lead"}-${index}`}
               row={row}
+              timeRange={timeRange}
             />
           ))}
           {hiddenCount > 0 ? (
@@ -606,7 +616,7 @@ function LaneChip({
   );
 }
 
-function QueueRow({ row }: { row: DashboardRow }) {
+function QueueRow({ row, timeRange }: { row: DashboardRow; timeRange: string }) {
   const ageMin = numberValue(row.age_minutes);
   const tone = ageToTone(ageMin);
   const lane = stringValue(row.lane_id);
@@ -617,28 +627,47 @@ function QueueRow({ row }: { row: DashboardRow }) {
   const email = stringValue(row.lead_email);
   const phone = stringValue(row.lead_phone);
   const isStale = tone === "stale";
+  const leadName = stringValue(row.lead_name) ?? "Unknown";
+  const contactSk = stringValue(row.contact_sk);
+  const profileHref = contactSk
+    ? `/customers/${contactSk}?from=speed-to-lead&range=${encodeURIComponent(timeRange)}`
+    : null;
 
   return (
     <div
-      className="grid grid-cols-[3rem_minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,0.85fr)_auto] items-center gap-3 rounded-md border px-3 py-2 transition"
+      className={`relative grid grid-cols-[3rem_minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,0.85fr)_auto] items-center gap-3 rounded-md border px-3 py-2 transition${
+        profileHref ? " hover:border-[var(--stl-accent)]" : ""
+      }`}
       style={{
         borderColor: "var(--stl-border)",
         background: isStale ? "var(--stl-card)" : "var(--stl-card-strong)",
         opacity: isStale ? 0.62 : 1,
       }}
     >
+      {profileHref ? (
+        <Link
+          href={profileHref}
+          prefetch={false}
+          aria-label={`Open profile for ${leadName}`}
+          className="absolute inset-0 z-0 rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--stl-accent)]"
+        >
+          <span className="sr-only">Open profile</span>
+        </Link>
+      ) : null}
       <SlaRing minutes={ageMin} color={ringColor} />
       <div className="min-w-0">
         <div className="truncate text-sm font-semibold" style={{ color: "var(--stl-text)" }}>
-          {stringValue(row.lead_name) ?? "Unknown"}
+          {leadName}
         </div>
-        <div className="flex min-w-0 items-center gap-2 truncate text-[11px]" style={{ color: "var(--stl-muted)" }}>
+        <div
+          className="relative z-10 flex min-w-0 items-center gap-2 truncate text-[11px]"
+          style={{ color: "var(--stl-muted)" }}
+        >
           {email && email !== "No email" ? (
             <a
               href={`mailto:${email}`}
               className="truncate underline-offset-2 hover:underline"
               title={`Email ${email}`}
-              onClick={(e) => e.stopPropagation()}
             >
               {email}
             </a>
@@ -651,7 +680,6 @@ function QueueRow({ row }: { row: DashboardRow }) {
               href={`tel:${phone.replace(/[^+\d]/g, "")}`}
               className="shrink-0 underline-offset-2 hover:underline"
               title={`Call ${phone}`}
-              onClick={(e) => e.stopPropagation()}
             >
               {phone}
             </a>
@@ -677,7 +705,7 @@ function QueueRow({ row }: { row: DashboardRow }) {
         </div>
       </div>
       <span
-        className={`shrink-0 rounded-md px-2 py-1 text-[10px] font-semibold uppercase tracking-wide ${toneBadgeClass(tone)}`}
+        className={`relative z-10 shrink-0 rounded-md px-2 py-1 text-[10px] font-semibold uppercase tracking-wide ${toneBadgeClass(tone)}`}
         title={
           tone === "ok"
             ? "Less than 5 minutes old"

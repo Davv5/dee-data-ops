@@ -632,6 +632,7 @@ function buildSpeedToLeadQueries(timeRange: SpeedToLeadTimeRange) {
       COALESCE(NULLIF(gc.email, ''), 'No email') AS lead_email,
       COALESCE(NULLIF(gc.phone, ''), 'No phone') AS lead_phone,
       COALESCE(NULLIF(gc.ghl_contact_id, ''), 'No contact id') AS ghl_contact_id,
+      dc.contact_sk AS contact_sk,
       COALESCE(NULLIF(gc.rep_name, ''), NULLIF(gc.setter_at_first_contact, ''), 'Unassigned') AS assigned_rep,
       COALESCE(NULLIF(f.utm_source, ''), 'N/A') AS utm_source,
       COALESCE(NULLIF(f.utm_campaign, ''), 'N/A') AS utm_campaign,
@@ -647,8 +648,15 @@ function buildSpeedToLeadQueries(timeRange: SpeedToLeadTimeRange) {
     FROM ${tableRef("freshness")} f
     LEFT JOIN \`project-41542e21-470f-4589-96d.Marts.dim_golden_contact\` gc
       ON gc.golden_contact_key = f.golden_contact_key
+    LEFT JOIN \`project-41542e21-470f-4589-96d.Core.dim_contacts\` dc
+      ON dc.location_id = gc.location_id
+     AND dc.contact_id = gc.ghl_contact_id
     WHERE f.first_touch_ts IS NULL
       ${andTimeRange(timeRange, "f.trigger_ts")}
+    QUALIFY ROW_NUMBER() OVER (
+      PARTITION BY f.trigger_event_id
+      ORDER BY dc.contact_updated_at DESC NULLS LAST, dc._ingested_at DESC NULLS LAST
+    ) = 1
     ORDER BY f.trigger_ts DESC
     LIMIT 50
   `,
