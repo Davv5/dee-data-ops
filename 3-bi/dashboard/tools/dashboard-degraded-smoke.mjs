@@ -3,15 +3,6 @@
 const DEFAULT_BASE_URL = "https://dee-dashboard-mjxxki4snq-uc.a.run.app";
 const SMOKE_TOKEN_HEADER = "X-Dashboard-Smoke-Token";
 
-const baseUrl = stripTrailingSlash(process.env.DASHBOARD_URL || DEFAULT_BASE_URL);
-const smokeToken = process.env.DASHBOARD_SMOKE_TOKEN || "";
-const baseHeaders = smokeToken ? { [SMOKE_TOKEN_HEADER]: smokeToken } : {};
-
-const args = parseArgs(process.argv.slice(2));
-const injectFail = args["inject-fail"] || process.env.DASHBOARD_FAIL_QUERY || "";
-const range = args.range || "7d";
-const expectTier = args["expect-tier"] || (injectFail ? guessTier(injectFail) : "");
-
 const T3_QUERIES = new Set([
   "speed_to_lead_unmatched_truth_audit",
   "speed_to_lead_reached_examples",
@@ -22,6 +13,21 @@ const T3_QUERIES = new Set([
   "speed_to_lead_ghl_message_coverage",
   "speed_to_lead_ghl_outbound_message_breakdown",
 ]);
+
+function guessTier(name) {
+  if (T3_QUERIES.has(name)) return "audit";
+  if (name === "speed_to_lead_overall") return "critical";
+  return "section";
+}
+
+const baseUrl = stripTrailingSlash(process.env.DASHBOARD_URL || DEFAULT_BASE_URL);
+const smokeToken = process.env.DASHBOARD_SMOKE_TOKEN || "";
+const baseHeaders = smokeToken ? { [SMOKE_TOKEN_HEADER]: smokeToken } : {};
+
+const args = parseArgs(process.argv.slice(2));
+const injectFail = args["inject-fail"] || process.env.DASHBOARD_FAIL_QUERY || "";
+const range = args.range || "7d";
+const expectTier = args["expect-tier"] || (injectFail ? guessTier(injectFail) : "");
 
 try {
   const result = await runSmokeCheck();
@@ -139,12 +145,6 @@ function parseArgs(argv) {
     }
   }
   return out;
-}
-
-function guessTier(name) {
-  if (T3_QUERIES.has(name)) return "audit";
-  if (name === "speed_to_lead_overall") return "critical";
-  return "section";
 }
 
 async function getJson(url) {
