@@ -339,7 +339,7 @@ const buildSpeedToLeadQualityCte = (timeRange: SpeedToLeadTimeRange) => `
   )
 `;
 
-function buildSpeedToLeadQueries(timeRange: SpeedToLeadTimeRange) {
+export function buildSpeedToLeadQueries(timeRange: SpeedToLeadTimeRange) {
   const qualityCte = buildSpeedToLeadQualityCte(timeRange);
   const triggerWhere = whereTimeRange(timeRange, "trigger_ts");
   const priorTriggerWhere = wherePriorTimeRange(timeRange, "trigger_ts");

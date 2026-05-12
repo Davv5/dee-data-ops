@@ -98,7 +98,7 @@ function andTimeRange(timeRange: RevenueFunnelTimeRange, field: string) {
   return predicate ? `AND ${predicate}` : "";
 }
 
-function buildRevenueFunnelQueries(timeRange: RevenueFunnelTimeRange) {
+export function buildRevenueFunnelQueries(timeRange: RevenueFunnelTimeRange) {
   const revenueTable = `
     (
       SELECT

@@ -79,7 +79,7 @@ function andTimeRange(timeRange: RecoveryTimeRange, field: string) {
   return predicate ? `AND ${predicate}` : "";
 }
 
-function buildRecoveryQueries(timeRange: RecoveryTimeRange) {
+export function buildRecoveryQueries(timeRange: RecoveryTimeRange) {
   const retentionTable = tableRef("customer_retention_detail");
   const contractEvidenceTable = tableRef("collection_contract_evidence_detail");
   const actionQueueTable = tableRef("customer_action_queue");
