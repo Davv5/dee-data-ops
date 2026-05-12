@@ -36,9 +36,89 @@ import type {
   DashboardRow,
 } from "@/types/dashboard-data";
 import Link from "next/link";
+import { SectionErrorChip } from "@/components/dashboard/SectionErrorChip";
+import { DataHealthDisclosure } from "@/components/dashboard/DataHealthDisclosure";
+import { tierForSpeedToLeadQuery } from "@/lib/bigquery/query-tiers";
 
 const BOOKING_SLA_MIN = 45;
 const STRICT_SLA_MIN = 5;
+
+const BAND_QUERIES = {
+  header: ["speed_to_lead_overall_prior"],
+  now: [
+    "speed_to_lead_lane_summary",
+    "speed_to_lead_no_touch_examples",
+    "speed_to_lead_routing_readiness",
+  ],
+  hour: [
+    "speed_to_lead_quality_summary",
+    "speed_to_lead_trigger_summary",
+    "speed_to_lead_business_hours",
+  ],
+  today: [
+    "speed_to_lead_by_rep",
+    "speed_to_lead_critical_exceptions",
+    "speed_to_lead_attribution_confidence",
+    "speed_to_lead_first_work_by_rep",
+    "speed_to_lead_phone_reach_by_rep",
+  ],
+  trend: [
+    "speed_to_lead_daily",
+    "speed_to_lead_response_buckets",
+    "speed_to_lead_follow_up_counts",
+    "speed_to_lead_source_performance",
+    "speed_to_lead_not_worked_aging",
+    "speed_to_lead_first_attempt_outcomes",
+  ],
+} as const;
+
+const BAND_LABEL: Record<keyof typeof BAND_QUERIES, string> = {
+  header: "Header comparison",
+  now: "Live queue",
+  hour: "Hour pulse",
+  today: "Today",
+  trend: "Trend & audit",
+};
+
+function pickErrors(
+  errors: Partial<Record<string, string>> | undefined,
+  names: readonly string[],
+): { name: string; detail: string }[] {
+  if (!errors) return [];
+  return names
+    .map((name) => ({ name, detail: errors[name] }))
+    .filter((entry): entry is { name: string; detail: string } => Boolean(entry.detail));
+}
+
+function hasError(
+  errors: Partial<Record<string, string>> | undefined,
+  name: string,
+): boolean {
+  return Boolean(errors?.[name]);
+}
+
+function BandErrors({
+  bandKey,
+  errors,
+}: {
+  bandKey: keyof typeof BAND_QUERIES;
+  errors: Partial<Record<string, string>> | undefined;
+}) {
+  const owned = pickErrors(errors, BAND_QUERIES[bandKey]);
+  if (owned.length === 0) return null;
+  return (
+    <div className="mb-3 space-y-1.5">
+      {owned.map(({ name, detail }) => (
+        <SectionErrorChip
+          key={name}
+          title={`${BAND_LABEL[bandKey]} · ${name}`}
+          detail={detail}
+          queryName={name}
+        />
+      ))}
+    </div>
+  );
+}
 
 type LaneFilter = "all" | "inbound_bookings" | "lead_magnets" | "outbound_existing_bookings";
 
@@ -71,6 +151,8 @@ export function SpeedToLeadDashboard({ data }: { data: DashboardData }) {
   const ghlMessageCoverage = data.rows.speed_to_lead_ghl_message_coverage ?? [];
   const ghlOutboundMessageBreakdown = data.rows.speed_to_lead_ghl_outbound_message_breakdown ?? [];
 
+  const queryErrors = data.queryErrors;
+
   return (
     <div className="space-y-4 pb-12">
       <Header
@@ -78,6 +160,7 @@ export function SpeedToLeadDashboard({ data }: { data: DashboardData }) {
         freshness={data.freshness}
         overall={overall}
         overallPrior={overallPrior}
+        queryErrors={queryErrors}
       />
 
       {data.error ? (
@@ -86,13 +169,24 @@ export function SpeedToLeadDashboard({ data }: { data: DashboardData }) {
         </div>
       ) : null}
 
-      <NowBand queue={queue} lanes={lanes} timeRange={data.filters.timeRange} />
-      <HourPulseBand overall={overall} triggers={triggers} quality={quality} />
+      <NowBand
+        queue={queue}
+        lanes={lanes}
+        timeRange={data.filters.timeRange}
+        queryErrors={queryErrors}
+      />
+      <HourPulseBand
+        overall={overall}
+        triggers={triggers}
+        quality={quality}
+        queryErrors={queryErrors}
+      />
       <TodayBand
         reps={reps}
         exceptions={exceptions}
         filters={data.filters}
         attribution={attribution}
+        queryErrors={queryErrors}
       />
       <TrendBand
         daily={daily}
@@ -106,7 +200,12 @@ export function SpeedToLeadDashboard({ data }: { data: DashboardData }) {
         unmatchedCalendlyInvitees={unmatchedCalendlyInvitees}
         ghlMessageCoverage={ghlMessageCoverage}
         ghlOutboundMessageBreakdown={ghlOutboundMessageBreakdown}
+        queryErrors={queryErrors}
       />
+
+      {queryErrors && Object.keys(queryErrors).length > 0 ? (
+        <DataHealthDisclosure errors={queryErrors} tierFor={tierForSpeedToLeadQuery} />
+      ) : null}
     </div>
   );
 }
@@ -120,16 +219,21 @@ function Header({
   freshness,
   overall,
   overallPrior,
+  queryErrors,
 }: {
   filters: DashboardFilters;
   freshness: DashboardFreshness;
   overall: DashboardRow | undefined;
   overallPrior: DashboardRow | undefined;
+  queryErrors?: Partial<Record<string, string>>;
 }) {
+  const priorMissing = hasError(queryErrors, "speed_to_lead_overall_prior");
   const slaPct = numberValue(overall?.pct_within_sla);
-  const slaPctPrior = numberValue(overallPrior?.pct_within_sla);
+  const slaPctPrior = priorMissing ? null : numberValue(overallPrior?.pct_within_sla);
   const coveragePct = numberValue(overall?.pct_triggers_with_outbound_touch);
-  const coveragePctPrior = numberValue(overallPrior?.pct_triggers_with_outbound_touch);
+  const coveragePctPrior = priorMissing
+    ? null
+    : numberValue(overallPrior?.pct_triggers_with_outbound_touch);
   const totalEvents = numberValue(overall?.total_triggers_all);
 
   return (
@@ -426,10 +530,12 @@ function NowBand({
   queue,
   lanes,
   timeRange,
+  queryErrors,
 }: {
   queue: DashboardRow[];
   lanes: DashboardRow[];
   timeRange: string;
+  queryErrors?: Partial<Record<string, string>>;
 }) {
   const [activeLane, setActiveLane] = useState<LaneFilter>("all");
   // Sort by action priority: actionable leads (warning > ok > danger) first,
@@ -497,6 +603,7 @@ function NowBand({
         ) : null
       }
     >
+      <BandErrors bandKey="now" errors={queryErrors} />
       <div className="mb-3 flex flex-wrap items-center gap-1">
         <LaneChip
           label="All"
@@ -773,10 +880,12 @@ function HourPulseBand({
   overall,
   triggers,
   quality,
+  queryErrors,
 }: {
   overall: DashboardRow | undefined;
   triggers: DashboardRow[];
   quality: DashboardRow | undefined;
+  queryErrors?: Partial<Record<string, string>>;
 }) {
   const within45 = numberValue(overall?.pct_within_sla);
   const within5 = numberValue(overall?.pct_within_5m);
@@ -798,6 +907,7 @@ function HourPulseBand({
       caption="How the team is pacing in the selected range"
       icon={<Zap className="h-4 w-4" aria-hidden />}
     >
+      <BandErrors bandKey="hour" errors={queryErrors} />
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <PulseCard
           label={`Within ${BOOKING_SLA_MIN}m`}
@@ -906,11 +1016,13 @@ function TodayBand({
   exceptions,
   filters,
   attribution,
+  queryErrors,
 }: {
   reps: DashboardRow[];
   exceptions: DashboardRow[];
   filters: DashboardFilters;
   attribution: DashboardRow | undefined;
+  queryErrors?: Partial<Record<string, string>>;
 }) {
   const activeExceptions = exceptions.filter(
     (row) =>
@@ -948,6 +1060,7 @@ function TodayBand({
         </div>
       }
     >
+      <BandErrors bandKey="today" errors={queryErrors} />
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
         {hasReps ? (
           <RepScorecard rows={activeReps} />
@@ -1162,6 +1275,7 @@ function TrendBand({
   unmatchedCalendlyInvitees,
   ghlMessageCoverage,
   ghlOutboundMessageBreakdown,
+  queryErrors,
 }: {
   daily: DashboardRow[];
   buckets: DashboardRow[];
@@ -1174,8 +1288,21 @@ function TrendBand({
   unmatchedCalendlyInvitees: DashboardRow[];
   ghlMessageCoverage: DashboardRow[];
   ghlOutboundMessageBreakdown: DashboardRow[];
+  queryErrors?: Partial<Record<string, string>>;
 }) {
   const hasTrend = daily.length >= 2;
+
+  const truthAuditFailed = hasError(queryErrors, "speed_to_lead_unmatched_truth_audit");
+  const dataGapKeys = [
+    "speed_to_lead_typeform_coverage",
+    "speed_to_lead_typeform_outbound_opportunities",
+    "speed_to_lead_unmatched_calendly_summary",
+    "speed_to_lead_unmatched_calendly_invitees",
+    "speed_to_lead_ghl_message_coverage",
+    "speed_to_lead_ghl_outbound_message_breakdown",
+  ] as const;
+  const dataGapAnyFailed = dataGapKeys.some((k) => hasError(queryErrors, k));
+
   return (
     <Band
       title="Trend & audit"
@@ -1184,6 +1311,7 @@ function TrendBand({
       collapsible
       defaultOpen={hasTrend}
     >
+      <BandErrors bandKey="trend" errors={queryErrors} />
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
         <DailyTrendChart rows={daily} />
         <ResponseBucketsChart rows={buckets} />
@@ -1193,19 +1321,23 @@ function TrendBand({
           <SourcePerformance rows={sources} />
         </div>
       ) : null}
-      <div className="mt-4">
-        <SpeedToLeadDataGapAudit
-          typeformCoverage={typeformCoverage}
-          typeformOutboundOpportunities={typeformOutboundOpportunities}
-          unmatchedCalendlySummary={unmatchedCalendlySummary}
-          unmatchedCalendlyInvitees={unmatchedCalendlyInvitees}
-          ghlMessageCoverage={ghlMessageCoverage}
-          ghlOutboundMessageBreakdown={ghlOutboundMessageBreakdown}
-        />
-      </div>
-      <div className="mt-4">
-        <UnmatchedTruthAudit rows={unmatchedTruthAudit} />
-      </div>
+      {dataGapAnyFailed ? null : (
+        <div className="mt-4">
+          <SpeedToLeadDataGapAudit
+            typeformCoverage={typeformCoverage}
+            typeformOutboundOpportunities={typeformOutboundOpportunities}
+            unmatchedCalendlySummary={unmatchedCalendlySummary}
+            unmatchedCalendlyInvitees={unmatchedCalendlyInvitees}
+            ghlMessageCoverage={ghlMessageCoverage}
+            ghlOutboundMessageBreakdown={ghlOutboundMessageBreakdown}
+          />
+        </div>
+      )}
+      {truthAuditFailed ? null : (
+        <div className="mt-4">
+          <UnmatchedTruthAudit rows={unmatchedTruthAudit} />
+        </div>
+      )}
       <div className="mt-4">
         <FollowUpAudit rows={followUp} />
       </div>
