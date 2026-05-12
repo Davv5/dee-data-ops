@@ -28,6 +28,7 @@ export type DashboardFilters = {
 
 export type DashboardData = {
   rows: Partial<Record<string, DashboardRow[]>>;
+  queryErrors?: Partial<Record<string, string>>;
   freshness: DashboardFreshness;
   filters: DashboardFilters;
   generatedAt: string;

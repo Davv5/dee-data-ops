@@ -1,5 +1,6 @@
 import { queryContracts, type QueryName } from "@/lib/bigquery/named-queries";
-import { runBigQuery } from "@/lib/bigquery/client";
+import { runTieredQueries, type TieredQuery } from "@/lib/bigquery/run-tiered-queries";
+import { tierForSpeedToLeadQuery } from "@/lib/bigquery/query-tiers";
 import type { DashboardData, DashboardFilters, DashboardFreshness, DashboardRow } from "@/types/dashboard-data";
 
 const tableRef = (queryName: QueryName) => `\`${queryContracts[queryName].table}\``;
@@ -1569,112 +1570,34 @@ export async function getSpeedToLeadData(options: GetSpeedToLeadDataOptions = {}
   const filters = buildDashboardFilters(timeRange);
   const speedToLeadQueries = buildSpeedToLeadQueries(timeRange);
 
-  try {
-    const [
-      overall,
-      overallPrior,
-      daily,
-      byRep,
-      triggerSummary,
-      responseBuckets,
-      sourcePerformance,
-      laneSummary,
-      noTouchExamples,
-      routingReadiness,
-      criticalExceptions,
-      qualitySummary,
-      followUpCounts,
-      unmatchedTruthAudit,
-      firstWorkByRep,
-      phoneReachByRep,
-      attributionConfidence,
-      notWorkedAging,
-      reachedExamples,
-      firstAttemptOutcomes,
-      businessHours,
-      typeformCoverage,
-      typeformOutboundOpportunities,
-      unmatchedCalendlySummary,
-      unmatchedCalendlyInvitees,
-      ghlMessageCoverage,
-      ghlOutboundMessageBreakdown,
-    ] = await Promise.all([
-      runBigQuery(speedToLeadQueries.speed_to_lead_overall),
-      runBigQuery(speedToLeadQueries.speed_to_lead_overall_prior),
-      runBigQuery(speedToLeadQueries.speed_to_lead_daily),
-      runBigQuery(speedToLeadQueries.speed_to_lead_by_rep),
-      runBigQuery(speedToLeadQueries.speed_to_lead_trigger_summary),
-      runBigQuery(speedToLeadQueries.speed_to_lead_response_buckets),
-      runBigQuery(speedToLeadQueries.speed_to_lead_source_performance),
-      runBigQuery(speedToLeadQueries.speed_to_lead_lane_summary),
-      runBigQuery(speedToLeadQueries.speed_to_lead_no_touch_examples),
-      runBigQuery(speedToLeadQueries.speed_to_lead_routing_readiness),
-      runBigQuery(speedToLeadQueries.speed_to_lead_critical_exceptions),
-      runBigQuery(speedToLeadQueries.speed_to_lead_quality_summary),
-      runBigQuery(speedToLeadQueries.speed_to_lead_follow_up_counts),
-      runBigQuery(speedToLeadQueries.speed_to_lead_unmatched_truth_audit),
-      runBigQuery(speedToLeadQueries.speed_to_lead_first_work_by_rep),
-      runBigQuery(speedToLeadQueries.speed_to_lead_phone_reach_by_rep),
-      runBigQuery(speedToLeadQueries.speed_to_lead_attribution_confidence),
-      runBigQuery(speedToLeadQueries.speed_to_lead_not_worked_aging),
-      runBigQuery(speedToLeadQueries.speed_to_lead_reached_examples),
-      runBigQuery(speedToLeadQueries.speed_to_lead_first_attempt_outcomes),
-      runBigQuery(speedToLeadQueries.speed_to_lead_business_hours),
-      runBigQuery(speedToLeadQueries.speed_to_lead_typeform_coverage),
-      runBigQuery(speedToLeadQueries.speed_to_lead_typeform_outbound_opportunities),
-      runBigQuery(speedToLeadQueries.speed_to_lead_unmatched_calendly_summary),
-      runBigQuery(speedToLeadQueries.speed_to_lead_unmatched_calendly_invitees),
-      runBigQuery(speedToLeadQueries.speed_to_lead_ghl_message_coverage),
-      runBigQuery(speedToLeadQueries.speed_to_lead_ghl_outbound_message_breakdown),
-    ]);
+  const queryList: TieredQuery[] = Object.entries(speedToLeadQueries).map(
+    ([name, sql]) => ({ name, sql, tier: tierForSpeedToLeadQuery(name) }),
+  );
 
+  const result = await runTieredQueries(queryList);
+
+  if (result.criticalError) {
     return {
-      rows: {
-        speed_to_lead_overall: overall,
-        speed_to_lead_overall_prior: overallPrior,
-        speed_to_lead_daily: daily,
-        speed_to_lead_by_rep: byRep,
-        speed_to_lead_trigger_summary: triggerSummary,
-        speed_to_lead_response_buckets: responseBuckets,
-        speed_to_lead_source_performance: sourcePerformance,
-        speed_to_lead_lane_summary: laneSummary,
-        speed_to_lead_no_touch_examples: noTouchExamples,
-        speed_to_lead_routing_readiness: routingReadiness,
-        speed_to_lead_critical_exceptions: criticalExceptions,
-        speed_to_lead_quality_summary: qualitySummary,
-        speed_to_lead_follow_up_counts: followUpCounts,
-        speed_to_lead_unmatched_truth_audit: unmatchedTruthAudit,
-        speed_to_lead_first_work_by_rep: firstWorkByRep,
-        speed_to_lead_phone_reach_by_rep: phoneReachByRep,
-        speed_to_lead_attribution_confidence: attributionConfidence,
-        speed_to_lead_not_worked_aging: notWorkedAging,
-        speed_to_lead_reached_examples: reachedExamples,
-        speed_to_lead_first_attempt_outcomes: firstAttemptOutcomes,
-        speed_to_lead_business_hours: businessHours,
-        speed_to_lead_typeform_coverage: typeformCoverage,
-        speed_to_lead_typeform_outbound_opportunities: typeformOutboundOpportunities,
-        speed_to_lead_unmatched_calendly_summary: unmatchedCalendlySummary,
-        speed_to_lead_unmatched_calendly_invitees: unmatchedCalendlyInvitees,
-        speed_to_lead_ghl_message_coverage: ghlMessageCoverage,
-        speed_to_lead_ghl_outbound_message_breakdown: ghlOutboundMessageBreakdown,
-      },
-      freshness: buildFreshness(overall, byRep),
-      filters,
-      generatedAt,
-    };
-  } catch (error) {
-    return {
-      rows: {},
+      rows: result.rows,
+      queryErrors: Object.keys(result.queryErrors).length > 0 ? result.queryErrors : undefined,
       freshness: {
         status: "error",
         label: "Live data unavailable",
-        detail: getErrorMessage(error),
+        detail: result.criticalError,
       },
       filters,
       generatedAt,
-      error: getErrorMessage(error),
+      error: result.criticalError,
     };
   }
+
+  return {
+    rows: result.rows,
+    queryErrors: Object.keys(result.queryErrors).length > 0 ? result.queryErrors : undefined,
+    freshness: buildFreshness(result.rows.speed_to_lead_overall ?? [], result.rows.speed_to_lead_by_rep ?? []),
+    filters,
+    generatedAt,
+  };
 }
 
 function buildFreshness(overall: DashboardRow[], byRep: DashboardRow[]): DashboardFreshness {
@@ -1718,12 +1641,4 @@ function formatRelativeAge(ageHours: number) {
   }
 
   return `${Math.round(ageHours / 24)}d`;
-}
-
-function getErrorMessage(error: unknown) {
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  return "Unknown BigQuery error";
 }
