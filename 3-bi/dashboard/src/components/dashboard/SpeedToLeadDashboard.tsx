@@ -630,7 +630,7 @@ function QueueRow({ row, timeRange }: { row: DashboardRow; timeRange: string }) 
   const leadName = stringValue(row.lead_name) ?? "Unknown";
   const contactSk = stringValue(row.contact_sk);
   const profileHref = contactSk
-    ? `/customers/${contactSk}?from=speed-to-lead&range=${encodeURIComponent(timeRange)}`
+    ? `/customers/${contactSk}?from=speed-to-lead&reason=not_worked&range=${encodeURIComponent(timeRange)}`
     : null;
 
   return (
