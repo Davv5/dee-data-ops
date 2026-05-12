@@ -20,8 +20,21 @@ function safeNextPath(value: FormDataEntryValue | string | null): string {
   return value;
 }
 
+function publicOrigin(request: Request): string {
+  // Cloud Run sits behind a TLS-terminating front end, so `request.url` inside
+  // the container reports the internal origin (https://localhost:8080). Honor
+  // the forwarded host/proto headers when present; fall back to request.url for
+  // local dev where no proxy is in front.
+  const forwardedHost = request.headers.get("x-forwarded-host");
+  if (forwardedHost) {
+    const forwardedProto = request.headers.get("x-forwarded-proto") ?? "https";
+    return `${forwardedProto}://${forwardedHost}`;
+  }
+  return new URL(request.url).origin;
+}
+
 function redirectResponse(request: Request, path: string): NextResponse {
-  const url = new URL(path, request.url);
+  const url = new URL(path, publicOrigin(request));
   return NextResponse.redirect(url, 303);
 }
 
