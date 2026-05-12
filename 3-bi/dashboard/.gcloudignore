@@ -3,16 +3,15 @@ node_modules/
 dist/
 coverage/
 
-.DS_Store
-**/.DS_Store
-*.tsbuildinfo
-
-.claude/
-
 .env
 .env.local
 .env.*.local
-!.env.example
+
+.DS_Store
+**/.DS_Store
+tsconfig.tsbuildinfo
+
+.claude/
 
 CRAFT-PASS-AUDIT.md
 CRAFT-PASS-CASE-STUDY.md

@@ -7,7 +7,7 @@ type AppShellProps = {
 
 export function AppShell({ children }: AppShellProps) {
   return (
-    <div className="min-h-screen bg-[#f7f7f4] text-[#171717]">
+    <div className="min-h-screen bg-transparent text-[var(--foreground)]">
       <main className="min-h-screen px-4 py-4 lg:px-6">
         <div className="mx-auto max-w-[108rem]">
           <TopNav />
