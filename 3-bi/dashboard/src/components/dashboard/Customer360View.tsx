@@ -46,6 +46,7 @@ export function Customer360View({ data, contactSk, returnHref, sourceContext }: 
   const retentionMonths = data.rows.customer_360_retention_months ?? [];
   const relationshipTimeline = data.rows.customer_360_relationship_timeline ?? [];
   const operatorActions = data.rows.customer_360_operator_actions ?? [];
+  const typeformResponses = data.rows.customer_360_typeform_responses ?? [];
 
   const customerName = stringValue(profile?.customer_display_name) ?? "Customer 360";
   const contactLine = [stringValue(profile?.email_norm), stringValue(profile?.phone)].filter(Boolean).join(" · ");
@@ -121,6 +122,10 @@ export function Customer360View({ data, contactSk, returnHref, sourceContext }: 
         <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(24rem,0.9fr)]">
           <MagnetTrailPanel rows={magnetTrail} />
           <RetentionMonthsPanel rows={retentionMonths} />
+        </div>
+
+        <div className="mt-3">
+          <TypeformResponsesPanel rows={typeformResponses} />
         </div>
       </section>
 
@@ -1155,6 +1160,120 @@ function MagnetTrailPanel({ rows }: { rows: DashboardRow[] }) {
           ))
         ) : (
           <EmptyLine>No lead magnet opportunities found.</EmptyLine>
+        )}
+      </div>
+    </Panel>
+  );
+}
+
+type TypeformQaPair = {
+  question?: string | null;
+  answer_type?: string | null;
+  answer?: string | null;
+};
+
+function TypeformResponsesPanel({ rows }: { rows: DashboardRow[] }) {
+  return (
+    <Panel title="Typeform Responses" helper="Survey submissions linked to this contact via the deterministic email/phone bridge.">
+      <div className="space-y-3">
+        {rows.length ? (
+          rows.map((row) => {
+            const qaPairsRaw = row.qa_pairs as unknown;
+            const qaPairs: TypeformQaPair[] = Array.isArray(qaPairsRaw)
+              ? (qaPairsRaw as TypeformQaPair[])
+              : [];
+            const formTitle = stringValue(row.form_title) ?? "Unknown form";
+            const submittedLabel = stringValue(row.submitted_label) ?? "Submission date unknown";
+            const matchMethod = stringValue(row.match_method) ?? "unmatched";
+            const matchTone =
+              matchMethod === "email_exact"
+                ? "green"
+                : matchMethod === "email_canonical"
+                  ? "green"
+                  : matchMethod.includes("phone")
+                    ? "blue"
+                    : "amber";
+            const ageBracket = stringValue(row.respondent_age_bracket);
+            const businessStage = stringValue(row.respondent_business_stage);
+            const investmentRange = stringValue(row.respondent_investment_range);
+            const coreStruggle = stringValue(row.respondent_core_struggle);
+            const formScore = numberValue(row.form_score);
+            const utm = [
+              stringValue(row.utm_source),
+              stringValue(row.utm_medium),
+              stringValue(row.utm_campaign),
+            ]
+              .filter(Boolean)
+              .join(" · ");
+            const referer = stringValue(row.referer);
+            const sourceLine = utm || referer || "No UTM or referer captured";
+            const respondentEmail = stringValue(row.respondent_email);
+            const respondentName = stringValue(row.respondent_name);
+
+            return (
+              <div key={stringValue(row.response_id) ?? formTitle} className="rounded-md border border-[#ece9e1] p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-semibold text-[#2d2b28]">{formTitle}</div>
+                    <div className="mt-1 truncate text-[11px] text-[#66635f]">
+                      {submittedLabel}
+                      {respondentName ? ` · ${respondentName}` : ""}
+                      {respondentEmail ? ` · ${respondentEmail}` : ""}
+                    </div>
+                  </div>
+                  <span
+                    className={`shrink-0 rounded-md border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                      matchTone === "green"
+                        ? "border-[#bbf7d0] bg-[#f0fdf4] text-[#166534]"
+                        : matchTone === "blue"
+                          ? "border-[#bfdbfe] bg-[#eff6ff] text-[#1d4ed8]"
+                          : "border-[#fed7aa] bg-[#fff7ed] text-[#9a3412]"
+                    }`}
+                    title={`Match method ${matchMethod}`}
+                  >
+                    {labelize(matchMethod)}
+                  </span>
+                </div>
+
+                <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+                  <SignalBox label="age bracket" value={ageBracket ?? "—"} helper="self-reported" tone={ageBracket ? "green" : "amber"} />
+                  <SignalBox label="business stage" value={businessStage ?? "—"} helper="self-reported" tone={businessStage ? "green" : "amber"} />
+                  <SignalBox label="investment range" value={investmentRange ?? "—"} helper="self-reported" tone={investmentRange ? "green" : "amber"} />
+                  <SignalBox label="core struggle" value={coreStruggle ?? "—"} helper="self-reported" tone={coreStruggle ? "green" : "amber"} />
+                  <SignalBox
+                    label="form score"
+                    value={formScore != null ? String(formScore) : "—"}
+                    helper="psychographic"
+                    tone={formScore != null ? "green" : "amber"}
+                  />
+                </div>
+
+                <div className="mt-3 text-[11px] text-[#66635f]">{sourceLine}</div>
+
+                {qaPairs.length ? (
+                  <details className="mt-3 rounded-md border border-[#ece9e1] bg-[#fbfaf7]">
+                    <summary className="cursor-pointer px-3 py-2 text-xs font-semibold text-[#0f766e]">
+                      All answers ({qaPairs.length})
+                    </summary>
+                    <div className="border-t border-[#ece9e1] divide-y divide-[#ece9e1]">
+                      {qaPairs.map((pair, index) => (
+                        <div key={index} className="px-3 py-2 text-xs">
+                          <div className="font-semibold text-[#2d2b28]">
+                            {pair.question ?? "Untitled question"}
+                          </div>
+                          <div className="mt-1 whitespace-pre-line text-[#3b3936]">
+                            {pair.answer ?? "—"}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                ) : null}
+              </div>
+            );
+          })
+        ) : (
+          <EmptyLine>No Typeform submissions linked to this contact.</EmptyLine>
         )}
       </div>
     </Panel>

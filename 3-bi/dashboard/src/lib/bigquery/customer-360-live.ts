@@ -1031,6 +1031,91 @@ function buildCustomer360Queries(contactSk: string) {
         OR (latest_reviews.expires_at IS NOT NULL AND TIMESTAMP(latest_reviews.expires_at) <= CURRENT_TIMESTAMP())
       ORDER BY action_priority, ABS(money_at_stake) DESC
     `,
+    customer_360_typeform_responses: `
+      WITH bridge AS (
+        SELECT
+          b.response_id,
+          b.location_id,
+          b.contact_id,
+          b.match_method,
+          b.match_score
+        FROM ${coreTableRef("bridge_typeform_response_contacts")} b
+        JOIN ${coreTableRef("dim_contacts")} dc
+          ON dc.location_id = b.location_id
+         AND dc.contact_id = b.contact_id
+        WHERE dc.contact_sk = '${contactSk}'
+        QUALIFY ROW_NUMBER() OVER (
+          PARTITION BY b.response_id
+          ORDER BY b.match_score DESC, b.match_method ASC
+        ) = 1
+      ),
+      responses AS (
+        SELECT
+          r.response_id,
+          r.form_id,
+          f.form_title,
+          r.submitted_at,
+          FORMAT_TIMESTAMP('%b %e, %Y %l:%M %p ET', r.submitted_at, 'America/New_York') AS submitted_label,
+          r.respondent_name,
+          r.respondent_email,
+          r.respondent_age_bracket,
+          r.respondent_business_stage,
+          r.respondent_investment_range,
+          r.respondent_core_struggle,
+          r.form_score,
+          JSON_VALUE(r.hidden_fields_json, '$.utm_source')   AS utm_source,
+          JSON_VALUE(r.hidden_fields_json, '$.utm_medium')   AS utm_medium,
+          JSON_VALUE(r.hidden_fields_json, '$.utm_campaign') AS utm_campaign,
+          r.referer,
+          b.match_method,
+          b.match_score
+        FROM bridge b
+        JOIN ${coreTableRef("dim_typeform_responses")} r
+          ON r.response_id = b.response_id
+        LEFT JOIN ${coreTableRef("dim_typeform_forms")} f
+          ON f.form_id = r.form_id
+      ),
+      answers AS (
+        SELECT
+          a.response_id,
+          ARRAY_AGG(
+            STRUCT(
+              a.field_title AS question,
+              a.answer_type,
+              a.answer_value AS answer
+            )
+            ORDER BY a.field_id
+          ) AS qa_pairs
+        FROM ${coreTableRef("fct_typeform_answers")} a
+        WHERE a.response_id IN (SELECT response_id FROM responses)
+        GROUP BY a.response_id
+      )
+      SELECT
+        resp.response_id,
+        resp.form_id,
+        resp.form_title,
+        FORMAT_TIMESTAMP('%FT%TZ', resp.submitted_at) AS submitted_at,
+        resp.submitted_label,
+        resp.respondent_name,
+        resp.respondent_email,
+        resp.respondent_age_bracket,
+        resp.respondent_business_stage,
+        resp.respondent_investment_range,
+        resp.respondent_core_struggle,
+        resp.form_score,
+        resp.utm_source,
+        resp.utm_medium,
+        resp.utm_campaign,
+        resp.referer,
+        resp.match_method,
+        resp.match_score,
+        ans.qa_pairs
+      FROM responses resp
+      LEFT JOIN answers ans
+        ON ans.response_id = resp.response_id
+      ORDER BY resp.submitted_at DESC
+      LIMIT 10
+    `,
   } satisfies Record<string, string>;
 }
 
@@ -1053,6 +1138,7 @@ export async function getCustomer360Data(options: GetCustomer360DataOptions): Pr
       retentionMonths,
       relationshipTimeline,
       operatorActions,
+      typeformResponses,
     ] = await Promise.all([
       runBigQuery(queries.customer_360_profile),
       runBigQuery(queries.customer_360_payments),
@@ -1063,6 +1149,7 @@ export async function getCustomer360Data(options: GetCustomer360DataOptions): Pr
       runBigQuery(queries.customer_360_retention_months),
       runBigQuery(queries.customer_360_relationship_timeline),
       runBigQuery(queries.customer_360_operator_actions),
+      runBigQuery(queries.customer_360_typeform_responses),
     ]);
 
     if (!profile[0]?.has_customer_source) {
@@ -1080,6 +1167,7 @@ export async function getCustomer360Data(options: GetCustomer360DataOptions): Pr
         customer_360_retention_months: retentionMonths,
         customer_360_relationship_timeline: relationshipTimeline,
         customer_360_operator_actions: operatorActions,
+        customer_360_typeform_responses: typeformResponses,
       },
       freshness: buildFreshness(profile),
       filters,
@@ -1099,6 +1187,10 @@ export async function getCustomer360Data(options: GetCustomer360DataOptions): Pr
           "fct_calls_booked",
           "lead_magnet_detail",
           "operator_action_reviews",
+          "bridge_typeform_response_contacts",
+          "dim_typeform_responses",
+          "dim_typeform_forms",
+          "fct_typeform_answers",
         ],
         note:
           "Customer 360 is a drilldown view over existing marts and facts. It does not create new attribution; it exposes the source evidence already modeled for the customer.",
