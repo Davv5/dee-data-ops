@@ -133,11 +133,13 @@ export function Customer360View({ data, contactSk, returnHref, sourceContext }: 
           outreach={outreach}
           bookings={bookings}
           magnetTrail={magnetTrail}
+          typeformResponses={typeformResponses}
           sourceContext={sourceContext}
+          viewMode={viewMode}
         />
-        <OpenOperatorActionsPanel rows={operatorActions} profile={profile} />
+        <OpenOperatorActionsPanel rows={operatorActions} profile={profile} viewMode={viewMode} />
         <OriginContextPanel profile={profile} sourceContext={sourceContext} />
-        <RelationshipTimelinePanel rows={relationshipTimeline} />
+        <RelationshipTimelinePanel rows={relationshipTimeline} viewMode={viewMode} />
 
         {isProspect ? (
           <ProspectKpiRow
@@ -169,10 +171,16 @@ export function Customer360View({ data, contactSk, returnHref, sourceContext }: 
           />
         ) : null}
 
-        <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(24rem,0.85fr)]">
-          <ProfilePanel profile={profile} />
-          <ActionPanel profile={profile} />
-        </div>
+        {isProspect ? (
+          <div className="mt-3">
+            <ProfilePanel profile={profile} viewMode={viewMode} />
+          </div>
+        ) : (
+          <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(24rem,0.85fr)]">
+            <ProfilePanel profile={profile} viewMode={viewMode} />
+            <ActionPanel profile={profile} />
+          </div>
+        )}
 
         {isProspect ? (
           <div className="mt-3">
@@ -215,7 +223,9 @@ function OperatorCommandPanel({
   outreach,
   bookings,
   magnetTrail,
+  typeformResponses,
   sourceContext,
+  viewMode,
 }: {
   profile: DashboardRow | undefined;
   payments: DashboardRow[];
@@ -223,14 +233,25 @@ function OperatorCommandPanel({
   outreach: DashboardRow[];
   bookings: DashboardRow[];
   magnetTrail: DashboardRow[];
+  typeformResponses: DashboardRow[];
   sourceContext: Customer360ViewProps["sourceContext"];
+  viewMode: ViewMode;
 }) {
   const action = operatorAction(profile, sourceContext);
-  const evidenceItems = actionEvidence(profile, payments, refunds, outreach, bookings, magnetTrail);
+  const isProspect = viewMode === "prospect";
+  const evidenceItems = isProspect
+    ? prospectActionEvidence(profile, outreach, magnetTrail, typeformResponses)
+    : actionEvidence(profile, payments, refunds, outreach, bookings, magnetTrail);
   const blockerItems = actionBlockers(profile, sourceContext);
   const email = stringValue(profile?.email_norm);
   const phone = stringValue(profile?.phone);
   const phoneHref = phone ? cleanPhoneHref(phone) : null;
+  const latestMagnetName = stringValue(magnetTrail[0]?.lead_magnet_name);
+  const latestMagnetLabel = stringValue(magnetTrail[0]?.opportunity_created_label);
+  const latestOutreach = outreach[0];
+  const contactability =
+    email && phone ? "Phone + Email" : phone ? "Phone only" : email ? "Email only" : "No contact";
+  const contactabilityHelper = [email, phone].filter(Boolean).join(" · ") || "no email or phone";
 
   return (
     <section className="mb-3 rounded-lg border border-[#dedbd2] bg-white p-4 shadow-sm">
@@ -283,9 +304,38 @@ function OperatorCommandPanel({
         </div>
 
         <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
-          <CommandFact label="revenue credit" value={action.owner} helper={action.ownerHelper} tone={action.owner === "Unassigned / unknown" ? "amber" : "green"} />
-          <CommandFact label="blocker" value={blockerItems[0]?.value ?? "No major blocker"} helper={blockerItems[0]?.helper ?? "Evidence is clean enough to act"} tone={blockerItems.length ? "amber" : "green"} />
-          <CommandFact label="money at stake" value={formatCurrency(numberValue(profile?.lifetime_net_revenue_after_refunds))} helper={`${formatNumber(numberValue(profile?.lifetime_paid_payments_count))} payments`} tone="green" />
+          {isProspect ? (
+            <>
+              <CommandFact
+                label="contactability"
+                value={contactability}
+                helper={contactabilityHelper}
+                tone={email && phone ? "green" : phone || email ? "blue" : "amber"}
+              />
+              <CommandFact
+                label="latest magnet"
+                value={latestMagnetName ?? "No magnet"}
+                helper={latestMagnetLabel ?? "no magnet date"}
+                tone={latestMagnetName ? "green" : "amber"}
+              />
+              <CommandFact
+                label="no-touch proof"
+                value={latestOutreach ? `${formatNumber(outreach.length)} touch attempts` : "Not reached yet"}
+                helper={
+                  latestOutreach
+                    ? `latest ${stringValue(latestOutreach.touched_label) ?? "outreach"}`
+                    : "team has not reached out"
+                }
+                tone={latestOutreach ? "green" : "amber"}
+              />
+            </>
+          ) : (
+            <>
+              <CommandFact label="revenue credit" value={action.owner} helper={action.ownerHelper} tone={action.owner === "Unassigned / unknown" ? "amber" : "green"} />
+              <CommandFact label="blocker" value={blockerItems[0]?.value ?? "No major blocker"} helper={blockerItems[0]?.helper ?? "Evidence is clean enough to act"} tone={blockerItems.length ? "amber" : "green"} />
+              <CommandFact label="money at stake" value={formatCurrency(numberValue(profile?.lifetime_net_revenue_after_refunds))} helper={`${formatNumber(numberValue(profile?.lifetime_paid_payments_count))} payments`} tone="green" />
+            </>
+          )}
         </div>
       </div>
 
@@ -298,11 +348,26 @@ function OperatorCommandPanel({
   );
 }
 
-function OpenOperatorActionsPanel({ rows, profile }: { rows: DashboardRow[]; profile: DashboardRow | undefined }) {
+function OpenOperatorActionsPanel({
+  rows,
+  profile,
+  viewMode,
+}: {
+  rows: DashboardRow[];
+  profile: DashboardRow | undefined;
+  viewMode: ViewMode;
+}) {
   const openRows = rows.filter((row) => {
     const status = stringValue(row.review_status) ?? "open";
     return status !== "fixed" && status !== "wont_fix";
   });
+
+  // In prospect mode the operator_action_reviews queue (Revenue + Retention)
+  // is irrelevant. Hide the panel entirely when there are no actual rows so
+  // the page doesn't render the customer-queue empty-state copy.
+  if (viewMode === "prospect" && openRows.length === 0) {
+    return null;
+  }
 
   return (
     <section className="mb-3 rounded-lg border border-[#dedbd2] bg-white p-4 shadow-sm">
@@ -787,6 +852,68 @@ function operatorAction(profile: DashboardRow | undefined, sourceContext: Custom
   };
 }
 
+function prospectActionEvidence(
+  profile: DashboardRow | undefined,
+  outreach: DashboardRow[],
+  magnetTrail: DashboardRow[],
+  typeformResponses: DashboardRow[],
+): CommandFactItem[] {
+  const latestTouch = outreach[0];
+  const latestMagnet = magnetTrail[0];
+  const latestForm = typeformResponses[0];
+  const formScore = numberValue(latestForm?.form_score);
+  const utmSource =
+    stringValue(profile?.utm_source) ?? stringValue(latestForm?.utm_source);
+
+  return [
+    {
+      label: "lead source",
+      value:
+        utmSource ??
+        stringValue(latestMagnet?.lead_magnet_name) ??
+        stringValue(profile?.lead_source) ??
+        "Unknown source",
+      helper:
+        stringValue(latestForm?.form_title) ??
+        stringValue(latestMagnet?.opportunity_created_label) ??
+        ([stringValue(profile?.utm_medium), stringValue(profile?.utm_campaign)]
+          .filter(Boolean)
+          .join(" · ") || "no campaign tag"),
+      tone:
+        utmSource || stringValue(latestMagnet?.lead_magnet_name) ? "green" : "amber",
+    },
+    {
+      label: "latest touch",
+      value: latestTouch
+        ? `${labelize(stringValue(latestTouch.channel))} · ${labelize(stringValue(latestTouch.message_status))}`
+        : "No touch yet",
+      helper: latestTouch
+        ? stringValue(latestTouch.touched_label) ?? "outreach evidence"
+        : "team has not reached out",
+      tone: latestTouch ? "green" : "amber",
+    },
+    {
+      label: "magnet windows",
+      value: formatNumber(magnetTrail.length),
+      helper: latestMagnet
+        ? stringValue(latestMagnet.lead_magnet_name) ?? "magnet trail"
+        : "no magnet windows",
+      tone: magnetTrail.length > 0 ? "green" : "amber",
+    },
+    {
+      label: "form score",
+      value: formScore != null ? String(formScore) : "—",
+      helper:
+        formScore != null
+          ? "psychographic"
+          : typeformResponses.length
+            ? "no score on latest"
+            : "no Typeform record",
+      tone: formScore != null ? "green" : "amber",
+    },
+  ];
+}
+
 function actionEvidence(
   profile: DashboardRow | undefined,
   payments: DashboardRow[],
@@ -964,9 +1091,14 @@ function cleanPhoneHref(value: string) {
   return value.replace(/[^\d+]/g, "");
 }
 
-function ProfilePanel({ profile }: { profile: DashboardRow | undefined }) {
+function ProfilePanel({ profile, viewMode }: { profile: DashboardRow | undefined; viewMode: ViewMode }) {
+  const isProspect = viewMode === "prospect";
+  const panelTitle = isProspect ? "Lead Truth" : "Customer Truth";
+  const panelHelper = isProspect
+    ? "Identity and entry source for this lead."
+    : "Identity, entry source, purchase source, and source IDs.";
   return (
-    <Panel title="Customer Truth" helper="Identity, entry source, purchase source, and source IDs.">
+    <Panel title={panelTitle} helper={panelHelper}>
       <div className="grid gap-3 md:grid-cols-2">
         <SourceBlock title="Identity">
           <SourceLine label="GHL contact" value={stringValue(profile?.contact_id)} />
@@ -982,23 +1114,27 @@ function ProfilePanel({ profile }: { profile: DashboardRow | undefined }) {
           <SourceLine label="UTM campaign" value={stringValue(profile?.utm_campaign)} />
           <SourceLine label="Timezone" value={stringValue(profile?.timezone)} />
         </SourceBlock>
-        <SourceBlock title="Purchase">
-          <SourceLine label="First paid" value={stringValue(profile?.first_purchase_label)} />
-          <SourceLine label="Latest paid" value={stringValue(profile?.latest_purchase_label)} />
-          <SourceLine label="Upfront net" value={formatCurrency(numberValue(profile?.upfront_collected_net_revenue))} />
-          <SourceLine label="After first" value={formatCurrency(numberValue(profile?.post_first_collected_net_revenue))} />
-          <SourceLine label="Contract evidence" value={labelize(stringValue(profile?.contract_evidence_status))} />
-          <SourceLine label="Top product" value={stringValue(profile?.top_product_by_net_revenue)} />
-          <SourceLine label="Product family" value={stringValue(profile?.top_product_family)} />
-          <SourceLine label="Products" value={stringValue(profile?.lifetime_purchased_products)} />
-        </SourceBlock>
-        <SourceBlock title="Fanbasis">
-          <SourceLine label="Lifecycle" value={labelize(stringValue(profile?.customer_lifecycle_status))} />
-          <SourceLine label="Sub status" value={stringValue(profile?.latest_fanbasis_subscription_status)} />
-          <SourceLine label="Product" value={stringValue(profile?.latest_fanbasis_product_title)} />
-          <SourceLine label="Customer IDs" value={stringValue(profile?.fanbasis_customer_ids)} />
-          <SourceLine label="Subscriber IDs" value={stringValue(profile?.fanbasis_subscription_ids)} />
-        </SourceBlock>
+        {isProspect ? null : (
+          <SourceBlock title="Purchase">
+            <SourceLine label="First paid" value={stringValue(profile?.first_purchase_label)} />
+            <SourceLine label="Latest paid" value={stringValue(profile?.latest_purchase_label)} />
+            <SourceLine label="Upfront net" value={formatCurrency(numberValue(profile?.upfront_collected_net_revenue))} />
+            <SourceLine label="After first" value={formatCurrency(numberValue(profile?.post_first_collected_net_revenue))} />
+            <SourceLine label="Contract evidence" value={labelize(stringValue(profile?.contract_evidence_status))} />
+            <SourceLine label="Top product" value={stringValue(profile?.top_product_by_net_revenue)} />
+            <SourceLine label="Product family" value={stringValue(profile?.top_product_family)} />
+            <SourceLine label="Products" value={stringValue(profile?.lifetime_purchased_products)} />
+          </SourceBlock>
+        )}
+        {isProspect ? null : (
+          <SourceBlock title="Fanbasis">
+            <SourceLine label="Lifecycle" value={labelize(stringValue(profile?.customer_lifecycle_status))} />
+            <SourceLine label="Sub status" value={stringValue(profile?.latest_fanbasis_subscription_status)} />
+            <SourceLine label="Product" value={stringValue(profile?.latest_fanbasis_product_title)} />
+            <SourceLine label="Customer IDs" value={stringValue(profile?.fanbasis_customer_ids)} />
+            <SourceLine label="Subscriber IDs" value={stringValue(profile?.fanbasis_subscription_ids)} />
+          </SourceBlock>
+        )}
       </div>
     </Panel>
   );
@@ -1117,8 +1253,9 @@ function PaymentsPanel({ payments, refunds }: { payments: DashboardRow[]; refund
   );
 }
 
-function RelationshipTimelinePanel({ rows }: { rows: DashboardRow[] }) {
+function RelationshipTimelinePanel({ rows, viewMode }: { rows: DashboardRow[]; viewMode: ViewMode }) {
   const visibleRows = rows.slice(0, 16);
+  const isProspect = viewMode === "prospect";
 
   return (
     <section className="mb-3 rounded-lg border border-[#dedbd2] bg-white p-4 shadow-sm">
@@ -1126,7 +1263,9 @@ function RelationshipTimelinePanel({ rows }: { rows: DashboardRow[] }) {
         <div>
           <h2 className="text-sm font-semibold">Relationship Timeline</h2>
           <p className="mt-1 max-w-3xl text-xs leading-5 text-[#66635f]">
-            The customer story in order: source, booking or call, money, collection evidence, and current state.
+            {isProspect
+              ? "The lead story so far: source, magnet, and any touch attempted."
+              : "The customer story in order: source, booking or call, money, collection evidence, and current state."}
           </p>
         </div>
         <span className="w-fit rounded-md border border-[#dedbd2] bg-[#fbfaf7] px-2 py-1 text-[11px] font-semibold uppercase text-[#66635f]">
