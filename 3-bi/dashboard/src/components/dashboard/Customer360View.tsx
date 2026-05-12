@@ -27,6 +27,42 @@ type Customer360ViewProps = {
   };
 };
 
+type ViewMode = "customer" | "prospect";
+
+// Precedence (per 2026-05-12 17:15 ET decision):
+// 1. Clear paid-customer evidence -> customer mode (wins over URL).
+// 2. Operator intent (reason=not_worked or from=speed-to-lead) -> prospect.
+// 3. Implicit prospect evidence (magnet/typeform/outreach, no payments) -> prospect.
+// 4. Default -> customer.
+// Bookings alone do NOT flip to customer mode — booked-but-unworked
+// is Speed-to-Lead's job.
+function deriveViewMode(
+  profile: DashboardRow | undefined,
+  payments: DashboardRow[],
+  magnetTrail: DashboardRow[],
+  typeformResponses: DashboardRow[],
+  outreach: DashboardRow[],
+  sourceContext: Customer360ViewProps["sourceContext"],
+): ViewMode {
+  const paidCustomerEvidence =
+    (numberValue(profile?.lifetime_paid_payments_count) ?? 0) > 0 ||
+    payments.length > 0;
+  if (paidCustomerEvidence) return "customer";
+
+  const operatorIntentProspect =
+    sourceContext?.reason === "not_worked" ||
+    sourceContext?.from === "speed-to-lead";
+  if (operatorIntentProspect) return "prospect";
+
+  const implicitProspectEvidence =
+    magnetTrail.length > 0 ||
+    typeformResponses.length > 0 ||
+    outreach.length > 0;
+  if (implicitProspectEvidence) return "prospect";
+
+  return "customer";
+}
+
 type CommandFactTone = "green" | "blue" | "amber";
 
 type CommandFactItem = {
@@ -57,6 +93,9 @@ export function Customer360View({ data, contactSk, returnHref, sourceContext }: 
     profile?.credited_closer_confidence,
     "No revenue credit source",
   );
+
+  const viewMode = deriveViewMode(profile, payments, magnetTrail, typeformResponses, outreach, sourceContext);
+  const isProspect = viewMode === "prospect";
 
   return (
     <div>
@@ -100,33 +139,68 @@ export function Customer360View({ data, contactSk, returnHref, sourceContext }: 
         <OriginContextPanel profile={profile} sourceContext={sourceContext} />
         <RelationshipTimelinePanel rows={relationshipTimeline} />
 
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
-          <KpiCard title="Lifetime Net" value={formatCurrency(numberValue(profile?.lifetime_net_revenue_after_refunds))} helper={`${formatNumber(numberValue(profile?.lifetime_paid_payments_count))} payments`} icon={DollarSign} tone="green" />
-          <KpiCard title="Next Action" value={labelize(stringValue(profile?.retention_operator_next_action))} helper={labelize(stringValue(profile?.collection_health_status) ?? stringValue(profile?.payment_plan_health_status))} icon={CreditCard} tone={booleanValue(profile?.is_expected_payment_due_now) ? "amber" : "blue"} />
-          <KpiCard title="Due Status" value={dueLabel} helper={stringValue(profile?.expected_next_payment_label) ?? "No expected date"} icon={CalendarCheck} tone={booleanValue(profile?.is_expected_payment_missed_now) ? "amber" : "green"} />
-          <KpiCard title="Revenue Credit" value={revenueCredit} helper={revenueCreditHelper} icon={UserRound} tone={knownOperatorName(profile?.credited_closer_name) ? "blue" : "amber"} />
-          <KpiCard title="Bookings" value={formatNumber(bookings.length)} helper={`${formatNumber(outreach.length)} recent touches`} icon={Phone} tone="blue" />
-          <KpiCard title="Refunds" value={formatCurrency(numberValue(profile?.lifetime_refunds_amount))} helper={`${formatNumber(numberValue(profile?.lifetime_refunds_count))} refunds`} icon={ReceiptText} tone={numberValue(profile?.lifetime_refunds_count) ? "amber" : "green"} />
-        </div>
+        {isProspect ? (
+          <ProspectKpiRow
+            profile={profile}
+            magnetTrail={magnetTrail}
+            typeformResponses={typeformResponses}
+            outreach={outreach}
+          />
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+            <KpiCard title="Lifetime Net" value={formatCurrency(numberValue(profile?.lifetime_net_revenue_after_refunds))} helper={`${formatNumber(numberValue(profile?.lifetime_paid_payments_count))} payments`} icon={DollarSign} tone="green" />
+            <KpiCard title="Next Action" value={labelize(stringValue(profile?.retention_operator_next_action))} helper={labelize(stringValue(profile?.collection_health_status) ?? stringValue(profile?.payment_plan_health_status))} icon={CreditCard} tone={booleanValue(profile?.is_expected_payment_due_now) ? "amber" : "blue"} />
+            <KpiCard title="Due Status" value={dueLabel} helper={stringValue(profile?.expected_next_payment_label) ?? "No expected date"} icon={CalendarCheck} tone={booleanValue(profile?.is_expected_payment_missed_now) ? "amber" : "green"} />
+            <KpiCard title="Revenue Credit" value={revenueCredit} helper={revenueCreditHelper} icon={UserRound} tone={knownOperatorName(profile?.credited_closer_name) ? "blue" : "amber"} />
+            <KpiCard title="Bookings" value={formatNumber(bookings.length)} helper={`${formatNumber(outreach.length)} recent touches`} icon={Phone} tone="blue" />
+            <KpiCard title="Refunds" value={formatCurrency(numberValue(profile?.lifetime_refunds_amount))} helper={`${formatNumber(numberValue(profile?.lifetime_refunds_count))} refunds`} icon={ReceiptText} tone={numberValue(profile?.lifetime_refunds_count) ? "amber" : "green"} />
+          </div>
+        )}
+
+        {isProspect ? (
+          <EvidenceCheckedStrip
+            payments={payments}
+            refunds={refunds}
+            retentionMonths={retentionMonths}
+            magnetTrail={magnetTrail}
+            typeformResponses={typeformResponses}
+            outreach={outreach}
+            bookings={bookings}
+          />
+        ) : null}
 
         <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(24rem,0.85fr)]">
           <ProfilePanel profile={profile} />
           <ActionPanel profile={profile} />
         </div>
 
-        <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(24rem,0.9fr)]">
-          <PaymentsPanel payments={payments} refunds={refunds} />
-          <TimelinePanel bookings={bookings} outreach={outreach} />
-        </div>
+        {isProspect ? (
+          <div className="mt-3">
+            <TypeformResponsesPanel rows={typeformResponses} />
+          </div>
+        ) : null}
 
         <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(24rem,0.9fr)]">
           <MagnetTrailPanel rows={magnetTrail} />
-          <RetentionMonthsPanel rows={retentionMonths} />
+          {isProspect ? (
+            <TimelinePanel bookings={bookings} outreach={outreach} />
+          ) : (
+            <RetentionMonthsPanel rows={retentionMonths} />
+          )}
         </div>
 
-        <div className="mt-3">
-          <TypeformResponsesPanel rows={typeformResponses} />
-        </div>
+        {isProspect ? null : (
+          <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(24rem,0.9fr)]">
+            <PaymentsPanel payments={payments} refunds={refunds} />
+            <TimelinePanel bookings={bookings} outreach={outreach} />
+          </div>
+        )}
+
+        {isProspect ? null : (
+          <div className="mt-3">
+            <TypeformResponsesPanel rows={typeformResponses} />
+          </div>
+        )}
       </section>
 
       <AuditDetails data={data} />
@@ -1163,6 +1237,105 @@ function MagnetTrailPanel({ rows }: { rows: DashboardRow[] }) {
         )}
       </div>
     </Panel>
+  );
+}
+
+function ProspectKpiRow({
+  profile,
+  magnetTrail,
+  typeformResponses,
+  outreach,
+}: {
+  profile: DashboardRow | undefined;
+  magnetTrail: DashboardRow[];
+  typeformResponses: DashboardRow[];
+  outreach: DashboardRow[];
+}) {
+  const firstSeenIso =
+    stringValue(profile?.contact_created_at) ??
+    stringValue(typeformResponses[0]?.submitted_at) ??
+    stringValue(magnetTrail[0]?.opportunity_created_at);
+  const leadAgeDays = firstSeenIso
+    ? Math.max(0, Math.floor((Date.now() - new Date(firstSeenIso).getTime()) / (1000 * 60 * 60 * 24)))
+    : null;
+  const leadAgeLabel =
+    leadAgeDays == null
+      ? "Unknown"
+      : leadAgeDays === 0
+        ? "Today"
+        : leadAgeDays === 1
+          ? "1 day"
+          : `${leadAgeDays} days`;
+
+  const utmSource = stringValue(profile?.utm_source) ?? stringValue(typeformResponses[0]?.utm_source);
+  const utmCampaign = stringValue(profile?.utm_campaign) ?? stringValue(typeformResponses[0]?.utm_campaign);
+  const sourceHelper = [stringValue(profile?.utm_medium), utmCampaign].filter(Boolean).join(" · ") || "no campaign tag";
+  const leadSourceLabel = utmSource ?? stringValue(profile?.lead_source) ?? "Unknown source";
+
+  const latestMagnet = stringValue(magnetTrail[0]?.lead_magnet_name) ?? stringValue(profile?.latest_prior_lead_magnet_name);
+  const latestMagnetHelper = stringValue(magnetTrail[0]?.opportunity_created_label) ?? "no magnet date";
+
+  const formScore = numberValue(typeformResponses[0]?.form_score);
+  const formScoreLabel = formScore != null ? String(formScore) : typeformResponses.length ? "Unscored" : "No form";
+
+  const latestTouch = outreach[0];
+  const latestTouchLabel = latestTouch
+    ? `${labelize(stringValue(latestTouch.channel))} · ${labelize(stringValue(latestTouch.message_status))}`
+    : "No touch yet";
+  const latestTouchHelper = latestTouch
+    ? stringValue(latestTouch.touched_label) ?? "outreach evidence"
+    : "team has not reached out";
+
+  const email = stringValue(profile?.email_norm);
+  const phone = stringValue(profile?.phone);
+  const contactability =
+    email && phone ? "Phone + Email" : phone ? "Phone only" : email ? "Email only" : "No contact";
+  const contactabilityTone: "green" | "blue" | "amber" =
+    email && phone ? "green" : phone || email ? "blue" : "amber";
+
+  return (
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+      <KpiCard title="Lead Age" value={leadAgeLabel} helper={firstSeenIso ? "since first seen" : "no first-seen timestamp"} icon={CalendarCheck} tone={leadAgeDays != null && leadAgeDays > 7 ? "amber" : "blue"} />
+      <KpiCard title="Lead Source" value={leadSourceLabel} helper={sourceHelper} icon={UserRound} tone={utmSource ? "blue" : "amber"} />
+      <KpiCard title="Latest Magnet" value={latestMagnet ?? "No magnet"} helper={latestMagnetHelper} icon={DollarSign} tone={latestMagnet ? "green" : "amber"} />
+      <KpiCard title="Form Score" value={formScoreLabel} helper={typeformResponses.length ? "psychographic" : "no Typeform record"} icon={ReceiptText} tone={formScore != null ? "green" : "amber"} />
+      <KpiCard title="Latest Touch" value={latestTouchLabel} helper={latestTouchHelper} icon={MessageCircle} tone={latestTouch ? "green" : "amber"} />
+      <KpiCard title="Contactability" value={contactability} helper={[email, phone].filter(Boolean).join(" · ") || "no email or phone"} icon={Phone} tone={contactabilityTone} />
+    </div>
+  );
+}
+
+function EvidenceCheckedStrip({
+  payments,
+  refunds,
+  retentionMonths,
+  magnetTrail,
+  typeformResponses,
+  outreach,
+  bookings,
+}: {
+  payments: DashboardRow[];
+  refunds: DashboardRow[];
+  retentionMonths: DashboardRow[];
+  magnetTrail: DashboardRow[];
+  typeformResponses: DashboardRow[];
+  outreach: DashboardRow[];
+  bookings: DashboardRow[];
+}) {
+  const facts = [
+    `${formatNumber(payments.length)} payments`,
+    `${formatNumber(refunds.length)} refunds`,
+    `${formatNumber(retentionMonths.length)} retention months`,
+    `${formatNumber(magnetTrail.length)} magnet windows`,
+    `${formatNumber(typeformResponses.length)} typeform responses`,
+    `${formatNumber(outreach.length)} outreach touches`,
+    `${formatNumber(bookings.length)} bookings`,
+  ];
+  return (
+    <div className="mt-3 rounded-md border border-[#ece9e1] bg-[#fbfaf7] px-3 py-2 text-[11px] text-[#66635f]">
+      <span className="font-semibold text-[#2d2b28]">Evidence checked</span>
+      <span className="ml-2">{facts.join(" · ")}</span>
+    </div>
   );
 }
 
