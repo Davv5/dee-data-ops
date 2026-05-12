@@ -1,4 +1,4 @@
-import { SpeedToLeadOperatingView } from "@/components/dashboard/SpeedToLeadOperatingView";
+import { SpeedToLeadDashboard } from "@/components/dashboard/SpeedToLeadDashboard";
 import { AppShell } from "@/components/layout/AppShell";
 import { getSpeedToLeadData } from "@/lib/bigquery/speed-to-lead-live";
 
@@ -16,7 +16,7 @@ export default async function SpeedToLeadPage({ searchParams }: SpeedToLeadPageP
 
   return (
     <AppShell>
-      <SpeedToLeadOperatingView data={data} />
+      <SpeedToLeadDashboard data={data} />
     </AppShell>
   );
 }

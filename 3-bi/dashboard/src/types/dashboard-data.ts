@@ -20,6 +20,10 @@ export type DashboardFilters = {
   timeRangeLabel: string;
   timeRangeDescription: string;
   timeRangeOptions: DashboardFilterOption[];
+  worklist?: string;
+  worklistLabel?: string;
+  worklistDescription?: string;
+  worklistOptions?: DashboardFilterOption[];
 };
 
 export type DashboardData = {
