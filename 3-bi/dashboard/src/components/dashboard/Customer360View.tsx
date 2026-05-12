@@ -138,80 +138,63 @@ export function Customer360View({ data, contactSk, returnHref, sourceContext }: 
           viewMode={viewMode}
         />
         <OpenOperatorActionsPanel rows={operatorActions} profile={profile} viewMode={viewMode} />
-        <OriginContextPanel profile={profile} sourceContext={sourceContext} />
-        <RelationshipTimelinePanel rows={relationshipTimeline} viewMode={viewMode} />
 
         {isProspect ? (
-          <ProspectKpiRow
-            profile={profile}
-            magnetTrail={magnetTrail}
-            typeformResponses={typeformResponses}
-            outreach={outreach}
-          />
+          <>
+            <TalkingPointsPanel
+              typeformResponses={typeformResponses}
+              magnetTrail={magnetTrail}
+            />
+            <ShowAllEvidencePanel
+              profile={profile}
+              payments={payments}
+              refunds={refunds}
+              retentionMonths={retentionMonths}
+              magnetTrail={magnetTrail}
+              typeformResponses={typeformResponses}
+              outreach={outreach}
+              bookings={bookings}
+              relationshipTimeline={relationshipTimeline}
+              data={data}
+            />
+          </>
         ) : (
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
-            <KpiCard title="Lifetime Net" value={formatCurrency(numberValue(profile?.lifetime_net_revenue_after_refunds))} helper={`${formatNumber(numberValue(profile?.lifetime_paid_payments_count))} payments`} icon={DollarSign} tone="green" />
-            <KpiCard title="Next Action" value={labelize(stringValue(profile?.retention_operator_next_action))} helper={labelize(stringValue(profile?.collection_health_status) ?? stringValue(profile?.payment_plan_health_status))} icon={CreditCard} tone={booleanValue(profile?.is_expected_payment_due_now) ? "amber" : "blue"} />
-            <KpiCard title="Due Status" value={dueLabel} helper={stringValue(profile?.expected_next_payment_label) ?? "No expected date"} icon={CalendarCheck} tone={booleanValue(profile?.is_expected_payment_missed_now) ? "amber" : "green"} />
-            <KpiCard title="Revenue Credit" value={revenueCredit} helper={revenueCreditHelper} icon={UserRound} tone={knownOperatorName(profile?.credited_closer_name) ? "blue" : "amber"} />
-            <KpiCard title="Bookings" value={formatNumber(bookings.length)} helper={`${formatNumber(outreach.length)} recent touches`} icon={Phone} tone="blue" />
-            <KpiCard title="Refunds" value={formatCurrency(numberValue(profile?.lifetime_refunds_amount))} helper={`${formatNumber(numberValue(profile?.lifetime_refunds_count))} refunds`} icon={ReceiptText} tone={numberValue(profile?.lifetime_refunds_count) ? "amber" : "green"} />
-          </div>
-        )}
+          <>
+            <OriginContextPanel profile={profile} sourceContext={sourceContext} />
+            <RelationshipTimelinePanel rows={relationshipTimeline} viewMode={viewMode} />
 
-        {isProspect ? (
-          <EvidenceCheckedStrip
-            payments={payments}
-            refunds={refunds}
-            retentionMonths={retentionMonths}
-            magnetTrail={magnetTrail}
-            typeformResponses={typeformResponses}
-            outreach={outreach}
-            bookings={bookings}
-          />
-        ) : null}
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+              <KpiCard title="Lifetime Net" value={formatCurrency(numberValue(profile?.lifetime_net_revenue_after_refunds))} helper={`${formatNumber(numberValue(profile?.lifetime_paid_payments_count))} payments`} icon={DollarSign} tone="green" />
+              <KpiCard title="Next Action" value={labelize(stringValue(profile?.retention_operator_next_action))} helper={labelize(stringValue(profile?.collection_health_status) ?? stringValue(profile?.payment_plan_health_status))} icon={CreditCard} tone={booleanValue(profile?.is_expected_payment_due_now) ? "amber" : "blue"} />
+              <KpiCard title="Due Status" value={dueLabel} helper={stringValue(profile?.expected_next_payment_label) ?? "No expected date"} icon={CalendarCheck} tone={booleanValue(profile?.is_expected_payment_missed_now) ? "amber" : "green"} />
+              <KpiCard title="Revenue Credit" value={revenueCredit} helper={revenueCreditHelper} icon={UserRound} tone={knownOperatorName(profile?.credited_closer_name) ? "blue" : "amber"} />
+              <KpiCard title="Bookings" value={formatNumber(bookings.length)} helper={`${formatNumber(outreach.length)} recent touches`} icon={Phone} tone="blue" />
+              <KpiCard title="Refunds" value={formatCurrency(numberValue(profile?.lifetime_refunds_amount))} helper={`${formatNumber(numberValue(profile?.lifetime_refunds_count))} refunds`} icon={ReceiptText} tone={numberValue(profile?.lifetime_refunds_count) ? "amber" : "green"} />
+            </div>
 
-        {isProspect ? (
-          <div className="mt-3">
-            <ProfilePanel profile={profile} viewMode={viewMode} />
-          </div>
-        ) : (
-          <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(24rem,0.85fr)]">
-            <ProfilePanel profile={profile} viewMode={viewMode} />
-            <ActionPanel profile={profile} />
-          </div>
-        )}
+            <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(24rem,0.85fr)]">
+              <ProfilePanel profile={profile} viewMode={viewMode} />
+              <ActionPanel profile={profile} />
+            </div>
 
-        {isProspect ? (
-          <div className="mt-3">
-            <TypeformResponsesPanel rows={typeformResponses} />
-          </div>
-        ) : null}
+            <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(24rem,0.9fr)]">
+              <MagnetTrailPanel rows={magnetTrail} />
+              <RetentionMonthsPanel rows={retentionMonths} />
+            </div>
 
-        <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(24rem,0.9fr)]">
-          <MagnetTrailPanel rows={magnetTrail} />
-          {isProspect ? (
-            <TimelinePanel bookings={bookings} outreach={outreach} />
-          ) : (
-            <RetentionMonthsPanel rows={retentionMonths} />
-          )}
-        </div>
+            <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(24rem,0.9fr)]">
+              <PaymentsPanel payments={payments} refunds={refunds} />
+              <TimelinePanel bookings={bookings} outreach={outreach} />
+            </div>
 
-        {isProspect ? null : (
-          <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(24rem,0.9fr)]">
-            <PaymentsPanel payments={payments} refunds={refunds} />
-            <TimelinePanel bookings={bookings} outreach={outreach} />
-          </div>
-        )}
-
-        {isProspect ? null : (
-          <div className="mt-3">
-            <TypeformResponsesPanel rows={typeformResponses} />
-          </div>
+            <div className="mt-3">
+              <TypeformResponsesPanel rows={typeformResponses} />
+            </div>
+          </>
         )}
       </section>
 
-      <AuditDetails data={data} />
+      {isProspect ? null : <AuditDetails data={data} />}
     </div>
   );
 }
@@ -255,7 +238,7 @@ function OperatorCommandPanel({
 
   return (
     <section className="mb-3 rounded-lg border border-[#dedbd2] bg-white p-4 shadow-sm">
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(20rem,0.75fr)]">
+      <div className={isProspect ? "" : "grid gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(20rem,0.75fr)]"}>
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <span className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-semibold ${priorityClass(action.priorityTone)}`}>
@@ -301,50 +284,99 @@ function OperatorCommandPanel({
               </span>
             ) : null}
           </div>
-        </div>
 
-        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
           {isProspect ? (
-            <>
-              <CommandFact
-                label="contactability"
-                value={contactability}
-                helper={contactabilityHelper}
-                tone={email && phone ? "green" : phone || email ? "blue" : "amber"}
-              />
-              <CommandFact
-                label="latest magnet"
-                value={latestMagnetName ?? "No magnet"}
-                helper={latestMagnetLabel ?? "no magnet date"}
-                tone={latestMagnetName ? "green" : "amber"}
-              />
-              <CommandFact
-                label="no-touch proof"
-                value={latestOutreach ? `${formatNumber(outreach.length)} touch attempts` : "Not reached yet"}
-                helper={
-                  latestOutreach
-                    ? `latest ${stringValue(latestOutreach.touched_label) ?? "outreach"}`
-                    : "team has not reached out"
-                }
-                tone={latestOutreach ? "green" : "amber"}
-              />
-            </>
-          ) : (
-            <>
-              <CommandFact label="revenue credit" value={action.owner} helper={action.ownerHelper} tone={action.owner === "Unassigned / unknown" ? "amber" : "green"} />
-              <CommandFact label="blocker" value={blockerItems[0]?.value ?? "No major blocker"} helper={blockerItems[0]?.helper ?? "Evidence is clean enough to act"} tone={blockerItems.length ? "amber" : "green"} />
-              <CommandFact label="money at stake" value={formatCurrency(numberValue(profile?.lifetime_net_revenue_after_refunds))} helper={`${formatNumber(numberValue(profile?.lifetime_paid_payments_count))} payments`} tone="green" />
-            </>
-          )}
+            <ProspectInlineFacts
+              profile={profile}
+              magnetTrail={magnetTrail}
+              typeformResponses={typeformResponses}
+              outreach={outreach}
+            />
+          ) : null}
         </div>
+
+        {isProspect ? null : (
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
+            <CommandFact label="revenue credit" value={action.owner} helper={action.ownerHelper} tone={action.owner === "Unassigned / unknown" ? "amber" : "green"} />
+            <CommandFact label="blocker" value={blockerItems[0]?.value ?? "No major blocker"} helper={blockerItems[0]?.helper ?? "Evidence is clean enough to act"} tone={blockerItems.length ? "amber" : "green"} />
+            <CommandFact label="money at stake" value={formatCurrency(numberValue(profile?.lifetime_net_revenue_after_refunds))} helper={`${formatNumber(numberValue(profile?.lifetime_paid_payments_count))} payments`} tone="green" />
+          </div>
+        )}
       </div>
 
-      <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
-        {evidenceItems.map((item) => (
-          <CommandFact key={item.label} label={item.label} value={item.value} helper={item.helper} tone={item.tone} />
-        ))}
-      </div>
+      {isProspect ? null : (
+        <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+          {evidenceItems.map((item) => (
+            <CommandFact key={item.label} label={item.label} value={item.value} helper={item.helper} tone={item.tone} />
+          ))}
+        </div>
+      )}
     </section>
+  );
+}
+
+function ProspectInlineFacts({
+  profile,
+  magnetTrail,
+  typeformResponses,
+  outreach,
+}: {
+  profile: DashboardRow | undefined;
+  magnetTrail: DashboardRow[];
+  typeformResponses: DashboardRow[];
+  outreach: DashboardRow[];
+}) {
+  const firstSeenIso =
+    stringValue(profile?.contact_created_at) ??
+    stringValue(typeformResponses[0]?.submitted_at) ??
+    stringValue(magnetTrail[0]?.opportunity_created_at);
+  const leadAgeDays = firstSeenIso
+    ? Math.max(0, Math.floor((Date.now() - new Date(firstSeenIso).getTime()) / (1000 * 60 * 60 * 24)))
+    : null;
+  const leadAgeLabel =
+    leadAgeDays == null
+      ? "Unknown"
+      : leadAgeDays === 0
+        ? "Today"
+        : leadAgeDays === 1
+          ? "1 day"
+          : `${leadAgeDays} days`;
+
+  const latestMagnetName = stringValue(magnetTrail[0]?.lead_magnet_name);
+  const latestMagnetLabel = stringValue(magnetTrail[0]?.opportunity_created_label);
+  const magnetText = latestMagnetName
+    ? `${latestMagnetName}${latestMagnetLabel ? ` (${latestMagnetLabel})` : ""}`
+    : "No magnet";
+
+  const utmSource =
+    stringValue(profile?.utm_source) ?? stringValue(typeformResponses[0]?.utm_source);
+  const utmCampaign =
+    stringValue(profile?.utm_campaign) ?? stringValue(typeformResponses[0]?.utm_campaign);
+  const utmText = utmSource
+    ? utmCampaign
+      ? `${utmSource} · ${utmCampaign}`
+      : utmSource
+    : "no campaign tag";
+
+  const touchCount = outreach.length;
+  const touchText =
+    touchCount === 0
+      ? "Not reached yet · 0 outreach touches recorded"
+      : `Reached · ${formatNumber(touchCount)} outreach touch${touchCount === 1 ? "" : "es"}`;
+
+  return (
+    <div className="mt-4 space-y-1 text-xs text-[#3b3936]">
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <span><span className="text-[#66635f]">Lead age</span> · <span className="font-semibold">{leadAgeLabel}</span></span>
+        <span aria-hidden className="text-[#dedbd2]">|</span>
+        <span><span className="text-[#66635f]">Magnet</span> · <span className="font-semibold">{magnetText}</span></span>
+        <span aria-hidden className="text-[#dedbd2]">|</span>
+        <span><span className="text-[#66635f]">UTM</span> · <span className="font-semibold">{utmText}</span></span>
+      </div>
+      <div className={`text-[11px] font-medium ${touchCount === 0 ? "text-[#92400e]" : "text-[#166534]"}`}>
+        {touchText}
+      </div>
+    </div>
   );
 }
 
@@ -1483,6 +1515,178 @@ type TypeformQaPair = {
   answer_type?: string | null;
   answer?: string | null;
 };
+
+function TalkingPointsPanel({
+  typeformResponses,
+  magnetTrail,
+}: {
+  typeformResponses: DashboardRow[];
+  magnetTrail: DashboardRow[];
+}) {
+  const hasTypeform = typeformResponses.length > 0;
+  const showMagnetSequence = magnetTrail.length > 1;
+  const hasContent = hasTypeform || showMagnetSequence;
+
+  return (
+    <Panel
+      title="Talking Points"
+      helper="Use these for the call opener — survey answers when present, otherwise the magnet that brought them in."
+    >
+      <div className="space-y-4">
+        {hasTypeform ? (
+          typeformResponses.map((row) => {
+            const qaPairsRaw = row.qa_pairs as unknown;
+            const qaPairs: TypeformQaPair[] = Array.isArray(qaPairsRaw)
+              ? (qaPairsRaw as TypeformQaPair[])
+              : [];
+            const formTitle = stringValue(row.form_title) ?? "Unknown form";
+            const submittedLabel = stringValue(row.submitted_label) ?? "Submission date unknown";
+            const ageBracket = stringValue(row.respondent_age_bracket);
+            const businessStage = stringValue(row.respondent_business_stage);
+            const investmentRange = stringValue(row.respondent_investment_range);
+            const coreStruggle = stringValue(row.respondent_core_struggle);
+            const formScore = numberValue(row.form_score);
+
+            return (
+              <div key={stringValue(row.response_id) ?? formTitle} className="rounded-md border border-[#ece9e1] p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-semibold text-[#2d2b28]">{formTitle}</div>
+                    <div className="mt-1 truncate text-[11px] text-[#66635f]">{submittedLabel}</div>
+                  </div>
+                  {formScore != null ? (
+                    <span className="shrink-0 rounded-md border border-[#bbf7d0] bg-[#f0fdf4] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#166534]" title="Psychographic score">
+                      Score {formScore}
+                    </span>
+                  ) : null}
+                </div>
+
+                <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                  <SignalBox label="age bracket" value={ageBracket ?? "—"} helper="self-reported" tone={ageBracket ? "green" : "amber"} />
+                  <SignalBox label="business stage" value={businessStage ?? "—"} helper="self-reported" tone={businessStage ? "green" : "amber"} />
+                  <SignalBox label="investment range" value={investmentRange ?? "—"} helper="self-reported" tone={investmentRange ? "green" : "amber"} />
+                  <SignalBox label="core struggle" value={coreStruggle ?? "—"} helper="self-reported" tone={coreStruggle ? "green" : "amber"} />
+                </div>
+
+                {qaPairs.length ? (
+                  <details className="mt-3 rounded-md border border-[#ece9e1] bg-[#fbfaf7]">
+                    <summary className="cursor-pointer px-3 py-2 text-xs font-semibold text-[#0f766e]">
+                      All answers ({qaPairs.length})
+                    </summary>
+                    <div className="border-t border-[#ece9e1] divide-y divide-[#ece9e1]">
+                      {qaPairs.map((pair, index) => (
+                        <div key={index} className="px-3 py-2 text-xs">
+                          <div className="font-semibold text-[#2d2b28]">{pair.question ?? "Untitled question"}</div>
+                          <div className="mt-1 whitespace-pre-line text-[#3b3936]">{pair.answer ?? "—"}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                ) : null}
+              </div>
+            );
+          })
+        ) : null}
+
+        {showMagnetSequence ? (
+          <div className="rounded-md border border-[#ece9e1] p-3">
+            <div className="text-xs font-semibold uppercase text-[#66635f]">Magnet sequence</div>
+            <ul className="mt-2 space-y-1.5 text-sm">
+              {magnetTrail.map((row) => (
+                <li key={stringValue(row.opportunity_id) ?? stringValue(row.lead_magnet_name) ?? "magnet"} className="flex items-baseline justify-between gap-3">
+                  <span className="min-w-0 truncate text-[#2d2b28]">{stringValue(row.lead_magnet_name) ?? "Unknown magnet"}</span>
+                  <span className="shrink-0 text-[11px] text-[#66635f]">{stringValue(row.opportunity_created_label) ?? ""}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+
+        {hasContent ? null : (
+          <div className="rounded-md border border-dashed border-[#dedbd2] bg-[#fbfaf7] px-3 py-4 text-sm text-[#66635f]">
+            Only signal we have is the magnet. Use it for the opener.
+          </div>
+        )}
+      </div>
+    </Panel>
+  );
+}
+
+function ShowAllEvidencePanel({
+  profile,
+  payments,
+  refunds,
+  retentionMonths,
+  magnetTrail,
+  typeformResponses,
+  outreach,
+  bookings,
+  relationshipTimeline,
+  data,
+}: {
+  profile: DashboardRow | undefined;
+  payments: DashboardRow[];
+  refunds: DashboardRow[];
+  retentionMonths: DashboardRow[];
+  magnetTrail: DashboardRow[];
+  typeformResponses: DashboardRow[];
+  outreach: DashboardRow[];
+  bookings: DashboardRow[];
+  relationshipTimeline: DashboardRow[];
+  data: DashboardData;
+}) {
+  return (
+    <section className="mt-3 rounded-lg border border-[#dedbd2] bg-white shadow-sm">
+      <details>
+        <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-[#0f766e]">
+          Show all evidence
+          <span className="ml-2 text-[11px] font-medium text-[#66635f]">
+            identity · entry source · activity · audit
+          </span>
+        </summary>
+        <div className="border-t border-[#dedbd2] p-4 space-y-4">
+          <div className="grid gap-3 md:grid-cols-2">
+            <SourceBlock title="Identity">
+              <SourceLine label="GHL contact" value={stringValue(profile?.contact_id)} />
+              <SourceLine label="Email" value={stringValue(profile?.email_norm)} />
+              <SourceLine label="Phone" value={stringValue(profile?.phone)} />
+              <SourceLine label="Created" value={stringValue(profile?.contact_created_label)} />
+              <SourceLine
+                label="Location"
+                value={[stringValue(profile?.city), stringValue(profile?.state), stringValue(profile?.country)]
+                  .filter(Boolean)
+                  .join(", ")}
+              />
+            </SourceBlock>
+            <SourceBlock title="Entry Source">
+              <SourceLine label="Lead source" value={stringValue(profile?.lead_source)} />
+              <SourceLine label="UTM source" value={stringValue(profile?.utm_source)} />
+              <SourceLine label="UTM medium" value={stringValue(profile?.utm_medium)} />
+              <SourceLine label="UTM campaign" value={stringValue(profile?.utm_campaign)} />
+              <SourceLine label="Timezone" value={stringValue(profile?.timezone)} />
+            </SourceBlock>
+          </div>
+
+          <div className="rounded-md border border-[#ece9e1] bg-[#fbfaf7] px-3 py-2 text-[11px] text-[#66635f]">
+            <span className="font-semibold text-[#2d2b28]">Activity</span>
+            <span className="ml-2">
+              {`${formatNumber(bookings.length)} bookings · ${formatNumber(outreach.length)} outreach touches · ${formatNumber(relationshipTimeline.length)} timeline events`}
+            </span>
+          </div>
+
+          <div className="rounded-md border border-[#ece9e1] bg-[#fbfaf7] px-3 py-2 text-[11px] text-[#66635f]">
+            <span className="font-semibold text-[#2d2b28]">Evidence checked</span>
+            <span className="ml-2">
+              {`${formatNumber(payments.length)} payments · ${formatNumber(refunds.length)} refunds · ${formatNumber(retentionMonths.length)} retention months · ${formatNumber(magnetTrail.length)} magnet windows · ${formatNumber(typeformResponses.length)} typeform responses · ${formatNumber(bookings.length)} bookings · ${formatNumber(outreach.length)} outreach touches`}
+            </span>
+          </div>
+
+          <AuditDetails data={data} />
+        </div>
+      </details>
+    </section>
+  );
+}
 
 function TypeformResponsesPanel({ rows }: { rows: DashboardRow[] }) {
   return (
