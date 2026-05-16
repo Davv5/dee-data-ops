@@ -16,7 +16,7 @@ with all_values as (
 select *
 from all_values
 where value_field not in (
-    'clean','unmatched','ambiguous_contact_match','payment_identity_only','role_unknown'
+    'clean','unmatched','ambiguous_contact_match','role_unknown'
 )
 
 
