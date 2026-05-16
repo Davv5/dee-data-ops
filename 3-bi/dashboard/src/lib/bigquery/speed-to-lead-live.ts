@@ -4,7 +4,14 @@ import { tierForSpeedToLeadQuery } from "@/lib/bigquery/query-tiers";
 import type { DashboardData, DashboardFilters, DashboardFreshness, DashboardRow } from "@/types/dashboard-data";
 
 const tableRef = (queryName: QueryName) => `\`${queryContracts[queryName].table}\``;
-const BOOKING_SLA_SECONDS = 45 * 60;
+// Speed threshold for "responded quickly." Tightened from 45m → 15m on 2026-05-16
+// per Slice 8 plain-language polish: 45 mostly measured coverage; 15 measures speed.
+const BOOKING_SLA_SECONDS = 15 * 60;
+
+// Operational queue window — how recent must an untouched lead be to count as
+// "waiting now." Decoupled from the analytical date-range picker. Tune by
+// changing this single constant after observing real lead-decay behavior.
+export const ACTIVE_QUEUE_HOURS = 72;
 
 export const SPEED_TO_LEAD_TIME_RANGE_OPTIONS = [
   {
@@ -130,7 +137,16 @@ const buildSpeedToLeadQualityCte = (timeRange: SpeedToLeadTimeRange) => `
         JSON_VALUE(c.payload_json, '$.owner_id'),
         JSON_VALUE(c.payload_json, '$.agentId'),
         JSON_VALUE(c.payload_json, '$.agent_id')
-      )), '') AS touch_user_id
+      )), '') AS touch_user_id,
+      -- Duration variants per GHL webhook spec; mirrors the COALESCE pattern in
+      -- services/bq-ingest/sql/ghl_models.sql so we tolerate all webhook versions.
+      SAFE_CAST(COALESCE(
+        JSON_VALUE(c.payload_json, '$.duration'),
+        JSON_VALUE(c.payload_json, '$.callDuration'),
+        JSON_VALUE(c.payload_json, '$.call_duration'),
+        JSON_VALUE(c.payload_json, '$.meta.callDuration'),
+        JSON_VALUE(c.payload_json, '$.meta.duration')
+      ) AS INT64) AS touch_duration_seconds
     FROM \`project-41542e21-470f-4589-96d.Core.fct_ghl_outbound_calls\` c
     JOIN \`project-41542e21-470f-4589-96d.Marts.dim_golden_contact\` gc
       ON gc.location_id = c.location_id
@@ -169,7 +185,8 @@ const buildSpeedToLeadQualityCte = (timeRange: SpeedToLeadTimeRange) => `
         JSON_VALUE(m.payload_json, '$.user_id'),
         JSON_VALUE(m.payload_json, '$.ownerId'),
         JSON_VALUE(m.payload_json, '$.owner_id')
-      )), '') AS touch_user_id
+      )), '') AS touch_user_id,
+      CAST(NULL AS INT64) AS touch_duration_seconds
     FROM \`project-41542e21-470f-4589-96d.Core.fct_ghl_conversations\` m
     JOIN \`project-41542e21-470f-4589-96d.Marts.dim_golden_contact\` gc
       ON gc.location_id = m.location_id
@@ -276,6 +293,7 @@ const buildSpeedToLeadQualityCte = (timeRange: SpeedToLeadTimeRange) => `
       c.touch_owner_name,
       c.touch_owner_role,
       c.touch_owner_source,
+      c.touch_duration_seconds,
       c.is_automated_workflow_touch,
       c.touch_outcome,
       c.is_successful_connection,
@@ -299,7 +317,7 @@ const buildSpeedToLeadQualityCte = (timeRange: SpeedToLeadTimeRange) => `
         IF(
           touch_ts IS NULL,
           NULL,
-          STRUCT(channel_group, touch_status, touch_outcome, is_automated_workflow_touch, touch_ts, touch_user_id, touch_owner_name, touch_owner_role, touch_owner_source)
+          STRUCT(channel_group, touch_status, touch_outcome, is_automated_workflow_touch, touch_ts, touch_user_id, touch_owner_name, touch_owner_role, touch_owner_source, touch_duration_seconds)
         )
         IGNORE NULLS
         ORDER BY touch_ts ASC, channel_group ASC, touch_id ASC
@@ -308,7 +326,7 @@ const buildSpeedToLeadQualityCte = (timeRange: SpeedToLeadTimeRange) => `
       ARRAY_AGG(
         IF(
           is_successful_connection,
-          STRUCT(channel_group, touch_status, touch_outcome, is_automated_workflow_touch, touch_ts, touch_user_id, touch_owner_name, touch_owner_role, touch_owner_source),
+          STRUCT(channel_group, touch_status, touch_outcome, is_automated_workflow_touch, touch_ts, touch_user_id, touch_owner_name, touch_owner_role, touch_owner_source, touch_duration_seconds),
           NULL
         )
         IGNORE NULLS
@@ -318,7 +336,7 @@ const buildSpeedToLeadQualityCte = (timeRange: SpeedToLeadTimeRange) => `
       ARRAY_AGG(
         IF(
           is_meaningful_human_response,
-          STRUCT(channel_group, touch_status, touch_outcome, is_automated_workflow_touch, touch_ts, touch_user_id, touch_owner_name, touch_owner_role, touch_owner_source),
+          STRUCT(channel_group, touch_status, touch_outcome, is_automated_workflow_touch, touch_ts, touch_user_id, touch_owner_name, touch_owner_role, touch_owner_source, touch_duration_seconds),
           NULL
         )
         IGNORE NULLS
@@ -328,7 +346,7 @@ const buildSpeedToLeadQualityCte = (timeRange: SpeedToLeadTimeRange) => `
       ARRAY_AGG(
         IF(
           is_automated_workflow_touch,
-          STRUCT(channel_group, touch_status, touch_outcome, is_automated_workflow_touch, touch_ts, touch_user_id, touch_owner_name, touch_owner_role, touch_owner_source),
+          STRUCT(channel_group, touch_status, touch_outcome, is_automated_workflow_touch, touch_ts, touch_user_id, touch_owner_name, touch_owner_role, touch_owner_source, touch_duration_seconds),
           NULL
         )
         IGNORE NULLS
@@ -477,6 +495,67 @@ export function buildSpeedToLeadQueries(timeRange: SpeedToLeadTimeRange) {
     HAVING leads_worked > 0
     ORDER BY leads_worked DESC, pct_within_sla DESC NULLS LAST, rep_name
     LIMIT 20
+  `,
+  speed_to_lead_active_queue: `
+    -- Operational "what's waiting right now" counts. Independent of the
+    -- dashboard's analytical date range — always returns leads created in
+    -- the last ${ACTIVE_QUEUE_HOURS} hours that have no first touch.
+    -- Drives the LeadsWaitingStrip at the top of /speed-to-lead.
+    WITH untouched AS (
+      SELECT
+        f.trigger_event_id,
+        TIMESTAMP_DIFF(CURRENT_TIMESTAMP(), f.trigger_ts, MINUTE) AS age_minutes
+      FROM ${tableRef("freshness")} f
+      WHERE f.first_touch_ts IS NULL
+        AND TIMESTAMP_DIFF(CURRENT_TIMESTAMP(), f.trigger_ts, HOUR) <= ${ACTIVE_QUEUE_HOURS}
+    )
+    SELECT
+      COUNTIF(age_minutes <= 15) AS in_window,
+      COUNTIF(age_minutes > 15 AND age_minutes <= 60) AS past_bar,
+      COUNTIF(age_minutes > 60) AS past_one_hour,
+      COUNT(*) AS total
+    FROM untouched
+  `,
+  speed_to_lead_leads_by_rep: `
+    -- Lead-grain rows for each rep's touched leads. Drives the per-rep page's
+    -- activity-by-hour, channel mix, and lead-level table (Slice 7). Filtered
+    -- to leads with a first_attempt (untouched leads land in
+    -- speed_to_lead_no_touch_examples instead).
+    ${qualityCte}
+    SELECT
+      tr.trigger_event_id,
+      CASE
+        WHEN tr.first_attempt.is_automated_workflow_touch THEN 'Workflow automation'
+        ELSE COALESCE(NULLIF(tr.first_attempt.touch_owner_name, ''), 'Unknown rep')
+      END AS rep_name,
+      CASE
+        WHEN tr.first_attempt.is_automated_workflow_touch THEN 'automation'
+        ELSE COALESCE(NULLIF(tr.first_attempt.touch_owner_role, ''), 'unknown')
+      END AS rep_role,
+      tr.trigger_ts,
+      tr.trigger_type,
+      tr.trigger_source_label,
+      tr.service_window,
+      tr.first_attempt.channel_group AS first_touch_channel,
+      tr.first_attempt.touch_status AS first_touch_status,
+      tr.first_attempt.touch_outcome AS first_touch_outcome,
+      tr.first_attempt.touch_ts AS first_touch_ts,
+      tr.first_attempt.touch_duration_seconds AS first_touch_duration_seconds,
+      COALESCE(
+        NULLIF(gc.full_name, ''),
+        NULLIF(TRIM(CONCAT(COALESCE(gc.first_name, ''), ' ', COALESCE(gc.last_name, ''))), ''),
+        'Unknown lead'
+      ) AS lead_name,
+      COALESCE(NULLIF(gc.email, ''), 'No email') AS lead_email,
+      COALESCE(NULLIF(gc.phone, ''), 'No phone') AS lead_phone,
+      EXTRACT(HOUR FROM DATETIME(tr.trigger_ts, 'America/New_York')) AS trigger_hour_local,
+      TIMESTAMP_DIFF(tr.first_attempt.touch_ts, tr.trigger_ts, SECOND) AS seconds_to_first_attempt
+    FROM trigger_rollup tr
+    LEFT JOIN \`project-41542e21-470f-4589-96d.Marts.dim_golden_contact\` gc
+      ON gc.golden_contact_key = tr.golden_contact_key
+    WHERE tr.first_attempt.touch_ts IS NOT NULL
+    ORDER BY rep_name, tr.first_attempt.touch_ts DESC
+    LIMIT 2000
   `,
   speed_to_lead_trigger_summary: `
     SELECT
