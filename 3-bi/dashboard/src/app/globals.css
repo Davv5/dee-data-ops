@@ -143,6 +143,408 @@ textarea {
   isolation: isolate;
 }
 
+/* ------------------------------------------------------------------
+ * Lead Magnets — side-marker overrides on top of .stl-page stl-od-page.
+ * The page inherits the full Speed-to-Lead theme; .lm-* rules below only
+ * add what's lead-magnet-specific (row-tone status, $/lead cell tone,
+ * separator row, drill panels). Spec v1 §7.
+ * ------------------------------------------------------------------ */
+
+/* BuyerEconomicsCard — drill page, 4-cell grid of buyer-quality stats.
+   Slice 16 §6.6. Sits between MagnetHero and MagnetFunnelStrip. */
+.lm-buyer-econ-card {
+  border: 1px solid var(--od-border);
+  border-radius: 12px;
+  background: var(--od-surface);
+  padding: 14px 18px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.lm-buyer-econ-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.lm-buyer-econ-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--od-fg);
+}
+
+.lm-buyer-econ-meta {
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--od-muted);
+}
+
+.lm-buyer-econ-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+@media (max-width: 720px) {
+  .lm-buyer-econ-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.lm-buyer-econ-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.lm-buyer-econ-value {
+  font-family: var(--font-metric);
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--od-fg);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.lm-buyer-econ-label {
+  font-size: 12px;
+  color: var(--od-fg);
+  margin-top: 2px;
+}
+
+.lm-buyer-econ-hint {
+  font-size: 10.5px;
+  color: var(--od-muted);
+  letter-spacing: 0.02em;
+}
+
+/* AttributionRoleCard — drill-page first-touch breakdown.
+   Reuses .od-kpi.hero-sla shell; only the breakdown <ul> needs styling. */
+.lm-role-card .lm-role-breakdown {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12.5px;
+  color: var(--od-fg);
+}
+
+.lm-role-card .lm-role-breakdown li {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+.lm-role-card .lm-role-breakdown strong {
+  font-weight: 600;
+  min-width: 36px;
+  text-align: right;
+}
+
+.lm-role-card .lm-role-detail {
+  color: var(--od-muted);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+}
+
+/* Leaderboard window chip — small qualifier inside .od-panel-title */
+.lm-window-chip {
+  display: inline-block;
+  margin-left: 10px;
+  padding: 1px 8px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--od-muted);
+  background: var(--od-surface-hover);
+  border: 1px solid var(--od-border);
+  border-radius: 999px;
+  vertical-align: middle;
+}
+
+/* Threshold note — quiet italic line above the table */
+.lm-leaderboard-threshold-note {
+  margin: 0;
+  padding: 8px 12px 10px;
+  font-size: 11.5px;
+  font-style: italic;
+  color: var(--od-muted);
+  border-bottom: 1px dashed var(--od-border);
+}
+
+/* Leaderboard panel meta — two-line attribution disclosure */
+.lm-attribution-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: flex-end;
+  text-align: right;
+  max-width: 60%;
+}
+
+.lm-attribution-rule {
+  font-style: italic;
+  color: var(--od-muted);
+}
+
+.lm-attribution-counts {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Leaderboard — compact rows (Slice 14) */
+.lm-magnet-table .rep-row td {
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
+/* Category sub-section header — sits between row groups */
+.lm-category-section td {
+  padding: 14px 12px 6px;
+  border-top: 1px solid var(--od-border);
+  background: transparent;
+  font-size: 11.5px;
+  letter-spacing: 0.04em;
+}
+
+.lm-magnet-table tbody .lm-category-section:first-child td {
+  border-top: none;
+  padding-top: 4px;
+}
+
+.lm-category-label {
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--od-fg);
+  margin-right: 10px;
+}
+
+.lm-category-meta {
+  color: var(--od-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.lm-leader-name {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 7-column leaderboard layout (Slice 15) */
+.lm-magnet-table {
+  table-layout: fixed;
+  width: 100%;
+}
+
+.lm-magnet-table .col-magnet { width: 30%; }
+.lm-magnet-table .col-leads { width: 8%; }
+.lm-magnet-table .col-buyers { width: 8%; }
+.lm-magnet-table .col-convert { width: 8%; }
+.lm-magnet-table .col-days { width: 8%; }
+.lm-magnet-table .col-lastseen { width: 12%; }
+.lm-magnet-table .col-revenue { width: 14%; }
+.lm-magnet-table .col-rpl { width: 9%; }
+
+.lm-magnet-table .col-magnet {
+  overflow: hidden;
+}
+
+.lm-magnet-table .col-magnet a.rep-row-link {
+  display: block;
+  overflow: hidden;
+}
+
+.lm-leader-subtitle {
+  display: block;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  margin-top: 2px;
+}
+
+.lm-leader-subtitle.tone-warning {
+  color: var(--od-warn);
+}
+
+.lm-leader-subtitle.tone-danger {
+  color: var(--od-danger);
+}
+
+.lm-leader-subtitle.tone-neutral,
+.lm-leader-subtitle.tone-stale {
+  color: var(--od-muted);
+}
+
+/* $/lead cell — absolute-$ tone scale (TONE_SCALES.revenue_per_lead) */
+.lm-magnet-table .lm-rpl-cell.tone-ok {
+  color: var(--od-success);
+  font-weight: 600;
+}
+
+.lm-magnet-table .lm-rpl-cell.tone-warning {
+  color: var(--od-warn);
+  font-weight: 600;
+}
+
+.lm-magnet-table .lm-rpl-cell.tone-danger {
+  color: var(--od-danger);
+  font-weight: 600;
+}
+
+.lm-magnet-table .lm-rpl-cell.tone-neutral,
+.lm-magnet-table .lm-rpl-cell.tone-stale {
+  color: var(--od-muted);
+}
+
+.lm-leaderboard-sep td {
+  padding: 12px 12px 6px;
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--od-muted);
+  border-top: 1px dashed var(--od-border);
+  background: transparent;
+}
+
+/* Drill page — Spec v1 §6 */
+.lm-page .lm-back-link {
+  display: inline-block;
+  font-size: 12.5px;
+  color: var(--od-muted);
+  text-decoration: none;
+  margin-bottom: 4px;
+}
+
+.lm-page .lm-back-link:hover {
+  color: var(--od-fg);
+}
+
+.lm-page .lm-funnel-strip {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 22px;
+  border: 1px solid var(--od-border);
+  border-radius: 12px;
+  background: var(--od-surface);
+  flex-wrap: wrap;
+}
+
+.lm-funnel-stage {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 90px;
+}
+
+.lm-funnel-value {
+  font-family: var(--font-metric);
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--od-fg);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.lm-funnel-label {
+  font-size: 12px;
+  color: var(--od-muted);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-top: 4px;
+}
+
+.lm-funnel-share {
+  margin-top: 4px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--od-fg);
+}
+
+.lm-funnel-arrow {
+  font-size: 18px;
+  color: var(--od-muted);
+}
+
+.lm-page .lm-histogram {
+  border: 1px solid var(--od-border);
+  border-radius: 12px;
+  background: var(--od-surface);
+  padding: 18px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.lm-histogram.lm-histogram-empty {
+  color: var(--od-muted);
+}
+
+.lm-histogram h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--od-fg);
+}
+
+.lm-histogram-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.lm-histogram-row {
+  display: grid;
+  grid-template-columns: 100px 1fr 50px;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.lm-histogram-label {
+  color: var(--od-muted);
+}
+
+.lm-histogram-bar-wrap {
+  background: var(--od-surface-hover);
+  border-radius: 4px;
+  height: 14px;
+  overflow: hidden;
+}
+
+.lm-histogram-bar {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--od-accent, #3b82f6), var(--od-accent-strong, #2563eb));
+  border-radius: 4px;
+  min-width: 2%;
+}
+
+.lm-histogram-count {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--od-fg);
+  font-weight: 500;
+}
+
+.lm-buyer-table th:not(.col-num) {
+  text-align: left;
+}
+
+.lm-buyer-more {
+  margin: 8px 12px 0;
+  font-size: 12px;
+  color: var(--od-muted);
+  font-style: italic;
+}
+
 .stl-page header,
 .stl-page section,
 .stl-page details,
@@ -656,6 +1058,18 @@ textarea {
 .od-kpi.hero-sla .hero-verdict.tone-neutral {
   background: var(--od-unknown-bg);
   color: var(--od-unknown);
+}
+
+/* Slice 17 — Hero reconciliation. Small italic line under the verdict
+   disclosing revenue from buyers with no known prior magnet, so that
+   leaderboard category totals + this line = hero big number. */
+.od-kpi.hero-sla .hero-attribution-gap {
+  margin-top: 6px;
+  padding-top: 4px;
+  font-size: 11.5px;
+  font-style: italic;
+  color: var(--od-muted);
+  font-variant-numeric: tabular-nums;
 }
 
 /* Compact-pass override: the hero card needs a slightly bigger value than other cells */
