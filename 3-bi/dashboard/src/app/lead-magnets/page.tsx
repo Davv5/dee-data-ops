@@ -1,4 +1,4 @@
-import { LeadMagnetsCommandCenterView } from "@/components/dashboard/LeadMagnetsCommandCenterView";
+import { LeadMagnetsDashboard } from "@/components/dashboard/LeadMagnetsDashboard";
 import { AppShell } from "@/components/layout/AppShell";
 import { getLeadMagnetData } from "@/lib/bigquery/lead-magnets-live";
 
@@ -11,12 +11,13 @@ type LeadMagnetsPageProps = {
 
 export default async function LeadMagnetsPage({ searchParams }: LeadMagnetsPageProps) {
   const params = await searchParams;
-  const range = Array.isArray(params?.range) ? params?.range[0] : params?.range;
+  const rawRange = Array.isArray(params?.range) ? params?.range[0] : params?.range;
+  const range = rawRange ?? "all";
   const data = await getLeadMagnetData({ timeRange: range });
 
   return (
     <AppShell>
-      <LeadMagnetsCommandCenterView data={data} />
+      <LeadMagnetsDashboard data={data} />
     </AppShell>
   );
 }
