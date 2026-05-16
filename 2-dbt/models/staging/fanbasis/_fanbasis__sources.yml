@@ -1,23 +1,17 @@
 version: 2
 
-# Fanbasis is the live revenue source for D-DEE. Discovery Sprint findings
-# showed raw rows landing in the consolidated project, but Merge-side dbt has
-# not been wired to model them yet. This source declaration documents the
-# observed raw table so the gap is explicit; no `stg_fanbasis__*.sql` models
-# exist today.
+# Fanbasis is the live revenue source for D-DEE. The extractor lands completed
+# checkout-session transaction rows plus source-depth customer/subscriber
+# identity objects. Subscriber schedules are still collected-cash truth until
+# remaining-balance entities are available.
 
 sources:
   - name: raw_fanbasis
     description: >
-      Raw landing zone for Fanbasis. Post-U2 (2026-04-23) discovery found
-      fresh revenue rows in the consolidated project's `Raw` dataset, while
-      this repo still has no Fanbasis staging model.
-
-      Important distinction: `1-raw-landing/fanbasis/extract.py` remains a
-      stub in this repo, so the observed `Raw.fanbasis_transactions_txn_raw`
-      table is likely written by the GTM-side pipeline or another upstream
-      writer. Before building marts, audit the payload shape and confirm the
-      authoritative extractor path.
+      Raw landing zone for Fanbasis. The authoritative extractor lives under
+      `services/bq-ingest/sources/fanbasis/` and currently calls
+      `/public-api/checkout-sessions/transactions`, `/public-api/customers`,
+      and `/public-api/subscribers`.
     schema: Raw
     config:
       loaded_at_field: ingested_at
@@ -27,10 +21,10 @@ sources:
     tables:
       - name: fanbasis_transactions_txn_raw
         description: >
-          Observed Fanbasis transaction landing table in the consolidated
-          project. Discovery snapshot: 455 rows, fresh daily around 07:27 UTC.
-          No staging model reads this table yet; `stg_fanbasis__transactions`
-          is the expected first dbt-side unblocker.
+          Fanbasis transaction landing table in the consolidated project.
+          This is completed-payment grain: product/service/payment fields are
+          present, but subscriber schedule and remaining-balance entities are
+          not part of this raw table.
         columns:
           - name: entity_id
             description: Fanbasis transaction id when present in the upstream landing table.
@@ -40,3 +34,24 @@ sources:
               - not_null
           - name: payload_json
             description: JSON column containing the Fanbasis transaction payload.
+
+      - name: fanbasis_objects_raw
+        description: >
+          Fanbasis non-transaction object landing table. First source-depth
+          objects are `customers` and `subscribers`, used to diagnose buyers
+          who exist in Fanbasis but do not yet exist as GHL contacts.
+        columns:
+          - name: object_type
+            description: Fanbasis object family (`customers`, `subscribers`, etc.).
+            tests:
+              - not_null
+          - name: object_id
+            description: Native Fanbasis object id within the object family.
+            tests:
+              - not_null
+          - name: ingested_at
+            description: Wall-clock UTC time this row was written into BigQuery.
+            tests:
+              - not_null
+          - name: payload_json
+            description: JSON column containing the Fanbasis object payload.

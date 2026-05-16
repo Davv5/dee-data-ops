@@ -5,7 +5,7 @@ models:
     description: >
       Grain: one row per `(source_platform, payment_id)`.
       PK: `(source_platform, payment_id)`.
-      Deterministic 5-tier match between payments (Stripe + Fanbasis) and
+      Deterministic 9-tier match between payments (Stripe + Fanbasis) and
       `dim_contacts`; best match picked via `qualify row_number() over
       (partition by source_platform, payment_id order by match_score desc)
       = 1`. Downstream: `fct_payments` left-joins on
@@ -44,8 +44,11 @@ models:
         description: >
           Which tier produced the match. Tier priority (and scores):
           `email_exact` (1.00), `phone_last10` (1.00),
-          `email_canonical` (0.95), `billing_email_direct` (0.80),
-          `unmatched` (0.00).
+          `email_canonical` (0.95), `stripe_customer_email` (0.90),
+          `stripe_customer_phone` (0.90),
+          `fanbasis_conversation_email` (0.88),
+          `fanbasis_unique_crm_name` (0.82),
+          `billing_email_direct` (0.80), `unmatched` (0.00).
         tests:
           - not_null
           - accepted_values:
@@ -53,6 +56,10 @@ models:
                 - email_exact
                 - email_canonical
                 - phone_last10
+                - stripe_customer_email
+                - stripe_customer_phone
+                - fanbasis_conversation_email
+                - fanbasis_unique_crm_name
                 - billing_email_direct
                 - unmatched
       - name: match_score
@@ -65,7 +72,8 @@ models:
               inclusive: true
       - name: bridge_status
         description: >
-          Summary flag. `matched` when a CRM contact was resolved;
+          Summary flag. `matched` when the payment has been accounted for by
+          either a CRM contact or a payment-identity-only fallback;
           `ambiguous_multi_candidate` when > 1 contact tied at the
           best score; `unmatched` otherwise.
         tests:

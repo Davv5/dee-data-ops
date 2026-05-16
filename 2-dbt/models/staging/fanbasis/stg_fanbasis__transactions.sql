@@ -37,8 +37,27 @@ parsed as (
 
         json_value(payload_json, '$.product.title')                                       as product_title,
         json_value(payload_json, '$.product.id')                                          as product_id,
+        json_value(payload_json, '$.product.internal_name')                               as product_internal_name,
+        json_value(payload_json, '$.product.description')                                 as product_description,
+        cast(json_value(payload_json, '$.product.price') as numeric)                      as product_price,
+        json_value(payload_json, '$.product.payment_link')                                as product_payment_link,
+
+        json_value(payload_json, '$.service.title')                                       as service_title,
+        json_value(payload_json, '$.service.id')                                          as service_id,
+        json_value(payload_json, '$.service.internal_name')                               as service_internal_name,
+        json_value(payload_json, '$.service.description')                                 as service_description,
+        cast(json_value(payload_json, '$.service.price') as numeric)                      as service_price,
+        json_value(payload_json, '$.service.payment_link')                                as service_payment_link,
+
         json_value(payload_json, '$.servicePayment.payment_type')                         as payment_type,
         json_value(payload_json, '$.servicePayment.id')                                   as service_payment_id,
+        cast(json_value(payload_json, '$.servicePayment.fund_release_on') as timestamp)    as fund_release_on,
+        case lower(json_value(payload_json, '$.servicePayment.fund_released'))
+            when '1'     then true
+            when 'true'  then true
+            when '0'     then false
+            when 'false' then false
+        end                                                                               as fund_released,
 
         json_value(payload_json, '$.fan.id')                                              as fan_id,
         json_value(payload_json, '$.fan.email')                                           as fan_email,

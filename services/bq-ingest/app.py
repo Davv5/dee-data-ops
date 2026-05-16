@@ -9,6 +9,7 @@ from sources.fanbasis.fanbasis_pipeline import (
     ensure_tables,
     fetch_transactions_page,
     refresh_models_from_file,
+    run_identity_backfill,
     upsert_transactions,
 )
 from sources.calendly.calendly_pipeline import ensure_tables as ensure_calendly_tables
@@ -91,6 +92,15 @@ def refresh_models():
             ),
             200,
         )
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 500
+
+
+@app.route("/ingest-fanbasis-identity", methods=["GET", "POST"])
+def ingest_fanbasis_identity():
+    try:
+        result = run_identity_backfill()
+        return jsonify({"ok": True, **result}), 200
     except Exception as exc:
         return jsonify({"ok": False, "error": str(exc)}), 500
 

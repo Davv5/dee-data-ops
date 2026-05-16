@@ -1,6 +1,79 @@
 version: 2
 
 models:
+  - name: stg_fanbasis__customers
+    description: >
+      1:1 staging view on Fanbasis `customers` objects landed in
+      `raw_fanbasis.fanbasis_objects_raw`.
+      Grain: one row per Fanbasis customer. Used as source-depth identity
+      truth for buyers who paid in Fanbasis but are missing in GHL.
+    columns:
+      - name: customer_id
+        description: Native Fanbasis customer id from `$.id`.
+        tests:
+          - unique
+          - not_null
+      - name: customer_name
+        description: Fanbasis customer display name.
+      - name: customer_email
+        description: Fanbasis customer email.
+      - name: customer_email_norm
+        description: Lowercased / trimmed Fanbasis customer email.
+      - name: customer_phone
+        description: Fanbasis customer phone when supplied.
+      - name: customer_phone_digits
+        description: Numeric-only customer phone for bridge diagnostics.
+      - name: total_transactions
+        description: Fanbasis-reported transaction count for this customer.
+      - name: total_spent
+        description: Fanbasis-reported total customer spend in USD major units.
+      - name: last_transaction_at
+        description: Fanbasis-reported timestamp of the latest customer transaction.
+      - name: _ingested_at
+        description: Wall-clock UTC time this customer object landed in raw.
+
+  - name: stg_fanbasis__subscribers
+    description: >
+      1:1 staging view on Fanbasis `subscribers` objects landed in
+      `raw_fanbasis.fanbasis_objects_raw`.
+      Grain: one row per Fanbasis subscriber/subscription object. Carries the
+      customer id that matches transaction `fan_id`, plus product and
+      subscription status context.
+    columns:
+      - name: subscriber_id
+        description: Native Fanbasis subscriber object id from `$.id`.
+        tests:
+          - unique
+          - not_null
+      - name: customer_id
+        description: Fanbasis subscriber customer id; matches transaction `fan_id`.
+      - name: customer_name
+        description: Fanbasis subscriber customer name.
+      - name: customer_email
+        description: Fanbasis subscriber customer email.
+      - name: customer_email_norm
+        description: Lowercased / trimmed subscriber customer email.
+      - name: customer_phone
+        description: Fanbasis subscriber customer phone when supplied.
+      - name: product_id
+        description: Fanbasis product id tied to the subscription.
+      - name: product_title
+        description: Fanbasis product title tied to the subscription.
+      - name: subscription_id
+        description: Fanbasis subscription id from the nested subscription object.
+      - name: subscription_status
+        description: Fanbasis subscription status.
+      - name: auto_renew_count
+        description: Fanbasis-reported auto-renew count for this subscription.
+      - name: has_charge_consent
+        description: Whether Fanbasis reports charge consent for this subscription.
+      - name: subscription_created_at
+        description: Subscription creation timestamp from Fanbasis.
+      - name: subscription_updated_at
+        description: Subscription update timestamp from Fanbasis.
+      - name: _ingested_at
+        description: Wall-clock UTC time this subscriber object landed in raw.
+
   - name: stg_fanbasis__transactions
     description: >
       1:1 staging view on `raw_fanbasis.fanbasis_transactions_txn_raw`. One row
@@ -45,11 +118,36 @@ models:
       - name: product_id
         description: Fanbasis product id from `$.product.id`.
 
+      - name: product_internal_name
+        description: Internal Fanbasis product name from `$.product.internal_name`.
+
+      - name: product_price
+        description: Fanbasis product price on the transaction payload, in USD major units. For auto-renew rows this is the charged installment amount, not a validated remaining balance.
+
+      - name: service_title
+        description: Fanbasis service title from `$.service.title`.
+
+      - name: service_id
+        description: Fanbasis service id from `$.service.id`.
+
+      - name: service_price
+        description: Fanbasis service price on the transaction payload, in USD major units.
+
       - name: payment_type
         description: Payment type from `$.servicePayment.payment_type` (e.g. `upfront`).
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['upfront', 'auto_renew']
 
       - name: service_payment_id
         description: Fanbasis service-payment id from `$.servicePayment.id`.
+
+      - name: fund_release_on
+        description: Fanbasis payout release timestamp from `$.servicePayment.fund_release_on`.
+
+      - name: fund_released
+        description: Fanbasis payout release flag from `$.servicePayment.fund_released`.
 
       - name: fan_id
         description: Fanbasis "fan" (payer) id from `$.fan.id`.
