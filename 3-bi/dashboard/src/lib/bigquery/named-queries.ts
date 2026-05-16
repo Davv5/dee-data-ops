@@ -63,6 +63,14 @@ export const queryContracts = {
       "Follow-up counts with explicit denominator columns for team-facing dashboard reading.",
     status: "ready",
   },
+  speed_to_lead_unmatched_truth_audit: {
+    name: "speed_to_lead_unmatched_truth_audit",
+    owner: "bq-ingest-report",
+    table: `${table(deeConfig.bigQuery.tables.speedToLeadFact)} + Core.fct_ghl_* + Marts.dim_golden_contact`,
+    description:
+      "CRM proof check for trigger events where no qualifying post-trigger outbound touch was found.",
+    status: "ready",
+  },
   speed_to_lead_first_work_by_rep: {
     name: "speed_to_lead_first_work_by_rep",
     owner: "bq-ingest-report",

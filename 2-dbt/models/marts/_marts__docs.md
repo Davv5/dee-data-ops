@@ -41,39 +41,6 @@ Singular test `release_gate_lead_journey.sql` asserts:
 {% enddocs %}
 
 
-{% docs fanbasis_missing_ghl_contacts %}
-
-# fanbasis_missing_ghl_contacts
-
-Operator queue for Fanbasis buyers who have paid revenue but still do not
-resolve to a GHL contact. This mart exists because the right fix for the final
-Fanbasis identity gap is source depth and CRM hygiene, not weaker fuzzy
-matching.
-
-**Grain:** one row per Fanbasis customer/email identity with paid Fanbasis
-payments and NULL `fct_payments.contact_sk`.
-
-Inputs:
-
-- `stg_fanbasis__transactions` — paid transaction identity from checkout
-- `stg_fanbasis__customers` — customer directory identity from
-  `/public-api/customers`
-- `stg_fanbasis__subscribers` — subscriber/customer id, product, and status
-  from `/public-api/subscribers`
-- `dim_contacts` — GHL contact presence check by email and phone
-
-`recommended_action` is the operator field:
-
-1. `create_ghl_contact` — Fanbasis buyer exists, but no GHL email/phone match
-2. `repair_identity_bridge` — GHL has exactly one candidate, but bridge did not
-   attach it
-3. `review_duplicate_ghl_contacts` — GHL has multiple candidates
-
-The `suggested_ghl_contact_payload_json` field is a draft payload for review.
-It is intentionally not pushed automatically into GHL from dbt.
-
-{% enddocs %}
-
 {% docs lead_magnet_detail %}
 
 # lead_magnet_detail
@@ -191,83 +158,6 @@ does not claim show/no-show truth.
 {% enddocs %}
 
 
-{% docs revenue_funnel_detail %}
-
-# revenue_funnel_detail
-
-**Grain:** one row per matched paid contact.
-**Primary key:** `contact_sk`.
-
-## Why it exists
-
-`revenue_detail` is the payment-reconciliation table. It keeps every payment,
-including unmatched rows, at transaction grain. `revenue_funnel_detail` is the
-buyer-journey table: one row per paid buyer with the best available story of
-how money was created.
-
-It answers:
-
-- what the buyer bought
-- whether the buyer looks like a payment-plan buyer
-- which lead magnet was latest before first purchase
-- whether the buyer booked before buying
-- whether the buyer was touched or reached before buying
-- which operator is most defensibly tied to the path
-
-## What it's built from
-
-- `lead_magnet_buyer_detail` — buyer-grain source of truth and magnet attribution
-- `lead_magnet_detail` — latest-prior opportunity owner and window metrics
-- `fct_payments` + `fct_refunds` — paid payments, product, payment-plan signal, net revenue
-- `fct_outreach` — pre-purchase call/SMS path
-- `fct_calls_booked` — latest booking before first purchase
-- `dim_users` — operator labels
-
-## Attribution language
-
-`best_available_operator_*` is not a commission rule. It is an operating
-diagnostic that chooses the most concrete path evidence in this order:
-
-1. first successful call before purchase
-2. first human touch before purchase
-3. owner of the latest prior opportunity/magnet
-4. booking-time owner
-5. unassigned
-
-Use the source column beside the name so a user can see why a person was
-credited.
-
-## Payment-plan language
-
-`is_payment_plan_buyer` is an inferred operating signal, not a source-system
-contract. It turns true when a buyer has more than one paid payment, Fanbasis
-`auto_renew` payments, or a product name that looks like split pay / deposit /
-balance / payment-plan language. This is enough for funnel operations, but
-finance-grade installment schedules need a future Fanbasis subscription or
-plan-change source.
-
-`payment_plan_truth_status` is the guardrail label for that exact gap. The
-current Fanbasis extractor lands completed transactions from
-`/public-api/checkout-sessions/transactions`; it does not yet land
-`/public-api/subscribers` or checkout-session subscription rows, so the mart can
-say “cash collected” and “auto-renew signal” but not “remaining balance owed.”
-The Fanbasis API docs expose subscriber/subscription endpoints; landing those is
-the next source-layer step before this can become receivables truth.
-
-## Quality flags
-
-`revenue_funnel_quality_flag` keeps messy rows visible:
-
-1. `clean` — usable buyer journey row
-2. `missing_taxonomy` — latest prior magnet exists but taxonomy is missing
-3. `uncategorized_offer_type` — latest prior magnet has only generic taxonomy
-4. `negative_net_revenue` — refunds exceed net revenue for the buyer
-5. `contact_not_matched` — contact id did not survive the buyer contract
-6. `no_known_magnet` — buyer has no known pre-purchase magnet
-
-{% enddocs %}
-
-
 {% docs revenue_detail %}
 
 # revenue_detail
@@ -317,9 +207,8 @@ to Stripe later — no doc-only future-Claude trap. Singular test
 
 1. `unmatched` — bridge could not link the payment to any contact
 2. `ambiguous_contact_match` — bridge matched to more than one candidate
-3. `payment_identity_only` — payment has source identity, but no CRM contact row
-4. `role_unknown` — matched to a contact but no Closer-role attribution available
-5. `clean` — everything above is resolved
+3. `role_unknown` — matched to a contact but no Closer-role attribution available
+4. `clean` — everything above is resolved
 
 ## Release gate
 

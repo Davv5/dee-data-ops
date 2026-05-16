@@ -12,10 +12,13 @@ function getBigQueryClient() {
   return client;
 }
 
-export async function runBigQuery(sql: string): Promise<DashboardRow[]> {
+type BigQueryParams = Record<string, string | number | boolean | null>;
+
+export async function runBigQuery(sql: string, params?: BigQueryParams): Promise<DashboardRow[]> {
   const [rows] = await getBigQueryClient().query({
     query: sql,
     location: process.env.BIGQUERY_LOCATION ?? "US",
+    params,
     useLegacySql: false,
   });
 

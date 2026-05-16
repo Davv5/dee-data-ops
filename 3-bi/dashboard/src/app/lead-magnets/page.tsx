@@ -1,4 +1,4 @@
-import { LeadMagnetsOperatingView } from "@/components/dashboard/LeadMagnetsOperatingView";
+import { LeadMagnetsCommandCenterView } from "@/components/dashboard/LeadMagnetsCommandCenterView";
 import { AppShell } from "@/components/layout/AppShell";
 import { getLeadMagnetData } from "@/lib/bigquery/lead-magnets-live";
 
@@ -16,7 +16,7 @@ export default async function LeadMagnetsPage({ searchParams }: LeadMagnetsPageP
 
   return (
     <AppShell>
-      <LeadMagnetsOperatingView data={data} />
+      <LeadMagnetsCommandCenterView data={data} />
     </AppShell>
   );
 }
