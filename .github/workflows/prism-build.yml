@@ -77,9 +77,10 @@ jobs:
     name: Publish downloadable release
     needs: [android, macos]
     if: >-
-      github.event_name == 'workflow_dispatch' ||
-      github.ref_name == 'claude/amazing-ride-elnw1z' ||
-      github.ref_name == 'main'
+      always() &&
+      (github.event_name == 'workflow_dispatch' ||
+       github.ref_name == 'claude/amazing-ride-elnw1z' ||
+       github.ref_name == 'main')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -88,23 +89,26 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           path: dist
-      - name: Stage release assets
+      - name: Stage whatever built
         run: |
           mkdir -p out
-          cp dist/prism-android-apk/app-release.apk "out/Prism.apk"
-          cp dist/prism-macos-app/prism-macos.zip   "out/Prism-macOS.zip"
+          if [ -f dist/prism-android-apk/app-release.apk ]; then
+            cp dist/prism-android-apk/app-release.apk "out/Prism.apk"
+          fi
+          if [ -f dist/prism-macos-app/prism-macos.zip ]; then
+            cp dist/prism-macos-app/prism-macos.zip "out/Prism-macOS.zip"
+          fi
           ls -la out
+          if [ -z "$(ls -A out 2>/dev/null)" ]; then
+            echo "::error::Neither build produced an artifact — nothing to release."
+            exit 1
+          fi
       - name: Publish / refresh prism-latest release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release delete prism-latest --yes --cleanup-tag 2>/dev/null || true
-          gh release create prism-latest out/Prism.apk out/Prism-macOS.zip \
+          gh release create prism-latest out/* \
             --target "$GITHUB_SHA" \
             --title "Prism — latest build" \
-            --notes "Auto-built from ${GITHUB_SHA}.
-
-          • **Android (Vivo V27):** download \`Prism.apk\`, open it on the phone, allow install from this source.
-          • **macOS (M4):** download \`Prism-macOS.zip\`, unzip, drag \`Prism.app\` to Applications, then right-click → Open the first time.
-
-          Set up cross-device sync once via prism/FIREBASE_SETUP.md."
+            --notes "Auto-built from ${GITHUB_SHA}. Android: install Prism.apk on the Vivo. macOS: unzip Prism-macOS.zip, drag Prism.app to Applications then right-click Open. Sync setup: prism/FIREBASE_SETUP.md"
