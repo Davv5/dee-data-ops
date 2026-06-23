@@ -64,19 +64,25 @@ class NotificationService {
   }
 
   NotificationDetails _details(bool sound) {
+    // New channel id ('..._v2') so Android picks up the custom sound — an existing
+    // channel's sound can't be changed after it's created.
     final android = AndroidNotificationDetails(
-      'prism_reminders',
+      'prism_reminders_v2',
       'Reminders',
       channelDescription: 'Prism scheduled reminders',
       importance: Importance.max,
       priority: Priority.high,
       playSound: sound,
+      sound: sound
+          ? RawResourceAndroidNotificationSound('prism_alert')
+          : null,
       enableVibration: true,
     );
     final darwin = DarwinNotificationDetails(
       presentAlert: true,
       presentBadge: false,
       presentSound: sound,
+      sound: sound ? 'Submarine.aiff' : null,
     );
     return NotificationDetails(android: android, macOS: darwin);
   }

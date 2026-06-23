@@ -28,15 +28,16 @@ class Palette {
   static Color crystal(int i) => crystals[i % crystals.length];
 }
 
-/// Frosted-glass constants for the translucent UI.
+/// Frosted-glass constants for the translucent UI. Tuned leaner: softer hairline
+/// borders and gentler fills so the surfaces read clean rather than busy.
 class Glass {
-  static const double blur = 18;
-  static const double radius = 24;
+  static const double blur = 24;
+  static const double radius = 20;
 
-  static Color get fill => Colors.white.withOpacity(0.06);
-  static Color get fillStrong => Colors.white.withOpacity(0.11);
-  static Color get border => Colors.white.withOpacity(0.13);
-  static Color get highlight => Colors.white.withOpacity(0.05);
+  static Color get fill => Colors.white.withOpacity(0.045);
+  static Color get fillStrong => Colors.white.withOpacity(0.085);
+  static Color get border => Colors.white.withOpacity(0.075);
+  static Color get highlight => Colors.white.withOpacity(0.04);
 }
 
 class PrismTheme {

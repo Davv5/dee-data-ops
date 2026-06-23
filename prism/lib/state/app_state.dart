@@ -17,7 +17,26 @@ class AppState extends ChangeNotifier {
   String syncCode = '';
   bool syncing = false;
 
+  /// Editable names for each crystal colour (acts like a category per colour).
+  List<String> labels = <String>['Coral', 'Amber', 'Teal', 'Violet', 'Sky', 'Rose'];
+
   bool get cloudConfigured => dbUrl.isNotEmpty && syncCode.isNotEmpty;
+
+  String labelFor(int colorIndex) =>
+      labels[colorIndex % labels.length];
+
+  Future<void> setLabel(int index, String name) async {
+    final clean = name.trim();
+    if (clean.isEmpty || index < 0 || index >= labels.length) return;
+    labels[index] = clean;
+    await store.saveLabels(labels);
+    notifyListeners();
+  }
+
+  /// Reminders whose one-off time is already in the past (and not repeating).
+  List<Reminder> get passed => reminders
+      .where((r) => r.repeat == Repeat.none && r.dateTime.isBefore(DateTime.now()))
+      .toList();
 
   Future<void> init() async {
     // 1) Local data first — the UI needs it and this is fast.
@@ -26,6 +45,10 @@ class AppState extends ChangeNotifier {
       final (u, c) = await store.loadSync();
       dbUrl = u;
       syncCode = c;
+      final savedLabels = await store.loadLabels();
+      if (savedLabels != null && savedLabels.length == labels.length) {
+        labels = savedLabels;
+      }
       _sort();
       notifyListeners();
     } catch (_) {/* corrupt/empty store — start fresh */}
@@ -79,6 +102,25 @@ class AppState extends ChangeNotifier {
     await notifications.cancel(r.notificationId);
     notifyListeners();
     _sync?.deleteItem(r.id);
+  }
+
+  /// Delete a set of reminders at once (selection delete).
+  Future<void> removeMany(Set<String> ids) async {
+    if (ids.isEmpty) return;
+    final removed = reminders.where((e) => ids.contains(e.id)).toList();
+    reminders.removeWhere((e) => ids.contains(e.id));
+    await store.saveReminders(reminders);
+    for (final r in removed) {
+      await notifications.cancel(r.notificationId);
+      _sync?.deleteItem(r.id);
+    }
+    notifyListeners();
+  }
+
+  /// Delete every one-off reminder whose time has already passed.
+  Future<void> clearPassed() async {
+    final ids = passed.map((e) => e.id).toSet();
+    await removeMany(ids);
   }
 
   Future<void> toggle(Reminder r, bool enabled) =>

@@ -9,6 +9,26 @@ class Store {
   static const String _kReminders = 'reminders_v1';
   static const String _kDbUrl = 'db_url';
   static const String _kSyncCode = 'sync_code';
+  static const String _kLabels = 'color_labels_v1';
+
+  Future<List<String>?> loadLabels() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_kLabels);
+    if (raw == null || raw.isEmpty) return null;
+    try {
+      final list = (jsonDecode(raw) as List<dynamic>)
+          .map((e) => e.toString())
+          .toList();
+      return list.isEmpty ? null : list;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> saveLabels(List<String> labels) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kLabels, jsonEncode(labels));
+  }
 
   Future<List<Reminder>> loadReminders() async {
     final prefs = await SharedPreferences.getInstance();

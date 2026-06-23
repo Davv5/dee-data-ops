@@ -1,3 +1,4 @@
+import 'dart:io' show Platform;
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -61,17 +62,35 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Scaffold(
       backgroundColor: Palette.bg0,
       extendBodyBehindAppBar: true,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        foregroundColor: Palette.ink,
-        title: const Text('Settings'),
-      ),
       body: PrismBackground(
         child: SafeArea(
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(18, 8, 18, 60),
+          bottom: false,
+          child: Column(
             children: [
+              Padding(
+                padding: EdgeInsets.only(top: Platform.isMacOS ? 22 : 0),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(6, 8, 8, 6),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back_rounded,
+                            color: Palette.ink),
+                        onPressed: () => Navigator.of(context).pop(),
+                      ),
+                      const Text('Settings',
+                          style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                              color: Palette.ink)),
+                    ],
+                  ),
+                ),
+              ),
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(18, 4, 18, 40),
+                  children: [
               _label('Cross-device sync'),
               const SizedBox(height: 10),
               GlassCard(
@@ -187,6 +206,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
               const Center(
                 child: Text('Prism · local-first synced reminders',
                     style: TextStyle(color: Palette.inkFaint, fontSize: 12)),
+              ),
+                  ],
+                ),
               ),
             ],
           ),
