@@ -1,0 +1,22 @@
+# Dart/Flutter build output
+.dart_tool/
+.packages
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+.metadata
+pubspec.lock
+
+# Generated platform folders — recreated by tool/setup.sh in CI and locally.
+# (We only commit lib/, pubspec.yaml, tool/, and platform_overlay/.)
+/android/
+/ios/
+/macos/
+/linux/
+/windows/
+/web/
+
+# Firebase config (you add this locally if you wire native Firebase later)
+**/google-services.json
+**/GoogleService-Info.plist
+lib/firebase_options.dart

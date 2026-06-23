@@ -1,0 +1,110 @@
+name: Prism build
+
+# Path-scoped to prism/** so this never runs on the dbt / ingest / deploy work.
+on:
+  push:
+    paths:
+      - "prism/**"
+      - ".github/workflows/prism-build.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    name: Android APK (Vivo V27)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: prism
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: "3.24.5"
+          cache: true
+      - name: Generate platform folders + apply overlay
+        run: bash tool/setup.sh
+      - name: Build release APK
+        run: flutter build apk --release
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: prism-android-apk
+          path: prism/build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
+
+  macos:
+    name: macOS app (M4)
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: prism
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: "3.24.5"
+          cache: true
+      - name: Generate platform folders + apply overlay
+        run: bash tool/setup.sh
+      - name: Build release macOS app
+        run: flutter build macos --release
+      - name: Zip the .app bundle
+        run: |
+          cd build/macos/Build/Products/Release
+          APP="$(ls -d *.app | head -n1)"
+          echo "Zipping $APP"
+          ditto -c -k --sequesterRsrc --keepParent "$APP" "$GITHUB_WORKSPACE/prism-macos.zip"
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: prism-macos-app
+          path: prism-macos.zip
+          if-no-files-found: error
+
+  # Publishes both builds to a single, always-current "prism-latest" release so
+  # the download links are stable. Runs on the build branch / main, or any manual
+  # run. Skipped on other branches to avoid release noise.
+  release:
+    name: Publish downloadable release
+    needs: [android, macos]
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.ref_name == 'claude/amazing-ride-elnw1z' ||
+      github.ref_name == 'main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+      - name: Stage release assets
+        run: |
+          mkdir -p out
+          cp dist/prism-android-apk/app-release.apk "out/Prism.apk"
+          cp dist/prism-macos-app/prism-macos.zip   "out/Prism-macOS.zip"
+          ls -la out
+      - name: Publish / refresh prism-latest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete prism-latest --yes --cleanup-tag 2>/dev/null || true
+          gh release create prism-latest out/Prism.apk out/Prism-macOS.zip \
+            --target "$GITHUB_SHA" \
+            --title "Prism — latest build" \
+            --notes "Auto-built from ${GITHUB_SHA}.
+
+          • **Android (Vivo V27):** download \`Prism.apk\`, open it on the phone, allow install from this source.
+          • **macOS (M4):** download \`Prism-macOS.zip\`, unzip, drag \`Prism.app\` to Applications, then right-click → Open the first time.
+
+          Set up cross-device sync once via prism/FIREBASE_SETUP.md."
