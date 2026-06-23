@@ -133,7 +133,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       icon: Icons.notifications_active_outlined,
                       title: 'Grant notification permission',
                       subtitle: 'Allow alerts, sound and exact timing',
-                      onTap: () => appState.notifications.requestPermissions(),
+                      onTap: () async {
+                        await appState.notifications.requestAllPermissions();
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            backgroundColor: Palette.bg1,
+                            duration: Duration(seconds: 6),
+                            content: Text(
+                              'Permission requested. If no dialog appeared, turn Prism ON in '
+                              'System Settings → Notifications (Mac), or Settings → Apps → Prism '
+                              '→ Notifications (Vivo).',
+                              style: TextStyle(color: Palette.ink),
+                            ),
+                          ),
+                        );
+                      },
                     ),
                     Divider(color: Glass.border, height: 22),
                     _action(

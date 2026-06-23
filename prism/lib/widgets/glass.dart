@@ -45,11 +45,16 @@ class GlassCard extends StatelessWidget {
           ),
           child: Material(
             color: Colors.transparent,
-            child: InkWell(
-              onTap: onTap,
-              borderRadius: BorderRadius.circular(radius),
-              child: Padding(padding: padding, child: child),
-            ),
+            // Only wrap in an InkWell when the card itself is tappable. A disabled
+            // InkWell (null onTap) can swallow taps meant for buttons *inside* the
+            // card; the Material ancestor still lets those inner InkWells ripple.
+            child: onTap == null
+                ? Padding(padding: padding, child: child)
+                : InkWell(
+                    onTap: onTap,
+                    borderRadius: BorderRadius.circular(radius),
+                    child: Padding(padding: padding, child: child),
+                  ),
           ),
         ),
       ),

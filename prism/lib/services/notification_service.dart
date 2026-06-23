@@ -36,16 +36,31 @@ class NotificationService {
     _ready = true;
   }
 
-  Future<void> requestPermissions() async {
+  /// Alerts + sound. Safe to call at startup — opens no settings pages.
+  Future<void> requestBasicPermissions() async {
     await init();
     final android = _plugin.resolvePlatformSpecificImplementation<
         AndroidFlutterLocalNotificationsPlugin>();
     await android?.requestNotificationsPermission();
-    await android?.requestExactAlarmsPermission();
 
     final macos = _plugin.resolvePlatformSpecificImplementation<
         MacOSFlutterLocalNotificationsPlugin>();
     await macos?.requestPermissions(alert: true, badge: true, sound: true);
+  }
+
+  /// Exact-alarm grant. On Android this opens a system settings page, so only
+  /// call it from an explicit button — never at startup.
+  Future<void> requestExactAlarms() async {
+    await init();
+    final android = _plugin.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+    await android?.requestExactAlarmsPermission();
+  }
+
+  /// Everything, for the explicit "Grant permission" button in Settings.
+  Future<void> requestAllPermissions() async {
+    await requestBasicPermissions();
+    await requestExactAlarms();
   }
 
   NotificationDetails _details(bool sound) {
@@ -96,17 +111,33 @@ class NotificationService {
     if (r.repeat == Repeat.daily) match = DateTimeComponents.time;
     if (r.repeat == Repeat.weekly) match = DateTimeComponents.dayOfWeekAndTime;
 
-    await _plugin.zonedSchedule(
-      r.notificationId,
-      r.title.isEmpty ? 'Reminder' : r.title,
-      _subtitle(r.repeat),
-      when,
-      _details(r.sound),
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-      uiLocalNotificationDateInterpretation:
-          UILocalNotificationDateInterpretation.absoluteTime,
-      matchDateTimeComponents: match,
-    );
+    try {
+      await _plugin.zonedSchedule(
+        r.notificationId,
+        r.title.isEmpty ? 'Reminder' : r.title,
+        _subtitle(r.repeat),
+        when,
+        _details(r.sound),
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
+        matchDateTimeComponents: match,
+      );
+    } catch (_) {
+      // Exact-alarm permission not granted — fall back to an inexact alarm so the
+      // reminder still fires (a minute of slack) instead of throwing and dropping it.
+      await _plugin.zonedSchedule(
+        r.notificationId,
+        r.title.isEmpty ? 'Reminder' : r.title,
+        _subtitle(r.repeat),
+        when,
+        _details(r.sound),
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
+        matchDateTimeComponents: match,
+      );
+    }
   }
 
   String _subtitle(Repeat repeat) {

@@ -20,17 +20,29 @@ class AppState extends ChangeNotifier {
   bool get cloudConfigured => dbUrl.isNotEmpty && syncCode.isNotEmpty;
 
   Future<void> init() async {
-    reminders = await store.loadReminders();
-    final (u, c) = await store.loadSync();
-    dbUrl = u;
-    syncCode = c;
-    _sort();
+    // 1) Local data first — the UI needs it and this is fast.
+    try {
+      reminders = await store.loadReminders();
+      final (u, c) = await store.loadSync();
+      dbUrl = u;
+      syncCode = c;
+      _sort();
+      notifyListeners();
+    } catch (_) {/* corrupt/empty store — start fresh */}
 
-    await notifications.init();
-    await notifications.requestPermissions();
-    await _rescheduleAll();
+    // 2) Notifications — best effort. A failure here must never blank the app.
+    try {
+      await notifications.init();
+      await notifications.requestBasicPermissions();
+      await _rescheduleAll();
+    } catch (_) {/* keep running; user can grant permission from Settings */}
 
-    if (cloudConfigured) _startSync();
+    // 3) Cloud sync if configured.
+    if (cloudConfigured) {
+      try {
+        _startSync();
+      } catch (_) {/* offline — retries on next tick */}
+    }
     notifyListeners();
   }
 

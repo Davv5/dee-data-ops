@@ -7,10 +7,14 @@ import 'theme.dart';
 /// Global app state. Simple and dependency-free (no provider package).
 final AppState appState = AppState();
 
-Future<void> main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  await appState.init();
+  // Paint the UI FIRST, then initialise. Loading data, requesting permissions,
+  // or starting sync must never block startup — doing so (and awaiting it before
+  // runApp) left Android on a black screen while the permission dialog waited.
+  // init() is now fire-and-forget and self-healing.
   runApp(const PrismApp());
+  WidgetsBinding.instance.addPostFrameCallback((_) => appState.init());
 }
 
 class PrismApp extends StatelessWidget {
