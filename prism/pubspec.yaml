@@ -1,0 +1,26 @@
+name: prism
+description: "Prism — synced reminders that ring on every device at once."
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.3.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # Pinned exactly: 18.x raises the floor to compileSdk 35 / AGP 8.11 / Java 17,
+  # which the pinned Flutter 3.24.5 toolchain (see tool/setup.sh + CI) doesn't ship.
+  flutter_local_notifications: 17.2.2
+  timezone: ^0.9.4
+  # 1.x returns Future<String> and supports macOS (added in 1.0.3); the caret
+  # stays within 1.x and can't cross into 5.x's breaking TimezoneInfo API.
+  flutter_timezone: ^1.0.8
+  http: ^1.2.2
+  shared_preferences: ^2.3.2
+
+dev_dependencies:
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
