@@ -183,10 +183,10 @@
 
   function notify(t, kind) {
     if (!('Notification' in window)) return;
-    const c = C.byKey(t.category);
     const title = kind === 'soon' ? 'JARVIS · Coming up' : kind === 'overdue' ? 'JARVIS · Overdue' : 'JARVIS · It’s time';
+    const body = V.cue(t, kind);   // intent-aware: "Time to call the CEO"
     try {
-      if (Notification.permission === 'granted') new Notification(title, { body: t.title, silent: true });
+      if (Notification.permission === 'granted') new Notification(title, { body, silent: true });
       else if (Notification.permission !== 'denied') Notification.requestPermission();
     } catch (_) {}
   }

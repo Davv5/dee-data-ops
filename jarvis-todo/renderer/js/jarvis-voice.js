@@ -140,33 +140,103 @@ window.JARVIS_VOICE = (function () {
     "you'll hear from me before it's due.", ''
   ];
 
+  // ---- intent: turn a typed directive into a natural spoken action ---------
+  // "sleep at 11.30pm"  -> "head to sleep"
+  // "Call CEO at 3am"   -> "call the CEO"
+  // so JARVIS can say "it's time to call the CEO" rather than quoting the text.
+  function cap(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
+
+  const ROLE_NOUNS = ['ceo', 'cfo', 'cto', 'coo', 'boss', 'client', 'customer', 'doctor',
+    'dentist', 'lawyer', 'accountant', 'landlord', 'manager', 'team', 'bank', 'office',
+    'gym', 'store', 'shop', 'pharmacy', 'hospital', 'school', 'airport', 'vet', 'barber',
+    'plumber', 'realtor', 'agent', 'recruiter', 'investor', 'supplier', 'vendor'];
+
+  function withArticle(obj) {
+    if (!obj) return obj;
+    const first = obj.split(/\s+/)[0].toLowerCase().replace(/[^a-z]/g, '');
+    if (/^(the|a|an|my|your|his|her|our|their|some)$/.test(first)) return obj;
+    if (ROLE_NOUNS.includes(first)) return 'the ' + obj;
+    return obj; // proper names / relations (mum, John, ...) stay bare
+  }
+
+  const VERB_PHRASES = {
+    sleep: () => pick(['head to sleep', 'get some rest', 'wind down for the night', 'turn in for the night']),
+    bed: () => 'head to bed', rest: () => 'get some rest', nap: () => 'take a nap', relax: () => 'unwind',
+    wake: () => 'wake up', wakeup: () => 'wake up', getup: () => 'get up',
+    call: (o) => 'call ' + withArticle(o), ring: (o) => 'call ' + withArticle(o), phone: (o) => 'call ' + withArticle(o), dial: (o) => 'call ' + withArticle(o), facetime: (o) => 'FaceTime ' + withArticle(o),
+    text: (o) => 'message ' + withArticle(o), message: (o) => 'message ' + withArticle(o), msg: (o) => 'message ' + withArticle(o), dm: (o) => 'message ' + withArticle(o),
+    email: (o) => 'email ' + withArticle(o), mail: (o) => 'email ' + withArticle(o),
+    meet: (o) => o ? 'meet ' + withArticle(o) : 'head into your meeting', meeting: (o) => o ? 'meet ' + withArticle(o) : 'head into your meeting',
+    pay: (o) => 'pay ' + withArticle(o), transfer: (o) => 'transfer ' + (o || 'the funds'), invoice: (o) => 'send the invoice' + (o ? ' ' + o : ''),
+    submit: (o) => 'submit ' + (o || 'it'), file: (o) => 'file ' + (o || 'it'),
+    send: (o) => 'send ' + (o || 'it'), deliver: (o) => 'deliver ' + (o || 'it'), ship: (o) => 'ship ' + (o || 'it'),
+    buy: (o) => 'pick up ' + (o || 'it'), get: (o) => 'pick up ' + (o || 'it'), grab: (o) => 'grab ' + (o || 'it'), purchase: (o) => 'pick up ' + (o || 'it'), order: (o) => 'order ' + (o || 'it'), pick: (o) => 'pick up ' + (o || 'it'),
+    eat: (o) => o ? 'eat ' + o : 'eat something', lunch: () => 'have lunch', dinner: () => 'have dinner', breakfast: () => 'have breakfast', snack: () => 'have a snack', cook: (o) => 'cook ' + (o || 'dinner'),
+    drink: (o) => 'have ' + (o || 'some water'), water: () => 'hydrate', hydrate: () => 'hydrate',
+    gym: () => 'train', workout: () => 'train', train: () => 'train', exercise: () => 'train', run: () => 'go for your run', lift: () => 'train', stretch: () => 'stretch', walk: (o) => o ? 'walk ' + o : 'take a walk',
+    study: (o) => o ? 'study ' + o : 'get studying', read: (o) => o ? 'read ' + o : 'get reading', review: (o) => 'review ' + (o || 'it'), learn: (o) => 'study ' + (o || 'it'), practice: (o) => 'practice ' + (o || ''),
+    take: (o) => /med|pill|vitamin|tablet/i.test(o || '') ? 'take your ' + o : 'take ' + (o || 'it'), medication: () => 'take your medication', meds: () => 'take your meds', medicine: () => 'take your medicine',
+    leave: (o) => o ? 'leave for ' + withArticle(o) : 'head out', depart: (o) => 'leave' + (o ? ' for ' + withArticle(o) : ''), head: (o) => o ? 'head ' + o : 'head out', go: (o) => o ? 'go ' + o : 'get going',
+    work: (o) => o ? 'get to work on ' + o : 'get to work', build: (o) => 'work on ' + (o || 'it'), code: (o) => 'work on ' + (o || 'it'), write: (o) => 'write ' + (o || 'it'), finish: (o) => 'finish ' + (o || 'it'), complete: (o) => 'finish ' + (o || 'it'), start: (o) => 'start ' + (o || 'it'), prepare: (o) => 'prepare ' + (o || 'it'), prep: (o) => 'prep ' + (o || 'it'), book: (o) => 'book ' + (o || 'it'), schedule: (o) => 'schedule ' + (o || 'it'),
+    post: (o) => 'post ' + (o || 'it'), publish: (o) => 'publish ' + (o || 'it'), record: (o) => 'record ' + (o || 'it'), edit: (o) => 'edit ' + (o || 'it'),
+    clean: (o) => 'clean ' + (o || 'up'), wash: (o) => 'wash ' + (o || 'up'), laundry: () => 'do the laundry',
+    feed: (o) => 'feed ' + (o || 'them'), check: (o) => 'check ' + (o || 'it'), pray: () => 'pray', meditate: () => 'meditate', journal: () => 'journal'
+  };
+
+  function extractIntent(rawTitle) {
+    let title = (rawTitle || '').trim();
+    title = title.replace(/^(reminder\s+(to|for|:)|remember\s+to|remind\s+me\s+to|don'?t\s+forget\s+to|i\s+(need|have|want|gotta)\s+to|need\s+to|have\s+to|gotta|got\s+to|please|to|must)\s+/i, '').trim();
+    // safety net: strip any trailing time/date that survived in the title
+    title = title.replace(/\s+(at|by)?\s*\d{1,2}([:.]\d{2})?\s*([ap]\.?m\.?)?\s*$/i, ' $1').replace(/\s+(at|by)\s*$/i, '').trim();
+    title = title.replace(/\s+(tonight|tomorrow|today|this\s+(morning|afternoon|evening)|next\s+week)$/i, '').trim();
+    title = title.replace(/\s+(on\s+)?(mon|tue|wed|thu|fri|sat|sun)[a-z]*$/i, '').trim();
+    title = title.replace(/[.,;:!?]+$/, '').trim();
+    const words = title.split(/\s+/);
+    const verb = (words[0] || '').toLowerCase().replace(/[^a-z]/g, '');
+    const object = words.slice(1).join(' ').replace(/[.,;:!?]+$/, '').trim();
+    const fn = VERB_PHRASES[verb];
+    if (fn) return { action: fn(object), matched: true };
+    return { action: null, matched: false, title };
+  }
+
+  function clockOnly(d) {
+    return d ? d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '';
+  }
+
+  // short line for desktop notifications
+  function cue(task, kind) {
+    const it = extractIntent(task.title);
+    const subj = it.matched ? it.action : (task.title || 'your directive');
+    if (kind === 'soon') return 'Coming up — ' + cap(subj);
+    if (kind === 'overdue') return 'Still pending — ' + cap(subj);
+    return 'Time to ' + subj;
+  }
+
   // ---- public: acknowledge a newly captured task ---------------------------
   function acknowledge(task) {
-    const cat = C.byKey(task.category);
     const due = task.due ? new Date(task.due) : null;
     const now = new Date();
-    const lead = pick(ACK_LEAD);
+    const it = extractIntent(task.title);
     const gist = shorten(task.title);
-
-    let dueBit = '';
-    if (due) {
-      const mins = (due - now) / 60000;
-      const when = humanWhen(due);
-      if (mins < 90 && mins > 0) dueBit = join(', ' + pick(DEADLINE_NEAR) + ' —', when + '.');
-      else dueBit = 'for ' + when + '.';
-    }
-
-    const classBit = (cat.color !== 'gold' && cat.color !== 'standard')
-      ? join('Filed as', cat.spoken + (dueBit ? ',' : '.'))
-      : '';
-
-    // Two structural shapes, chosen at random, so it never reads the same way.
+    const subject = it.matched ? it.action : `attend to "${gist}"`;
     const opener = ADDRESS[Math.floor(Math.random() * ADDRESS.length)]();
     let line;
-    if (Math.random() < 0.5) {
-      line = join(opener, lead, '"' + gist + '"', dueBit, classBit, maybe(0.4, pick(FLOURISH)));
+
+    if (due) {
+      const when = humanWhen(due);
+      const near = (due - now) / 60000 < 90 && due > now;
+      line = join(opener, pick([
+        `I'll remind you to ${subject} ${when}.`,
+        `noted — I'll prompt you to ${subject} ${when}.`,
+        `consider it set. ${cap(subject)}, ${when}.`,
+        `${cap(subject)} ${when} — I'll sound the alert.`
+      ]), near ? cap(pick(DEADLINE_NEAR)) + '.' : '', maybe(0.3, pick(FLOURISH)));
     } else {
-      line = join(opener, '"' + gist + '" —', pick(ACK), classBit, dueBit && due ? 'Due ' + humanWhen(due) + '.' : '', maybe(0.35, pick(FLOURISH)));
+      line = join(opener, pick([
+        `I'll keep "${gist}" on the board.`,
+        `"${gist}" — logged. Add a time and I'll watch the clock.`,
+        `noted. "${gist}" is tracked.`
+      ]));
     }
     return say(line, { onText: settings.onText });
   }
@@ -188,9 +258,12 @@ window.JARVIS_VOICE = (function () {
   // ---- public: the deadline alert (the "it's time" moment) -----------------
   function alert(task, kind) {
     const cat = C.byKey(task.category);
-    const gist = shorten(task.title);
     const a = addr();
     const due = task.due ? new Date(task.due) : null;
+    const it = extractIntent(task.title);
+    const gist = shorten(task.title);
+    const subject = it.matched ? it.action : `attend to "${gist}"`;
+    const clock = clockOnly(due);
 
     const URGENCY = {
       red: ['This is critical.', 'Top priority.', 'This cannot slip.'],
@@ -198,36 +271,46 @@ window.JARVIS_VOICE = (function () {
       cyan: ['Focus time.', 'Work block.', ''],
       green: ['For you, this one.', 'Look after yourself.', ''],
       violet: ['When you have a moment.', 'A thought to chase.', ''],
-      gold: ['', 'A directive.', '']
+      gold: ['', '', '']
     };
     const tone = URGENCY[cat.color] || [''];
 
     let line;
     if (kind === 'soon') {
       const mins = due ? Math.max(1, Math.round((due - new Date()) / 60000)) : 10;
+      const mlabel = `${mins} minute${mins === 1 ? '' : 's'}`;
       line = join(
         pick([a + ',', 'Heads up,', 'A moment,', 'Quick word,']),
-        pick(['just ahead —', 'coming up —', 'on the horizon —', 'shortly —']),
-        '"' + gist + '"',
-        pick([`in about ${mins} minutes.`, `due in roughly ${mins} minutes.`, `${mins} minutes out.`]),
+        pick([
+          `in about ${mlabel} it'll be time to ${subject}.`,
+          `you'll want to ${subject} in roughly ${mlabel}.`,
+          `${cap(subject)} comes up in ${mlabel}.`
+        ]),
         maybe(0.5, pick(tone))
       );
     } else if (kind === 'overdue') {
       line = join(
         pick([a + ',', 'A reminder,', 'Still outstanding,', 'Circling back,']),
-        '"' + gist + '"',
-        pick(['has slipped past its deadline.', 'is now overdue.', 'was due and is still open.', 'is past time.']),
+        pick([
+          `you still need to ${subject}.`,
+          `you've yet to ${subject}.`,
+          `${cap(subject)} is still pending` + (clock ? ` — it was due at ${clock}.` : '.')
+        ]),
         pick(tone),
         pick(['Shall I keep it live?', 'I recommend we clear it.', 'Your call on this one.', ''])
       );
     } else { // 'due' — the headline "it's time" event
-      line = join(
-        pick([a + '.', a + ',', 'It is time,', 'The hour is here,', 'Now,']),
-        pick(['it is time for', 'this is the moment for', 'time to attend to', 'this is your cue for', 'the moment has arrived for']),
-        '"' + gist + '".',
-        pick(tone),
-        maybe(0.45, pick(['Shall I clear the way?', 'I have you covered.', "Let's see it done.", "I'll mark it the moment it's complete."]))
-      );
+      const head = pick([a + '.', a + ',', 'It is time,', 'Now,', a + ' —']);
+      const body = pick([
+        `it's time to ${subject}.`,
+        `it is time to ${subject}.`,
+        `you should ${subject} now.`,
+        `let's ${subject}.`,
+        `time to ${subject}.`
+      ]);
+      const timeBit = clock ? pick([`It's ${clock}.`, `The time is ${clock}.`, `It's ${clock} now.`, '']) : '';
+      line = join(head, body, pick(tone), timeBit,
+        maybe(0.3, pick(['Shall I clear the way?', 'I have you covered.', "Let's see it done.", ''])));
     }
     return say(line, { force: kind === 'due' || cat.color === 'red', onText: settings.onText, pitch: cat.color === 'red' ? 0.86 : settings.pitch });
   }
@@ -261,5 +344,5 @@ window.JARVIS_VOICE = (function () {
     return day + ' at ' + time;
   }
 
-  return { say, acknowledge, greeting, alert, reactComplete, configure, listVoices, hasGoodVoice, humanWhen, partOfDay };
+  return { say, acknowledge, greeting, alert, reactComplete, cue, configure, listVoices, hasGoodVoice, humanWhen, partOfDay };
 })();
