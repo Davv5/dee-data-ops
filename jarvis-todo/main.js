@@ -12,6 +12,10 @@ const store = require('./src/store');
 const isDev = process.argv.includes('--dev');
 const DEFAULT_HOTKEY = 'CommandOrControl+Shift+Space';
 
+// Safety net: a stray "object destroyed" or similar must never take the whole
+// background app down. Log it and keep running so the menu bar stays alive.
+process.on('uncaughtException', (err) => console.error('[jarvis] uncaught:', err));
+
 let dashboardWin = null;
 let quickWin = null;
 let tray = null;
