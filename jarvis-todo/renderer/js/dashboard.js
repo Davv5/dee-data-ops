@@ -13,7 +13,7 @@
   const $ = (id) => document.getElementById(id);
 
   // ---- holographic background field ----
-  const holo = new window.HoloField($('holoField'), { hue: 196, gold: 40, motes: 50, cxBias: 0.62, cyBias: 0.42 });
+  const holo = new window.HoloField($('holoField'), { hue: 194, gold: 42, motes: 46, cxBias: 0.5, cyBias: 0.5, scale: 1.2 });
   holo.start();
 
   // ---- clock ----

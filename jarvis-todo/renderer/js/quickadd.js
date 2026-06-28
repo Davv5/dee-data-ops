@@ -18,7 +18,7 @@
   let lastParse = { due: null, cleanTitle: '' };
 
   // --- holographic field ---
-  const reactor = new window.HoloField(document.getElementById('holo'), { hue: 196, motes: 34, cxBias: 0.5, cyBias: 0.42 });
+  const reactor = new window.HoloField(document.getElementById('holo'), { hue: 194, motes: 30, cxBias: 0.5, cyBias: 0.5, scale: 1.1 });
   reactor.start();
   // keep .pulse()/.setEnergy()/.setHue() call-sites working unchanged
 
