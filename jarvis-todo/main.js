@@ -84,8 +84,12 @@ function createQuickAdd() {
   });
 }
 
+function quickAlive() {
+  return quickWin && !quickWin.isDestroyed();
+}
+
 function showQuickAdd() {
-  if (!quickWin) createQuickAdd();
+  if (!quickAlive()) createQuickAdd();
   const display = screen.getPrimaryDisplay();
   const { width } = display.workAreaSize;
   quickWin.setPosition(
@@ -98,14 +102,14 @@ function showQuickAdd() {
 }
 
 function hideQuickAdd() {
-  if (quickWin) {
+  if (quickAlive()) {
     quickWin.webContents.send('quickadd:dismiss');
     quickWin.hide();
   }
 }
 
 function toggleQuickAdd() {
-  if (quickWin && quickWin.isVisible()) hideQuickAdd();
+  if (quickAlive() && quickWin.isVisible()) hideQuickAdd();
   else showQuickAdd();
 }
 

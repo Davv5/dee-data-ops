@@ -1,5 +1,7 @@
 node_modules/
 release/
 dist/
+dist-app/
+JARVIS.app/
 *.log
 .DS_Store
