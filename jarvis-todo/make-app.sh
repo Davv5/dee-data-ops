@@ -49,9 +49,26 @@ set_plist CFBundleIdentifier   com.david.jarvis.todo
 "$PLISTBUDDY" -c "Set :LSUIElement true" "$PLIST" 2>/dev/null || \
 "$PLISTBUDDY" -c "Add :LSUIElement bool true" "$PLIST"
 
-# Optional custom icon: if you generate build/icon.icns it gets used.
-if [ -f "build/icon.icns" ]; then
-  cp "build/icon.icns" "$OUT/Contents/Resources/electron.icns"
+# App icon: build a macOS .icns from build/icon.png using the system tools.
+ICON_SRC="build/icon.png"
+if [ -f "$ICON_SRC" ] && command -v sips >/dev/null 2>&1 && command -v iconutil >/dev/null 2>&1; then
+  echo "▸ Building the JARVIS app icon ..."
+  ICONSET="$(mktemp -d)/jarvis.iconset"
+  mkdir -p "$ICONSET"
+  gen() { sips -z "$2" "$2" "$ICON_SRC" --out "$ICONSET/$1" >/dev/null 2>&1; }
+  gen icon_16x16.png 16;      gen icon_16x16@2x.png 32
+  gen icon_32x32.png 32;      gen icon_32x32@2x.png 64
+  gen icon_128x128.png 128;   gen icon_128x128@2x.png 256
+  gen icon_256x256.png 256;   gen icon_256x256@2x.png 512
+  gen icon_512x512.png 512;   gen icon_512x512@2x.png 1024
+  if iconutil -c icns "$ICONSET" -o "$OUT/Contents/Resources/electron.icns" >/dev/null 2>&1; then
+    set_plist CFBundleIconFile electron.icns
+    echo "  icon set."
+  else
+    echo "  (iconutil failed — default icon kept.)"
+  fi
+else
+  echo "▸ Skipping custom icon (build/icon.png or sips/iconutil missing)."
 fi
 
 echo "▸ Clearing quarantine + ad-hoc signing (so macOS will open it) ..."
