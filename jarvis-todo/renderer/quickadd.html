@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self'; img-src 'self' data:;" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=Rajdhani:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/theme.css" />
+  <link rel="stylesheet" href="css/quickadd.css" />
+  <title>JARVIS — New Directive</title>
+</head>
+<body class="qa">
+  <div class="qa-stage" id="stage">
+    <canvas class="qa-reactor" id="reactor"></canvas>
+    <div class="qa-panel glass hud-corners scanlines">
+      <div class="qa-sweep"></div>
+
+      <div class="qa-head">
+        <div class="qa-status"><span class="blink">●</span>&nbsp; JARVIS · LISTENING</div>
+        <div class="qa-eq" id="eq"><i></i><i></i><i></i><i></i><i></i></div>
+      </div>
+
+      <div class="qa-input-wrap">
+        <input id="input" class="qa-input" type="text" autocomplete="off" spellcheck="false"
+               placeholder="State your directive… e.g. “Submit invoice tomorrow 5pm”" />
+      </div>
+
+      <div class="qa-preview" id="preview"></div>
+
+      <div class="qa-cats" id="cats"></div>
+
+      <div class="qa-foot">
+        <div><kbd>↩</kbd> commit &nbsp;·&nbsp; <kbd>⇥</kbd> cycle colour &nbsp;·&nbsp; <kbd>esc</kbd> dismiss</div>
+        <button class="qa-commit" id="commit">Commit Directive</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/colors.js"></script>
+  <script src="js/nlp.js"></script>
+  <script src="js/jarvis-voice.js"></script>
+  <script src="js/reactor.js"></script>
+  <script src="js/quickadd.js"></script>
+</body>
+</html>

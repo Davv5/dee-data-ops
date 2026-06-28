@@ -1,0 +1,118 @@
+/* JARVIS — shared theme. Glossy, solar, sci-fi HUD. */
+
+:root {
+  --solar-1: #ffe9b0;
+  --solar-2: #ffb648;
+  --solar-3: #ff7a2f;
+  --solar-core: #ffd27a;
+  --cyan: #39d7ff;
+  --ink: #02060d;
+  --ink-2: #050b16;
+  --glass: rgba(12, 22, 38, 0.55);
+  --glass-edge: rgba(120, 200, 255, 0.18);
+  --hud-line: rgba(120, 200, 255, 0.22);
+  --text: #eaf4ff;
+  --text-dim: #8fa6c4;
+  --gold-text: #ffdf9e;
+  --red: #ff4d5e;
+  --amber: #ffb648;
+  --green: #4dffa6;
+  --violet: #b58bff;
+  --gold: #e9d8a6;
+
+  --font-display: 'Orbitron', 'SF Pro Display', 'Helvetica Neue', system-ui, sans-serif;
+  --font-body: 'Rajdhani', 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  font-family: var(--font-body);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+  user-select: none;
+  cursor: default;
+}
+
+/* deep solar-space backdrop */
+.space-bg {
+  position: fixed; inset: 0;
+  background:
+    radial-gradient(1200px 700px at 70% -10%, rgba(255, 140, 50, 0.10), transparent 60%),
+    radial-gradient(900px 600px at 15% 110%, rgba(57, 160, 255, 0.10), transparent 60%),
+    radial-gradient(circle at 50% 50%, #06101f 0%, #030711 55%, #01040a 100%);
+  z-index: -3;
+}
+.space-bg::after { /* fine starfield via tiled noise */
+  content: ''; position: absolute; inset: 0; opacity: 0.5;
+  background-image:
+    radial-gradient(1px 1px at 20% 30%, rgba(255,255,255,0.7), transparent),
+    radial-gradient(1px 1px at 80% 20%, rgba(255,255,255,0.5), transparent),
+    radial-gradient(1px 1px at 60% 70%, rgba(255,255,255,0.6), transparent),
+    radial-gradient(1px 1px at 35% 80%, rgba(255,255,255,0.4), transparent),
+    radial-gradient(1px 1px at 90% 60%, rgba(255,255,255,0.5), transparent),
+    radial-gradient(1px 1px at 10% 90%, rgba(255,255,255,0.45), transparent);
+  animation: drift 120s linear infinite;
+}
+@keyframes drift { to { transform: translateY(-40px); } }
+
+/* glass panels */
+.glass {
+  background: linear-gradient(180deg, rgba(18,32,54,0.62), rgba(6,14,26,0.62));
+  border: 1px solid var(--glass-edge);
+  border-radius: 16px;
+  backdrop-filter: blur(18px) saturate(140%);
+  box-shadow:
+    0 18px 60px rgba(0,0,0,0.55),
+    inset 0 1px 0 rgba(255,255,255,0.08),
+    inset 0 0 36px rgba(57,160,255,0.05);
+  position: relative;
+  overflow: hidden;
+}
+.glass::before { /* glossy top sheen */
+  content: ''; position: absolute; left: 0; right: 0; top: 0; height: 40%;
+  background: linear-gradient(180deg, rgba(255,255,255,0.10), transparent);
+  pointer-events: none;
+}
+
+/* HUD framing corners */
+.hud-corners::after {
+  content: ''; position: absolute; inset: 8px; pointer-events: none; border-radius: 12px;
+  background:
+    linear-gradient(var(--hud-line), var(--hud-line)) left 0 top 0 / 22px 1px no-repeat,
+    linear-gradient(var(--hud-line), var(--hud-line)) left 0 top 0 / 1px 22px no-repeat,
+    linear-gradient(var(--hud-line), var(--hud-line)) right 0 top 0 / 22px 1px no-repeat,
+    linear-gradient(var(--hud-line), var(--hud-line)) right 0 top 0 / 1px 22px no-repeat,
+    linear-gradient(var(--hud-line), var(--hud-line)) left 0 bottom 0 / 22px 1px no-repeat,
+    linear-gradient(var(--hud-line), var(--hud-line)) left 0 bottom 0 / 1px 22px no-repeat,
+    linear-gradient(var(--hud-line), var(--hud-line)) right 0 bottom 0 / 22px 1px no-repeat,
+    linear-gradient(var(--hud-line), var(--hud-line)) right 0 bottom 0 / 1px 22px no-repeat;
+}
+
+/* text utilities */
+.display { font-family: var(--font-display); letter-spacing: 0.14em; text-transform: uppercase; }
+.glow-gold { color: var(--gold-text); text-shadow: 0 0 16px rgba(255,182,72,0.55); }
+.glow-cyan { color: var(--cyan); text-shadow: 0 0 16px rgba(57,215,255,0.5); }
+.dim { color: var(--text-dim); }
+
+/* scanline shimmer */
+.scanlines::before {
+  content: ''; position: absolute; inset: 0; pointer-events: none; opacity: 0.08;
+  background: repeating-linear-gradient(0deg, rgba(255,255,255,0.5) 0 1px, transparent 1px 3px);
+  mix-blend-mode: overlay;
+}
+
+/* category color chips */
+.dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.c-red    { --c: var(--red); }
+.c-amber  { --c: var(--amber); }
+.c-cyan   { --c: var(--cyan); }
+.c-green  { --c: var(--green); }
+.c-violet { --c: var(--violet); }
+.c-gold   { --c: var(--gold); }
+.chip-c { background: var(--c); box-shadow: 0 0 10px var(--c); }
+
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-thumb { background: rgba(120,200,255,0.25); border-radius: 8px; }
