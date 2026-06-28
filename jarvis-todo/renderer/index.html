@@ -64,6 +64,31 @@
     </main>
   </div>
 
+  <!-- TASK EDITOR -->
+  <div class="modal-back" id="editBack">
+    <div class="modal glass hud-corners">
+      <h3 class="glow-gold">EDIT DIRECTIVE</h3>
+      <div class="field">
+        <label>Directive</label>
+        <input id="edTitle" type="text" />
+      </div>
+      <div class="field">
+        <label>Class</label>
+        <div class="chip-row" id="edCats"></div>
+      </div>
+      <div class="field">
+        <label>When</label>
+        <div class="chip-row" id="edTimes" style="margin-bottom:10px"></div>
+        <input id="edDue" type="datetime-local" />
+      </div>
+      <div class="modal-foot">
+        <button class="icon-btn grow" id="edDelete">Delete</button>
+        <button class="icon-btn" id="edCancel">Cancel</button>
+        <button class="icon-btn on" id="edSave">Save</button>
+      </div>
+    </div>
+  </div>
+
   <!-- SETTINGS -->
   <div class="modal-back" id="settingsBack">
     <div class="modal glass hud-corners">
@@ -75,7 +100,7 @@
       <div class="field">
         <label>Voice</label>
         <select id="setVoice"></select>
-        <div class="hint">A calm British voice (e.g. “Daniel”) lands closest to JARVIS. Add more in System Settings → Accessibility → Spoken Content.</div>
+        <div class="hint">For a natural, non-robotic JARVIS, install an <b>Enhanced</b> or <b>Premium</b> voice: System Settings → Accessibility → Spoken Content → System Voice → Manage Voices → add <b>Daniel (Enhanced), English (UK)</b>. Then pick it here.</div>
       </div>
       <div class="field">
         <label>Global hotkey</label>

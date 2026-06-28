@@ -1,30 +1,42 @@
-/* JARVIS — shared theme. Glossy, solar, sci-fi HUD. */
+/* JARVIS — shared theme. Iron-Man holographic: translucent glass, volumetric
+   glow, soft organic edges, smooth motion. No hard scanlines, no glitch. */
 
 :root {
   --solar-1: #ffe9b0;
-  --solar-2: #ffb648;
-  --solar-3: #ff7a2f;
+  --solar-2: #ffc46a;
+  --solar-3: #ff8a3c;
   --solar-core: #ffd27a;
-  --cyan: #39d7ff;
-  --ink: #02060d;
-  --ink-2: #050b16;
-  --glass: rgba(12, 22, 38, 0.55);
-  --glass-edge: rgba(120, 200, 255, 0.18);
-  --hud-line: rgba(120, 200, 255, 0.22);
-  --text: #eaf4ff;
-  --text-dim: #8fa6c4;
-  --gold-text: #ffdf9e;
-  --red: #ff4d5e;
-  --amber: #ffb648;
-  --green: #4dffa6;
-  --violet: #b58bff;
-  --gold: #e9d8a6;
 
-  --font-display: 'Orbitron', 'SF Pro Display', 'Helvetica Neue', system-ui, sans-serif;
-  --font-body: 'Rajdhani', 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif;
+  /* holographic blues are the primary register now */
+  --holo-1: #8af2ff;
+  --holo-2: #46c8ff;
+  --holo-3: #2a7bff;
+  --cyan: #6ff0ff;
+
+  --ink: #02060d;
+  --text: #eaf6ff;
+  --text-dim: #93b3d4;
+  --gold-text: #ffe0a8;
+
+  --red: #ff5d72;
+  --amber: #ffc46a;
+  --green: #5dffb0;
+  --violet: #c39bff;
+  --gold: #ffd9a0;
+
+  /* translucent surfaces — let the desktop / vibrancy bleed through */
+  --glass: rgba(18, 34, 58, 0.34);
+  --glass-2: rgba(10, 22, 40, 0.28);
+  --glass-edge: rgba(130, 220, 255, 0.22);
+  --hud-line: rgba(120, 220, 255, 0.20);
+
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --font-display: 'Orbitron', 'SF Pro Display', system-ui, sans-serif;
+  --font-body: 'Rajdhani', 'SF Pro Text', system-ui, sans-serif;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
+*, *::before, *::after { transition-timing-function: var(--ease); }
 
 html, body {
   height: 100%;
@@ -34,74 +46,82 @@ html, body {
   overflow: hidden;
   user-select: none;
   cursor: default;
+  background: transparent;
 }
 
-/* deep solar-space backdrop */
+/* Translucent backdrop — sits over the macOS vibrancy so the desktop blurs
+   through like a projected hologram. Soft solar + holo light pools. */
 .space-bg {
-  position: fixed; inset: 0;
+  position: fixed; inset: 0; z-index: -3;
   background:
-    radial-gradient(1200px 700px at 70% -10%, rgba(255, 140, 50, 0.10), transparent 60%),
-    radial-gradient(900px 600px at 15% 110%, rgba(57, 160, 255, 0.10), transparent 60%),
-    radial-gradient(circle at 50% 50%, #06101f 0%, #030711 55%, #01040a 100%);
-  z-index: -3;
+    radial-gradient(1100px 720px at 78% -8%, rgba(255, 150, 60, 0.16), transparent 62%),
+    radial-gradient(900px 640px at 12% 112%, rgba(70, 170, 255, 0.16), transparent 60%),
+    radial-gradient(circle at 50% 45%, rgba(8, 20, 38, 0.62) 0%, rgba(3, 9, 19, 0.72) 60%, rgba(1, 4, 10, 0.82) 100%);
 }
-.space-bg::after { /* fine starfield via tiled noise */
-  content: ''; position: absolute; inset: 0; opacity: 0.5;
-  background-image:
-    radial-gradient(1px 1px at 20% 30%, rgba(255,255,255,0.7), transparent),
-    radial-gradient(1px 1px at 80% 20%, rgba(255,255,255,0.5), transparent),
-    radial-gradient(1px 1px at 60% 70%, rgba(255,255,255,0.6), transparent),
-    radial-gradient(1px 1px at 35% 80%, rgba(255,255,255,0.4), transparent),
-    radial-gradient(1px 1px at 90% 60%, rgba(255,255,255,0.5), transparent),
-    radial-gradient(1px 1px at 10% 90%, rgba(255,255,255,0.45), transparent);
-  animation: drift 120s linear infinite;
+.space-bg::after { /* slow holographic light-haze, not a scanline */
+  content: ''; position: absolute; inset: -20%;
+  background: radial-gradient(closest-side, rgba(110, 240, 255, 0.05), transparent 70%);
+  animation: haze 22s ease-in-out infinite alternate;
 }
-@keyframes drift { to { transform: translateY(-40px); } }
+@keyframes haze {
+  0%   { transform: translate(-4%, -2%) scale(1.05); opacity: .7; }
+  100% { transform: translate(5%, 4%) scale(1.18); opacity: 1; }
+}
 
-/* glass panels */
+/* Glass panels — thin, luminous, rounded, with a moving sheen. */
 .glass {
-  background: linear-gradient(180deg, rgba(18,32,54,0.62), rgba(6,14,26,0.62));
+  position: relative; overflow: hidden;
+  background: linear-gradient(160deg, var(--glass), var(--glass-2));
   border: 1px solid var(--glass-edge);
-  border-radius: 16px;
-  backdrop-filter: blur(18px) saturate(140%);
+  border-radius: 22px;
+  backdrop-filter: blur(26px) saturate(150%);
+  -webkit-backdrop-filter: blur(26px) saturate(150%);
   box-shadow:
-    0 18px 60px rgba(0,0,0,0.55),
-    inset 0 1px 0 rgba(255,255,255,0.08),
-    inset 0 0 36px rgba(57,160,255,0.05);
-  position: relative;
-  overflow: hidden;
+    0 24px 70px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 0 50px rgba(70, 200, 255, 0.06),
+    0 0 0 1px rgba(110, 240, 255, 0.04);
 }
-.glass::before { /* glossy top sheen */
-  content: ''; position: absolute; left: 0; right: 0; top: 0; height: 40%;
-  background: linear-gradient(180deg, rgba(255,255,255,0.10), transparent);
+.glass::before { /* top gloss */
+  content: ''; position: absolute; left: 0; right: 0; top: 0; height: 46%;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.12), transparent);
   pointer-events: none;
 }
+.glass::after { /* slow holo light-sweep across the surface */
+  content: ''; position: absolute; top: 0; bottom: 0; width: 55%;
+  left: -60%; pointer-events: none;
+  background: linear-gradient(100deg, transparent, rgba(150, 235, 255, 0.07), transparent);
+  animation: sheen 9s ease-in-out infinite;
+}
+@keyframes sheen { 0%, 60% { left: -60%; } 100% { left: 130%; } }
 
-/* HUD framing corners */
+/* HUD framing corner ticks — softened, holographic blue */
 .hud-corners::after {
-  content: ''; position: absolute; inset: 8px; pointer-events: none; border-radius: 12px;
+  content: ''; position: absolute; inset: 10px; pointer-events: none; border-radius: 16px;
   background:
-    linear-gradient(var(--hud-line), var(--hud-line)) left 0 top 0 / 22px 1px no-repeat,
-    linear-gradient(var(--hud-line), var(--hud-line)) left 0 top 0 / 1px 22px no-repeat,
-    linear-gradient(var(--hud-line), var(--hud-line)) right 0 top 0 / 22px 1px no-repeat,
-    linear-gradient(var(--hud-line), var(--hud-line)) right 0 top 0 / 1px 22px no-repeat,
-    linear-gradient(var(--hud-line), var(--hud-line)) left 0 bottom 0 / 22px 1px no-repeat,
-    linear-gradient(var(--hud-line), var(--hud-line)) left 0 bottom 0 / 1px 22px no-repeat,
-    linear-gradient(var(--hud-line), var(--hud-line)) right 0 bottom 0 / 22px 1px no-repeat,
-    linear-gradient(var(--hud-line), var(--hud-line)) right 0 bottom 0 / 1px 22px no-repeat;
+    linear-gradient(var(--hud-line), var(--hud-line)) left 0 top 0 / 20px 1.5px no-repeat,
+    linear-gradient(var(--hud-line), var(--hud-line)) left 0 top 0 / 1.5px 20px no-repeat,
+    linear-gradient(var(--hud-line), var(--hud-line)) right 0 top 0 / 20px 1.5px no-repeat,
+    linear-gradient(var(--hud-line), var(--hud-line)) right 0 top 0 / 1.5px 20px no-repeat,
+    linear-gradient(var(--hud-line), var(--hud-line)) left 0 bottom 0 / 20px 1.5px no-repeat,
+    linear-gradient(var(--hud-line), var(--hud-line)) left 0 bottom 0 / 1.5px 20px no-repeat,
+    linear-gradient(var(--hud-line), var(--hud-line)) right 0 bottom 0 / 20px 1.5px no-repeat,
+    linear-gradient(var(--hud-line), var(--hud-line)) right 0 bottom 0 / 1.5px 20px no-repeat;
+  opacity: .8;
 }
 
 /* text utilities */
-.display { font-family: var(--font-display); letter-spacing: 0.14em; text-transform: uppercase; }
-.glow-gold { color: var(--gold-text); text-shadow: 0 0 16px rgba(255,182,72,0.55); }
-.glow-cyan { color: var(--cyan); text-shadow: 0 0 16px rgba(57,215,255,0.5); }
+.display { font-family: var(--font-display); letter-spacing: 0.16em; text-transform: uppercase; }
+.glow-gold { color: var(--gold-text); text-shadow: 0 0 18px rgba(255, 196, 106, 0.5); }
+.glow-cyan { color: var(--cyan); text-shadow: 0 0 18px rgba(111, 240, 255, 0.55); }
 .dim { color: var(--text-dim); }
 
-/* scanline shimmer */
+/* .scanlines kept as a class for existing markup, but now a soft holo grain */
 .scanlines::before {
-  content: ''; position: absolute; inset: 0; pointer-events: none; opacity: 0.08;
-  background: repeating-linear-gradient(0deg, rgba(255,255,255,0.5) 0 1px, transparent 1px 3px);
-  mix-blend-mode: overlay;
+  content: ''; position: absolute; inset: 0; pointer-events: none; opacity: 0.04;
+  background: repeating-linear-gradient(0deg, rgba(150, 235, 255, 0.4) 0 1px, transparent 1px 4px);
+  mix-blend-mode: screen;
+  -webkit-mask-image: linear-gradient(180deg, transparent, #000 30%, #000 70%, transparent);
 }
 
 /* category color chips */
@@ -112,7 +132,8 @@ html, body {
 .c-green  { --c: var(--green); }
 .c-violet { --c: var(--violet); }
 .c-gold   { --c: var(--gold); }
-.chip-c { background: var(--c); box-shadow: 0 0 10px var(--c); }
+.chip-c { background: var(--c); box-shadow: 0 0 12px var(--c); }
 
-::-webkit-scrollbar { width: 8px; }
-::-webkit-scrollbar-thumb { background: rgba(120,200,255,0.25); border-radius: 8px; }
+::-webkit-scrollbar { width: 7px; }
+::-webkit-scrollbar-thumb { background: rgba(120, 220, 255, 0.22); border-radius: 8px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(120, 220, 255, 0.4); }

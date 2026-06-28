@@ -32,10 +32,11 @@ function createDashboard() {
     minHeight: 580,
     show: false,
     title: 'JARVIS',
-    backgroundColor: '#02060d',
+    backgroundColor: '#00000000',
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 18, y: 22 },
-    vibrancy: 'ultra-dark',
+    vibrancy: 'under-window',
+    visualEffectState: 'active',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,

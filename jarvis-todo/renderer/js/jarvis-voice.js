@@ -10,23 +10,44 @@ window.JARVIS_VOICE = (function () {
 
   // ---- voice selection -----------------------------------------------------
   let chosenVoice = null;
-  let settings = { address: 'Sir', voiceURI: null, rate: 0.98, pitch: 0.9, mute: false };
+  let settings = { address: 'Sir', voiceURI: null, rate: 0.94, pitch: 0.92, mute: false };
   const recent = [];                       // anti-repeat ring buffer
+
+  function isEnglish(v) { return /^en/i.test(v.lang); }
+  function quality(v) {
+    // Higher = better. Enhanced/Premium system voices are dramatically less
+    // robotic than the default "compact" ones, so we weight them up heavily.
+    const n = (v.name + ' ' + (v.voiceURI || '')).toLowerCase();
+    let s = 0;
+    if (/premium/.test(n)) s += 60;
+    if (/enhanced/.test(n)) s += 50;
+    if (/siri/.test(n)) s += 45;
+    if (/neural|natural/.test(n)) s += 40;
+    // calm British males read most like JARVIS
+    if (/daniel|arthur|oliver|jamie|serena/.test(n)) s += 25;
+    if (/en[-_]?gb/i.test(v.lang)) s += 18;
+    if (/google uk english/.test(n)) s += 15;
+    if (/compact/.test(n)) s -= 30;     // the robotic ones
+    if (isEnglish(v)) s += 5;
+    return s;
+  }
 
   function pickVoice() {
     const voices = window.speechSynthesis.getVoices();
     if (!voices.length) return;
     if (settings.voiceURI) {
-      chosenVoice = voices.find((v) => v.voiceURI === settings.voiceURI) || chosenVoice;
-      if (chosenVoice) return;
+      const exact = voices.find((v) => v.voiceURI === settings.voiceURI);
+      if (exact) { chosenVoice = exact; return; }
     }
-    // Prefer a calm British male — the JARVIS register.
-    const prefs = ['daniel', 'arthur', 'oliver', 'en-gb', 'google uk english male', 'jamie'];
-    for (const p of prefs) {
-      const v = voices.find((x) => (x.name + x.lang + (x.voiceURI || '')).toLowerCase().includes(p));
-      if (v) { chosenVoice = v; return; }
-    }
-    chosenVoice = voices.find((v) => /en[-_]?gb/i.test(v.lang)) || voices[0];
+    // Otherwise auto-pick the highest-quality English voice available.
+    const ranked = voices.filter(isEnglish).sort((a, b) => quality(b) - quality(a));
+    chosenVoice = ranked[0] || voices[0];
+  }
+
+  // true if the system has at least one genuinely high-quality voice installed
+  function hasGoodVoice() {
+    return ('speechSynthesis' in window) &&
+      window.speechSynthesis.getVoices().some((v) => isEnglish(v) && quality(v) >= 40);
   }
   if ('speechSynthesis' in window) {
     pickVoice();
@@ -240,5 +261,5 @@ window.JARVIS_VOICE = (function () {
     return day + ' at ' + time;
   }
 
-  return { say, acknowledge, greeting, alert, reactComplete, configure, listVoices, humanWhen, partOfDay };
+  return { say, acknowledge, greeting, alert, reactComplete, configure, listVoices, hasGoodVoice, humanWhen, partOfDay };
 })();

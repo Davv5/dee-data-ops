@@ -106,6 +106,7 @@
   function wireTasks() {
     document.querySelectorAll('.task').forEach((el) => {
       const id = el.dataset.id;
+      el.addEventListener('click', () => openEditor(id));
       el.querySelectorAll('[data-act]').forEach((btn) => {
         btn.addEventListener('click', (e) => {
           e.stopPropagation();
@@ -193,6 +194,72 @@
 
   setInterval(scheduleSweep, 15000);
 
+  // ---- task editor ----
+  const editBack = $('editBack');
+  let editingId = null;
+
+  const ED_TIMES = [
+    { id: 'none', label: 'No time', get: () => null },
+    { id: 'h1', label: '+1 hr', get: () => offs(60) },
+    { id: 'h3', label: '+3 hr', get: () => offs(180) },
+    { id: 'eve', label: 'Tonight 8pm', get: () => atd(0, 20) },
+    { id: 'tmr', label: 'Tomorrow 9am', get: () => atd(1, 9) }
+  ];
+  function offs(m) { const d = new Date(); d.setMinutes(d.getMinutes() + m); return d; }
+  function atd(add, h) { const d = new Date(); d.setDate(d.getDate() + add); d.setHours(h, 0, 0, 0); return d; }
+  function toLocalInput(d) { const z = new Date(d.getTime() - d.getTimezoneOffset() * 60000); return z.toISOString().slice(0, 16); }
+
+  // build editor chip rows once
+  C.order.forEach((key) => {
+    const c = C.byKey(key);
+    const el = document.createElement('div');
+    el.className = `pchip c-${c.color}`;
+    el.dataset.key = key;
+    el.innerHTML = `<span class="dot"></span>${c.label}`;
+    el.addEventListener('click', () => {
+      [...$('edCats').children].forEach((x) => x.classList.toggle('active', x === el));
+    });
+    $('edCats').appendChild(el);
+  });
+  ED_TIMES.forEach((p) => {
+    const el = document.createElement('div');
+    el.className = 'pchip';
+    el.textContent = p.label;
+    el.addEventListener('click', () => {
+      const d = p.get();
+      $('edDue').value = d ? toLocalInput(d) : '';
+    });
+    $('edTimes').appendChild(el);
+  });
+
+  function openEditor(id) {
+    const t = tasks.find((x) => x.id === id);
+    if (!t) return;
+    editingId = id;
+    $('edTitle').value = t.title;
+    [...$('edCats').children].forEach((x) => x.classList.toggle('active', x.dataset.key === t.category));
+    $('edDue').value = t.due ? toLocalInput(new Date(t.due)) : '';
+    editBack.classList.add('show');
+    setTimeout(() => $('edTitle').focus(), 60);
+  }
+  function closeEditor() { editBack.classList.remove('show'); editingId = null; }
+
+  $('edCancel').addEventListener('click', closeEditor);
+  editBack.addEventListener('click', (e) => { if (e.target === editBack) closeEditor(); });
+  $('edDelete').addEventListener('click', () => { if (editingId) window.jarvis.removeTask(editingId); closeEditor(); });
+  $('edSave').addEventListener('click', () => {
+    if (!editingId) return;
+    const t = tasks.find((x) => x.id === editingId);
+    const activeCat = [...$('edCats').children].find((x) => x.classList.contains('active'));
+    const category = activeCat ? activeCat.dataset.key : (t ? t.category : 'standard');
+    const due = $('edDue').value ? new Date($('edDue').value).toISOString() : null;
+    // changing the due time resets the spoken-alert flags so JARVIS will speak again
+    const patch = { title: $('edTitle').value.trim() || 'Untitled directive', category, color: C.byKey(category).color, due };
+    if (!t || t.due !== due) { patch.announcedDue = false; patch.announcedSoon = false; patch.lastNudge = undefined; }
+    window.jarvis.updateTask(editingId, patch);
+    closeEditor();
+  });
+
   // ---- settings modal ----
   const back = $('settingsBack');
   function openSettings() {
@@ -262,6 +329,16 @@
       dueToday: tasks.filter((x) => !x.done && isToday(x)).length
     };
     setTimeout(() => V.greeting(stats), 900);
+    // One-time nudge: if only a low-quality (robotic) voice is installed, point
+    // the way to a far better one. Voices finish loading a few seconds in.
+    if (!settings.voiceNudged) {
+      setTimeout(() => {
+        if (!V.hasGoodVoice()) {
+          V.say(`${settings.address || 'Sir'}, I can sound considerably more natural. Add an Enhanced voice in System Settings, Accessibility, Spoken Content — I'd suggest Daniel, English UK — then select it in my settings.`, { force: true });
+          window.jarvis.saveSettings({ voiceNudged: true });
+        }
+      }, 6500);
+    }
     scheduleSweep();
   });
 })();
