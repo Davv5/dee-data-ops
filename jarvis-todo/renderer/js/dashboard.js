@@ -12,10 +12,9 @@
 
   const $ = (id) => document.getElementById(id);
 
-  // ---- reactors ----
-  const miniReactor = new window.Reactor($('miniReactor'), { idle: 0.4, hue: 38, sparks: 30 });
-  const bgReactor = new window.Reactor($('bgReactor'), { idle: 0.22, hue: 38, sparks: 90 });
-  miniReactor.start(); bgReactor.start();
+  // ---- holographic background field ----
+  const holo = new window.HoloField($('holoField'), { hue: 196, gold: 40, motes: 50, cxBias: 0.62, cyBias: 0.42 });
+  holo.start();
 
   // ---- clock ----
   function tickClock() {
@@ -119,7 +118,7 @@
           } else if (act === 'del') {
             window.jarvis.removeTask(id);
           } else if (act === 'speak') {
-            bgReactor.pulse();
+            holo.pulse();
             V.alert(t, dueState(t) === 'past' ? 'overdue' : 'due');
           }
         });
@@ -157,7 +156,7 @@
       // pre-warning ~10 min out
       if (diff > 0 && diff <= 10 * 60 * 1000 && !t.announcedSoon) {
         window.jarvis.updateTask(t.id, { announcedSoon: true });
-        miniReactor.pulse(); bgReactor.pulse();
+        holo.pulse();
         V.alert(t, 'soon');
         notify(t, 'soon');
         return;
@@ -165,7 +164,7 @@
       // the moment it's due
       if (diff <= 0 && !t.announcedDue) {
         window.jarvis.updateTask(t.id, { announcedDue: true, lastNudge: now });
-        miniReactor.setEnergy(1); bgReactor.pulse();
+        holo.setEnergy(1); holo.pulse();
         V.alert(t, 'due');
         notify(t, 'due');
         return;

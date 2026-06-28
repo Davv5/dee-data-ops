@@ -134,6 +134,8 @@ html, body {
 .c-gold   { --c: var(--gold); }
 .chip-c { background: var(--c); box-shadow: 0 0 12px var(--c); }
 
+@keyframes spin { to { transform: rotate(360deg); } }
+
 ::-webkit-scrollbar { width: 7px; }
 ::-webkit-scrollbar-thumb { background: rgba(120, 220, 255, 0.22); border-radius: 8px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(120, 220, 255, 0.4); }

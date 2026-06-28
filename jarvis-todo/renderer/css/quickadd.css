@@ -17,12 +17,15 @@ body.qa { background: transparent; }
 .qa-stage.in .qa-panel { transform: translateY(0) scale(1); opacity: 1; filter: blur(0); }
 .qa-stage.out .qa-panel { transform: translateY(8px) scale(0.96); opacity: 0; filter: blur(4px); transition: all .28s var(--ease); }
 
-/* reactor projects from above the panel */
-.qa-reactor {
-  position: absolute; top: -132px; left: 50%; transform: translateX(-50%);
-  width: 320px; height: 320px; pointer-events: none;
-  filter: drop-shadow(0 0 38px rgba(255, 175, 75, 0.4));
-}
+/* holographic field behind the panel content */
+.qa-holo { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; opacity: .8; }
+.qa-panel > *:not(.qa-holo) { position: relative; z-index: 1; }
+
+/* contained spinning emblem in the header — no clipping, no glitch */
+.qa-emblem { width: 40px; height: 40px; flex: none; filter: drop-shadow(0 0 9px rgba(111, 240, 255, .6)); }
+.qa-emblem circle { transform-box: fill-box; transform-origin: center; }
+.qa-emblem .r-out { animation: spin 22s linear infinite; }
+.qa-emblem .r-mid { animation: spin 14s linear infinite reverse; }
 
 .qa-head { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
 .qa-status {

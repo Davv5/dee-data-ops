@@ -17,9 +17,10 @@
   let manualDue;
   let lastParse = { due: null, cleanTitle: '' };
 
-  // --- reactor ---
-  const reactor = new window.Reactor(document.getElementById('reactor'), { idle: 0.4, hue: 38, sparks: 64 });
+  // --- holographic field ---
+  const reactor = new window.HoloField(document.getElementById('holo'), { hue: 196, motes: 34, cxBias: 0.5, cyBias: 0.42 });
   reactor.start();
+  // keep .pulse()/.setEnergy()/.setHue() call-sites working unchanged
 
   // --- category pills ---
   C.order.forEach((key) => {

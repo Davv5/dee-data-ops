@@ -21,14 +21,21 @@ window.JARVIS_NLP = (function () {
     if (/\bnoon\b/.test(text)) return { h: 12, m: 0, matched: 'noon' };
     if (/\bmidnight\b/.test(text)) return { h: 0, m: 0, matched: 'midnight' };
 
-    // 5pm / 5:30 pm / 17:00 / 9 am
-    let m = text.match(/\b(\d{1,2})(?::(\d{2}))?\s*([ap])\.?m\.?\b/);
+    // 5pm / 5:30 pm / 5.30pm / 11.10 pm / 17:00 / 9 am
+    // Minutes may be separated by ":" or "." so "11.10pm" -> 23:10 (not "10pm").
+    let m = text.match(/\b(\d{1,2})[:.](\d{2})\s*([ap])\.?m\.?\b/);   // h.mm + am/pm
     if (m) {
       let h = parseInt(m[1], 10) % 12;
       if (m[3] === 'p') h += 12;
-      return { h, m: m[2] ? parseInt(m[2], 10) : 0, matched: m[0] };
+      return { h, m: parseInt(m[2], 10), matched: m[0] };
     }
-    m = text.match(/\b(\d{1,2}):(\d{2})\b/);
+    m = text.match(/\b(\d{1,2})\s*([ap])\.?m\.?\b/);                  // bare h + am/pm
+    if (m) {
+      let h = parseInt(m[1], 10) % 12;
+      if (m[2] === 'p') h += 12;
+      return { h, m: 0, matched: m[0] };
+    }
+    m = text.match(/\b(\d{1,2})[:.](\d{2})\b/);                       // 24h 17:00 / 17.00
     if (m) return { h: parseInt(m[1], 10), m: parseInt(m[2], 10), matched: m[0] };
     return null;
   }

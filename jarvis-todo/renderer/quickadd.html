@@ -13,11 +13,17 @@
 </head>
 <body class="qa">
   <div class="qa-stage" id="stage">
-    <canvas class="qa-reactor" id="reactor"></canvas>
-    <div class="qa-panel glass hud-corners scanlines">
-      <div class="qa-sweep"></div>
+    <div class="qa-panel glass hud-corners">
+      <canvas class="qa-holo" id="holo"></canvas>
 
       <div class="qa-head">
+        <svg class="qa-emblem" viewBox="0 0 100 100" aria-hidden="true">
+          <g fill="none" stroke="#6ff0ff" stroke-linecap="round">
+            <circle class="r-out" cx="50" cy="50" r="45" stroke-width="2.4" stroke-dasharray="5 9" opacity="0.8"/>
+            <circle class="r-mid" cx="50" cy="50" r="34" stroke-width="1.8" stroke-dasharray="2 26" opacity="0.85"/>
+          </g>
+          <circle cx="50" cy="50" r="7" fill="#cdf3ff"/>
+        </svg>
         <div class="qa-status"><span class="blink">●</span>&nbsp; JARVIS · LISTENING</div>
         <div class="qa-eq" id="eq"><i></i><i></i><i></i><i></i><i></i></div>
       </div>
@@ -46,7 +52,7 @@
   <script src="js/colors.js"></script>
   <script src="js/nlp.js"></script>
   <script src="js/jarvis-voice.js"></script>
-  <script src="js/reactor.js"></script>
+  <script src="js/holo.js"></script>
   <script src="js/quickadd.js"></script>
 </body>
 </html>

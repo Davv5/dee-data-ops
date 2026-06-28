@@ -15,7 +15,11 @@
 }
 .rail * { -webkit-app-region: no-drag; }
 .brand { display: flex; align-items: center; gap: 14px; margin-bottom: 6px; }
-.brand .mini-reactor { width: 50px; height: 50px; filter: drop-shadow(0 0 14px rgba(255, 180, 80, 0.4)); }
+.brand .brand-emblem { width: 54px; height: 54px; flex: none; filter: drop-shadow(0 0 10px rgba(111, 240, 255, .55)); }
+.brand-emblem circle { transform-box: fill-box; transform-origin: center; }
+.brand-emblem .r-out { animation: spin 28s linear infinite; }
+.brand-emblem .r-mid { animation: spin 17s linear infinite reverse; }
+@keyframes spin { to { transform: rotate(360deg); } }
 .brand h1 { font-family: var(--font-display); font-size: 23px; letter-spacing: .28em; }
 .brand .sub { font-size: 10px; letter-spacing: .34em; color: var(--text-dim); margin-top: 2px; }
 
@@ -52,8 +56,11 @@
 
 /* ---- main ---- */
 .main { position: relative; padding: 42px 38px 28px; overflow: hidden; display: flex; flex-direction: column;
-  background: linear-gradient(180deg, rgba(6, 14, 28, 0.10), rgba(3, 8, 16, 0.16)); }
-.main-bg-reactor { position: absolute; right: -180px; top: -140px; width: 600px; height: 600px; opacity: .55; pointer-events: none; }
+  background:
+    radial-gradient(620px 620px at 78% 32%, rgba(70, 200, 255, 0.10), transparent 70%),
+    linear-gradient(180deg, rgba(6, 14, 28, 0.10), rgba(3, 8, 16, 0.16)); }
+.holo-field { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; opacity: .92; z-index: 0; }
+.main > *:not(.holo-field) { position: relative; z-index: 1; }
 
 .main-head { display: flex; align-items: baseline; gap: 16px; margin-bottom: 20px; }
 .main-head h2 { font-family: var(--font-display); font-size: 16px; letter-spacing: .24em; }
