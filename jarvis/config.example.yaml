@@ -1,0 +1,22 @@
+# Jarvis configuration. Copy to config.yaml and edit.
+# `jarvis` looks for ./config.yaml, then ~/.config/jarvis/config.yaml.
+
+brain:
+  host: "http://localhost:11434"   # Ollama endpoint
+  model: "qwen3:8b"
+  keep_alive: "30m"                # keep model warm in RAM for low latency
+  temperature: 0.6
+  max_history: 20                  # conversation turns kept in context
+
+safety:
+  # When true, destructive tools (shell, file writes, AppleScript, email)
+  # ask for a yes/no confirmation before running. Flip to false for fully
+  # autonomous operation. This is YOUR seatbelt, not a leash.
+  confirm_destructive: true
+
+# Voice settings are used from Phase 2 onward.
+voice:
+  wake_word: "hey_jarvis"          # openWakeWord pretrained model
+  whisper_model: "base.en"         # whisper.cpp model (Metal-accelerated)
+  piper_voice: "en_US-lessac-medium"
+  hotkey: "space"                  # push-to-talk key for `jarvis voice`
