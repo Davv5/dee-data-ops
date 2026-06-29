@@ -1,7 +1,7 @@
 // Conversational command parser. Turns what you say/type into an action:
 // small talk (thanks/greet), reschedule/snooze, complete, make-a-tag, or
 // create a directive. Used by the quick-add HUD for both typed and spoken input.
-window.JARVIS_COMMANDS = (function () {
+window.FRIDAY_COMMANDS = (function () {
   const RESPONSES = {
     thanks: ['A pleasure, {a}.', 'Anytime, {a}.', 'Of course, {a}.', 'Happy to help, {a}.', 'Think nothing of it, {a}.', 'At your service, always.', 'My pleasure, {a}.'],
     greet: ['Hello, {a}.', 'Yes, {a}?', "I'm here, {a}.", 'Always, {a}.', 'Go ahead, {a}.', 'How can I help, {a}?'],
@@ -31,7 +31,7 @@ window.JARVIS_COMMANDS = (function () {
     const tm = l.match(/\b(make|create|add|new|set up)\s+(a\s+|an\s+)?(tag|label|category|class|colou?r)\s+(called\s+|named\s+|for\s+|:\s*)?(.+)/);
     if (tm) {
       let rest = tm[5].trim(); let color = null;
-      const PAL = window.JARVIS_COLORS.PALETTE;
+      const PAL = window.FRIDAY_COLORS.PALETTE;
       const cm = rest.match(/\b(in|as|with|coloured?|color)\s+([a-z]+)\b/);
       if (cm && PAL[cm[2]]) { color = cm[2]; rest = rest.replace(cm[0], '').trim(); }
       const words = rest.split(/\s+/);
@@ -42,7 +42,7 @@ window.JARVIS_COMMANDS = (function () {
 
     // reschedule / snooze
     if (/\b(reschedule|re-?schedule|resched|move|push|change|shift|snooze|delay|postpone|bump|put it (off|back)|do it later|later)\b/.test(l)) {
-      const parsed = window.JARVIS_NLP.parse(t);
+      const parsed = window.FRIDAY_NLP.parse(t);
       let snoozeMins = null;
       const sm = l.match(/\b(snooze|delay|push|postpone|bump|later)\b[^0-9]*(\d+)\s*(min(?:ute)?s?|hours?|hrs?|h)\b/);
       if (sm) snoozeMins = parseInt(sm[2], 10) * (/^h/.test(sm[3]) ? 60 : 1);

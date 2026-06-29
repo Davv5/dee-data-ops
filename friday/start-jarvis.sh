@@ -26,7 +26,7 @@ fi
 if [ -n "$BRAIN_BIN" ]; then
   if ! curl -fsS http://localhost:11500/health >/dev/null 2>&1; then
     step "Starting FRIDAY brain"
-    ("$BRAIN_BIN" serve >/tmp/jarvis-brain.log 2>&1 &) || warn "brain failed to start (see /tmp/jarvis-brain.log)"
+    ("$BRAIN_BIN" serve >/tmp/friday-brain.log 2>&1 &) || warn "brain failed to start (see /tmp/friday-brain.log)"
     sleep 2
   fi
 else
@@ -44,4 +44,4 @@ else
 fi
 
 echo
-echo "FRIDAY up. Press ⇧⌘Space for the HUD. Brain log: /tmp/jarvis-brain.log"
+echo "FRIDAY up. Press ⇧⌘Space for the HUD. Brain log: /tmp/friday-brain.log"

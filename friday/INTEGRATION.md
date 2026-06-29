@@ -16,7 +16,7 @@ on — while still working as a plain task app if the brain isn't running.
                                           files, web, add_task/complete_task
                                                         │  { reply, actions }
                                           ◄─────────────┘
-   HUD speaks the reply (jarvis-voice) ◄── main applies task actions to the
+   HUD speaks the reply (friday-voice) ◄── main applies task actions to the
    and stays open to converse              store and broadcasts tasks:changed
 ```
 

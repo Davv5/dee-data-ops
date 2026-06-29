@@ -1,7 +1,7 @@
 // Tag taxonomy — colour is meaning. Built-in tags plus user-defined custom
 // tags (settable by hand in Settings or by voice: "Jarvis, make a tag called
 // Finance in green"). A colour palette backs both.
-window.JARVIS_COLORS = (function () {
+window.FRIDAY_COLORS = (function () {
   // named palette -> hex + glow. Custom tags pick one of these.
   const PALETTE = {
     red: '#ff5d72', orange: '#ff8a3c', amber: '#ffc46a', gold: '#ffd9a0',

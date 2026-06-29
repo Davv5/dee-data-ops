@@ -99,7 +99,7 @@ animation stays readable.
 
 ```
 main.js                 Electron main: windows, global hotkey, tray, IPC, store
-preload.js              Secure contextBridge -> window.jarvis
+preload.js              Secure contextBridge -> window.friday
 src/store.js            JSON persistence in the OS user-data dir
 renderer/
   index.html            Dashboard command deck
@@ -107,7 +107,7 @@ renderer/
   css/                  theme (shared) · dashboard · quickadd
   js/
     reactor.js          The solar-core canvas animation (rings, plasma, flares)
-    jarvis-voice.js     Contextual, anti-repeat speech composer
+    friday-voice.js     Contextual, anti-repeat speech composer
     colors.js           Colour = meaning taxonomy + keyword inference
     nlp.js              Zero-dependency natural-language deadline parser
     dashboard.js        Rendering, stats, settings + the deadline scheduler
@@ -120,7 +120,7 @@ so they reach you even when nothing is on screen.
 
 ### Tuning the voice
 
-All the phrasing lives in fragment banks in `renderer/js/jarvis-voice.js`
+All the phrasing lives in fragment banks in `renderer/js/friday-voice.js`
 (`ACK`, `GREET`, `FLOURISH`, the per-urgency `URGENCY` map, etc.). Add lines to
 any bank and the composer folds them into the rotation automatically; an
 anti-repeat ring buffer keeps it from saying the same fragment twice in a row.
@@ -133,4 +133,4 @@ anti-repeat ring buffer keeps it from saying the same fragment twice in a row.
   the system voices directly — no cloud, no API key, works offline.
 - Fonts (Orbitron / Rajdhani) load from Google Fonts when online; offline it
   degrades to the system sans stack and still looks right.
-- Tasks persist to `~/Library/Application Support/FRIDAY/jarvis-tasks.json`.
+- Tasks persist to `~/Library/Application Support/FRIDAY/friday-tasks.json`.

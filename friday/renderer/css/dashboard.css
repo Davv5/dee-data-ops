@@ -1,4 +1,4 @@
-/* JARVIS dashboard — holographic command deck. Translucent over the desktop. */
+/* FRIDAY dashboard — holographic command deck. Translucent over the desktop. */
 
 .deck {
   position: relative; height: 100vh; display: grid; grid-template-columns: 312px 1fr;
@@ -15,7 +15,7 @@
 }
 .rail * { -webkit-app-region: no-drag; }
 .brand { display: flex; align-items: center; gap: 14px; margin-bottom: 6px; }
-.brand .brand-emblem { width: 54px; height: 54px; flex: none; filter: drop-shadow(0 0 10px rgba(111, 240, 255, .55)); }
+.brand .brand-emblem { width: 54px; height: 54px; flex: none; filter: drop-shadow(0 0 10px rgba(255, 143, 104, .55)); }
 .brand-emblem circle { transform-box: fill-box; transform-origin: center; }
 .brand-emblem .r-out { animation: spin 28s linear infinite; }
 .brand-emblem .r-mid { animation: spin 17s linear infinite reverse; }
@@ -30,7 +30,7 @@
 .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; margin: 20px 0; }
 .stat {
   padding: 14px 16px; border-radius: 16px; border: 1px solid var(--glass-edge);
-  background: linear-gradient(160deg, rgba(120, 210, 255, 0.06), rgba(10, 22, 40, 0.12));
+  background: linear-gradient(160deg, rgba(255, 150, 110, 0.06), rgba(10, 22, 40, 0.12));
   transition: transform .3s, box-shadow .3s;
 }
 .stat:hover { transform: translateY(-2px); box-shadow: 0 0 26px -8px var(--cyan); }
@@ -47,7 +47,7 @@
 
 .rail-foot { margin-top: 18px; display: flex; gap: 9px; align-items: center; }
 .icon-btn {
-  cursor: pointer; border: 1px solid var(--glass-edge); background: rgba(120, 210, 255, 0.05);
+  cursor: pointer; border: 1px solid var(--glass-edge); background: rgba(255, 150, 110, 0.05);
   color: var(--text-dim); border-radius: 12px; padding: 8px 12px; font-size: 12px; letter-spacing: .06em;
   transition: all .25s;
 }
@@ -68,7 +68,7 @@
 .filter {
   cursor: pointer; font-size: 11px; letter-spacing: .08em; text-transform: uppercase;
   padding: 7px 14px; border-radius: 999px; border: 1px solid var(--glass-edge);
-  color: var(--text-dim); background: rgba(120, 210, 255, 0.04); transition: all .25s;
+  color: var(--text-dim); background: rgba(255, 150, 110, 0.04); transition: all .25s;
 }
 .filter:hover { color: var(--text); }
 .filter.active { color: #00121f; border-color: transparent; background: linear-gradient(180deg, var(--holo-1), var(--holo-2)); box-shadow: 0 0 20px -4px var(--cyan); }
@@ -119,7 +119,7 @@
 
 .t-actions { display: flex; gap: 7px; opacity: 0; transform: translateX(6px); transition: all .25s; }
 .task:hover .t-actions { opacity: 1; transform: translateX(0); }
-.t-act { cursor: pointer; color: var(--text-dim); border: 1px solid var(--glass-edge); background: rgba(120, 210, 255, .04); border-radius: 10px; padding: 6px 10px; font-size: 12px; transition: all .2s; }
+.t-act { cursor: pointer; color: var(--text-dim); border: 1px solid var(--glass-edge); background: rgba(255, 150, 110, .04); border-radius: 10px; padding: 6px 10px; font-size: 12px; transition: all .2s; }
 .t-act:hover { color: var(--text); border-color: var(--cyan); }
 .t-act.speak:hover { color: var(--cyan); border-color: var(--cyan); box-shadow: 0 0 14px -4px var(--cyan); }
 
@@ -136,7 +136,7 @@
   border-radius: 12px; padding: 12px 14px; font-family: var(--font-body); font-size: 15px; outline: none;
   transition: border-color .25s, box-shadow .25s;
 }
-.field input:focus, .field select:focus { border-color: var(--cyan); box-shadow: 0 0 0 3px rgba(111, 240, 255, .12); }
+.field input:focus, .field select:focus { border-color: var(--cyan); box-shadow: 0 0 0 3px rgba(255, 143, 104, .12); }
 .field input[type="datetime-local"] { color-scheme: dark; }
 .field .hint { font-size: 11px; color: var(--text-dim); margin-top: 7px; line-height: 1.5; }
 .modal-foot { display: flex; gap: 10px; justify-content: flex-end; margin-top: 8px; }
@@ -148,7 +148,7 @@
   cursor: pointer; display: inline-flex; align-items: center; gap: 7px;
   font-size: 11.5px; letter-spacing: .04em; text-transform: uppercase;
   padding: 8px 12px; border-radius: 11px; border: 1px solid var(--glass-edge);
-  color: var(--text-dim); background: rgba(120, 210, 255, .04); transition: all .2s;
+  color: var(--text-dim); background: rgba(255, 150, 110, .04); transition: all .2s;
 }
 .pchip .dot { background: var(--c, var(--cyan)); box-shadow: 0 0 9px var(--c, var(--cyan)); width: 9px; height: 9px; }
 .pchip:hover { color: var(--text); border-color: var(--c, var(--cyan)); }

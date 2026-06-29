@@ -4,7 +4,7 @@
 //   "gym tonight"  /  "pay invoice aug 3 9am"  /  "next monday noon"
 // Returns { due: Date|null, cleanTitle: string } — cleanTitle has the time
 // words stripped so the task title reads naturally.
-window.JARVIS_NLP = (function () {
+window.FRIDAY_NLP = (function () {
   const WEEKDAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
   const MONTHS = ['january', 'february', 'march', 'april', 'may', 'june', 'july',
     'august', 'september', 'october', 'november', 'december'];

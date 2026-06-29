@@ -1,7 +1,7 @@
 // Secure bridge between the renderer and the main process.
 const { contextBridge, ipcRenderer } = require('electron');
 
-contextBridge.exposeInMainWorld('jarvis', {
+contextBridge.exposeInMainWorld('friday', {
   // store
   getTasks: () => ipcRenderer.invoke('tasks:all'),
   addTask: (task) => ipcRenderer.invoke('tasks:add', task),

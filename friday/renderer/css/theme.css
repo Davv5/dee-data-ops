@@ -1,4 +1,4 @@
-/* JARVIS — shared theme. Iron-Man holographic: translucent glass, volumetric
+/* FRIDAY — shared theme. Iron-Man holographic: translucent glass, volumetric
    glow, soft organic edges, smooth motion. No hard scanlines, no glitch. */
 
 :root {
@@ -7,11 +7,11 @@
   --solar-3: #ff8a3c;
   --solar-core: #ffd27a;
 
-  /* holographic blues are the primary register now */
-  --holo-1: #8af2ff;
-  --holo-2: #46c8ff;
-  --holo-3: #2a7bff;
-  --cyan: #6ff0ff;
+  /* FRIDAY register: warm coral / rose-gold (not JARVIS blue) */
+  --holo-1: #ffd7c2;
+  --holo-2: #ff9e7a;
+  --holo-3: #ff6a4a;
+  --cyan: #ff8f68;
 
   --ink: #02060d;
   --text: #eaf6ff;
@@ -55,7 +55,7 @@ html, body {
   position: fixed; inset: 0; z-index: -3;
   background:
     radial-gradient(1000px 700px at 85% -12%, rgba(255, 170, 80, 0.07), transparent 60%),
-    radial-gradient(1000px 700px at 50% 120%, rgba(70, 180, 255, 0.12), transparent 62%),
+    radial-gradient(1000px 700px at 50% 120%, rgba(255, 120, 80, 0.12), transparent 62%),
     radial-gradient(circle at 50% 45%, rgba(8, 20, 38, 0.62) 0%, rgba(3, 9, 19, 0.72) 60%, rgba(1, 4, 10, 0.82) 100%);
 }
 .space-bg::after { /* slow holographic light-haze, not a scanline */
@@ -113,7 +113,7 @@ html, body {
 /* text utilities */
 .display { font-family: var(--font-display); letter-spacing: 0.16em; text-transform: uppercase; }
 .glow-gold { color: var(--gold-text); text-shadow: 0 0 18px rgba(255, 196, 106, 0.5); }
-.glow-cyan { color: var(--cyan); text-shadow: 0 0 18px rgba(111, 240, 255, 0.55); }
+.glow-cyan { color: var(--cyan); text-shadow: 0 0 18px rgba(255, 143, 104, 0.55); }
 .dim { color: var(--text-dim); }
 
 /* .scanlines kept as a class for existing markup, but now a soft holo grain */

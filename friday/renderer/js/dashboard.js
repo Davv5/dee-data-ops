@@ -1,10 +1,10 @@
-// JARVIS dashboard controller — rendering, stats, settings, and the deadline
+// FRIDAY dashboard controller — rendering, stats, settings, and the deadline
 // scheduler that fires the spoken "it's time" alerts. This window stays alive
 // in the background (hidden to the tray), so the scheduler keeps running even
 // when the dashboard isn't visible.
 (function () {
-  const C = window.JARVIS_COLORS;
-  const V = window.JARVIS_VOICE;
+  const C = window.FRIDAY_COLORS;
+  const V = window.FRIDAY_VOICE;
 
   let tasks = [];
   let settings = {};
@@ -13,7 +13,7 @@
   const $ = (id) => document.getElementById(id);
 
   // ---- holographic background field ----
-  const holo = new window.HoloField($('holoField'), { hue: 194, gold: 42, motes: 46, cxBias: 0.5, cyBias: 0.5, scale: 1.2 });
+  const holo = new window.HoloField($('holoField'), { hue: 16, gold: 42, motes: 46, cxBias: 0.5, cyBias: 0.5, scale: 1.2 });
   holo.start();
 
   // ---- clock ----
@@ -114,9 +114,9 @@
           if (!t) return;
           if (act === 'toggle') {
             const done = !t.done;
-            window.jarvis.updateTask(id, { done }).then(() => { if (done) V.reactComplete(t); });
+            window.friday.updateTask(id, { done }).then(() => { if (done) V.reactComplete(t); });
           } else if (act === 'del') {
-            window.jarvis.removeTask(id);
+            window.friday.removeTask(id);
           } else if (act === 'speak') {
             holo.pulse();
             V.alert(t, dueState(t) === 'past' ? 'overdue' : 'due');
@@ -155,7 +155,7 @@
 
       // pre-warning ~10 min out
       if (diff > 0 && diff <= 10 * 60 * 1000 && !t.announcedSoon) {
-        window.jarvis.updateTask(t.id, { announcedSoon: true });
+        window.friday.updateTask(t.id, { announcedSoon: true });
         holo.pulse();
         V.alert(t, 'soon');
         notify(t, 'soon');
@@ -163,8 +163,8 @@
       }
       // the moment it's due
       if (diff <= 0 && !t.announcedDue) {
-        window.jarvis.updateTask(t.id, { announcedDue: true, lastNudge: now });
-        window.jarvis.saveSettings({ lastAlertedId: t.id }); // for "reschedule that"
+        window.friday.updateTask(t.id, { announcedDue: true, lastNudge: now });
+        window.friday.saveSettings({ lastAlertedId: t.id }); // for "reschedule that"
         holo.setEnergy(1); holo.pulse();
         V.alert(t, 'due');
         notify(t, 'due');
@@ -174,7 +174,7 @@
       if (diff <= 0 && t.announcedDue) {
         const last = t.lastNudge || due;
         if (now - last >= 30 * 60 * 1000) {
-          window.jarvis.updateTask(t.id, { lastNudge: now });
+          window.friday.updateTask(t.id, { lastNudge: now });
           V.alert(t, 'overdue');
           notify(t, 'overdue');
         }
@@ -252,17 +252,17 @@
 
   $('edCancel').addEventListener('click', closeEditor);
   editBack.addEventListener('click', (e) => { if (e.target === editBack) closeEditor(); });
-  $('edDelete').addEventListener('click', () => { if (editingId) window.jarvis.removeTask(editingId); closeEditor(); });
+  $('edDelete').addEventListener('click', () => { if (editingId) window.friday.removeTask(editingId); closeEditor(); });
   $('edSave').addEventListener('click', () => {
     if (!editingId) return;
     const t = tasks.find((x) => x.id === editingId);
     const activeCat = [...$('edCats').children].find((x) => x.classList.contains('active'));
     const category = activeCat ? activeCat.dataset.key : (t ? t.category : 'standard');
     const due = $('edDue').value ? new Date($('edDue').value).toISOString() : null;
-    // changing the due time resets the spoken-alert flags so JARVIS will speak again
+    // changing the due time resets the spoken-alert flags so FRIDAY will speak again
     const patch = { title: $('edTitle').value.trim() || 'Untitled directive', category, color: C.byKey(category).color, due };
     if (!t || t.due !== due) { patch.announcedDue = false; patch.announcedSoon = false; patch.lastNudge = undefined; }
-    window.jarvis.updateTask(editingId, patch);
+    window.friday.updateTask(editingId, patch);
     closeEditor();
   });
 
@@ -293,7 +293,7 @@
       voiceURI: $('setVoice').value || null,
       hotkey: $('setHotkey').value || 'CommandOrControl+Shift+Space'
     };
-    window.jarvis.saveSettings(patch);
+    window.friday.saveSettings(patch);
     V.configure(patch);
     back.classList.remove('show');
     V.say('Configuration saved.', { force: true });
@@ -304,7 +304,7 @@
   $('muteBtn').addEventListener('click', () => {
     muted = !muted;
     V.configure({ mute: muted });
-    window.jarvis.saveSettings({ mute: muted });
+    window.friday.saveSettings({ mute: muted });
     $('muteBtn').textContent = muted ? '🔇 Muted' : '🔊 Voice';
     $('muteBtn').classList.toggle('on', !muted);
   });
@@ -324,7 +324,7 @@
       : '<span class="dim" style="font-size:12px">No custom tags yet — add one below or by voice.</span>';
     list.querySelectorAll('.tag-rm').forEach((b) => b.addEventListener('click', () => {
       const tags = Object.assign({}, settings.customTags || {}); delete tags[b.dataset.k];
-      settings.customTags = tags; window.jarvis.saveSettings({ customTags: tags });
+      settings.customTags = tags; window.friday.saveSettings({ customTags: tags });
       C.configure(tags); renderTagManager(); renderLegend(); buildEditorCats(); render();
     }));
   }
@@ -332,7 +332,7 @@
     const name = $('tagName').value.trim(); if (!name) return;
     const made = C.makeTag(name, $('tagColor').value || 'cyan', '');
     const tags = Object.assign({}, settings.customTags || {}, { [made.key]: made.tag });
-    settings.customTags = tags; window.jarvis.saveSettings({ customTags: tags });
+    settings.customTags = tags; window.friday.saveSettings({ customTags: tags });
     C.configure(tags); $('tagName').value = '';
     renderTagManager(); renderLegend(); buildEditorCats(); render();
     V.say(`Added "${made.tag.label}", ${settings.address || 'Boss'}.`);
@@ -345,11 +345,11 @@
   // ---- live data ----
   function refresh(t) { tasks = t || []; render(); }
   function applyTags(s) { C.configure((s && s.customTags) || {}); renderLegend(); buildEditorCats(); renderTagManager(); render(); }
-  window.jarvis.onTasksChanged(refresh);
-  window.jarvis.onSettingsChanged((s) => { settings = s; V.configure(s); applyTags(s); });
+  window.friday.onTasksChanged(refresh);
+  window.friday.onSettingsChanged((s) => { settings = s; V.configure(s); applyTags(s); });
 
   // ---- boot ----
-  Promise.all([window.jarvis.getTasks(), window.jarvis.getSettings()]).then(([t, s]) => {
+  Promise.all([window.friday.getTasks(), window.friday.getSettings()]).then(([t, s]) => {
     tasks = t || []; settings = s || {};
     muted = !!settings.mute;
     $('muteBtn').textContent = muted ? '🔇 Muted' : '🔊 Voice';
@@ -372,7 +372,7 @@
       setTimeout(() => {
         if (!V.hasGoodVoice()) {
           V.say(`${settings.address || 'Boss'}, I can sound considerably more natural. Add an Enhanced voice in System Settings, Accessibility, Spoken Content — I'd suggest Moira, English Ireland — then select it in my settings.`, { force: true });
-          window.jarvis.saveSettings({ voiceNudged: true });
+          window.friday.saveSettings({ voiceNudged: true });
         }
       }, 6500);
     }

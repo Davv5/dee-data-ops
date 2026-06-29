@@ -1,12 +1,12 @@
-// JARVIS voice — contextual speech composition.
+// FRIDAY voice — contextual speech composition.
 //
 // The brief: it must *speak*, and it must not feel templated. We get there by
 // composing each line at runtime from independent fragment banks, chosen by
 // context (time of day, task category, how close/overdue the deadline is,
 // workload), then de-duplicated against recent history so phrasing keeps
 // shifting. Every utterance is assembled fresh — there is no fixed sentence.
-window.JARVIS_VOICE = (function () {
-  const C = window.JARVIS_COLORS;
+window.FRIDAY_VOICE = (function () {
+  const C = window.FRIDAY_COLORS;
 
   // ---- voice selection -----------------------------------------------------
   let chosenVoice = null;
@@ -148,7 +148,7 @@ window.JARVIS_VOICE = (function () {
   // ---- intent: turn a typed directive into a natural spoken action ---------
   // "sleep at 11.30pm"  -> "head to sleep"
   // "Call CEO at 3am"   -> "call the CEO"
-  // so JARVIS can say "it's time to call the CEO" rather than quoting the text.
+  // so FRIDAY can say "it's time to call the CEO" rather than quoting the text.
   function cap(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
 
   const ROLE_NOUNS = ['ceo', 'cfo', 'cto', 'coo', 'boss', 'client', 'customer', 'doctor',

@@ -1,6 +1,6 @@
 // The Reactor — a glossy "solar core" rendered on canvas. Rotating HUD rings,
 // a molten plasma core, orbiting sparks and intermittent solar flares. Drives
-// the JARVIS look on both the quick-add HUD and the dashboard. Intensity is
+// the FRIDAY look on both the quick-add HUD and the dashboard. Intensity is
 // modulated externally (e.g. spikes while listening / speaking).
 window.Reactor = class Reactor {
   constructor(canvas, opts = {}) {

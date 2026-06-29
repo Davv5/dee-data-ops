@@ -1,8 +1,8 @@
-// Bridge to the local JARVIS brain (the Python `jarvis serve` process).
+// Bridge to the local FRIDAY brain (the Python `jarvis serve` process).
 // All calls stay on localhost. If the brain isn't running, callers fall back
 // to the built-in NL task parser, so the app keeps working without it.
 
-const BRAIN_URL = process.env.JARVIS_BRAIN_URL || 'http://127.0.0.1:11500';
+const BRAIN_URL = process.env.FRIDAY_BRAIN_URL || 'http://127.0.0.1:11500';
 
 async function withTimeout(promise, ms) {
   const ctrl = new AbortController();

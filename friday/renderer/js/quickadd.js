@@ -1,12 +1,12 @@
 // Quick-add HUD controller — create directives, set times, AND converse with
-// JARVIS by typing or speaking (mic). Routes input through the command parser:
+// FRIDAY by typing or speaking (mic). Routes input through the command parser:
 // thanks/greet -> spoken reply; reschedule/snooze/done -> act on the active
 // directive; "make a tag ..." -> custom tag; otherwise create a directive.
 (function () {
-  const C = window.JARVIS_COLORS;
-  const V = window.JARVIS_VOICE;
-  const CMD = window.JARVIS_COMMANDS;
-  const NLP = window.JARVIS_NLP;
+  const C = window.FRIDAY_COLORS;
+  const V = window.FRIDAY_VOICE;
+  const CMD = window.FRIDAY_COMMANDS;
+  const NLP = window.FRIDAY_NLP;
 
   const stage = document.getElementById('stage');
   const input = document.getElementById('input');
@@ -30,7 +30,7 @@
   const pick = (a) => a[Math.floor(Math.random() * a.length)];
   const addr = () => settings.address || 'Boss';
 
-  const reactor = new window.HoloField(document.getElementById('holo'), { hue: 194, motes: 30, cxBias: 0.5, cyBias: 0.5, scale: 1.05 });
+  const reactor = new window.HoloField(document.getElementById('holo'), { hue: 16, motes: 30, cxBias: 0.5, cyBias: 0.5, scale: 1.05 });
   reactor.start();
 
   // ---- category pills (rebuilt when custom tags change) ----
@@ -117,7 +117,7 @@
     const c = C.byKey(category);
     const due = manualDue !== undefined ? manualDue : parsed.due;
     reactor.pulse(); reactor.pulse();
-    window.jarvis.addTask({
+    window.friday.addTask({
       title: parsed.cleanTitle || titleText, notes: '', category, color: c.color,
       due: due ? due.toISOString() : null
     }).then((rec) => V.acknowledge(rec));
@@ -143,24 +143,24 @@
     if (cmd.type === 'tag') {
       const made = C.makeTag(cmd.name, cmd.color, '');
       const tags = Object.assign({}, settings.customTags || {}, { [made.key]: made.tag });
-      await window.jarvis.saveSettings({ customTags: tags });
+      await window.friday.saveSettings({ customTags: tags });
       settings.customTags = tags; C.configure(tags); buildCats();
       V.say(`Done, ${a}. New tag, "${made.tag.label}", in ${made.tag.color}.`);
       return exit();
     }
     // reschedule / complete operate on the active directive
-    const [tasks, s] = await Promise.all([window.jarvis.getTasks(), window.jarvis.getSettings()]);
+    const [tasks, s] = await Promise.all([window.friday.getTasks(), window.friday.getSettings()]);
     const target = pickTarget(tasks, s.lastAlertedId);
     if (!target) { V.say(`I don't see a directive to ${cmd.type === 'complete' ? 'clear' : 'reschedule'}, ${a}.`); return exit(); }
 
     if (cmd.type === 'complete') {
-      await window.jarvis.updateTask(target.id, { done: true });
+      await window.friday.updateTask(target.id, { done: true });
       V.reactComplete(target); return exit();
     }
     // reschedule
     let newDue = cmd.snoozeMins ? new Date(Date.now() + cmd.snoozeMins * 60000) : cmd.due;
     if (!newDue) { V.say(`To when, ${a}? Try “reschedule to 5pm”.`); return exit(); }
-    await window.jarvis.updateTask(target.id, { due: newDue.toISOString(), announcedDue: false, announcedSoon: false, lastNudge: undefined });
+    await window.friday.updateTask(target.id, { due: newDue.toISOString(), announcedDue: false, announcedSoon: false, lastNudge: undefined });
     V.say(`Rescheduled, ${a}. "${target.title}" — now ${V.humanWhen(newDue)}.`);
     return exit();
   }
@@ -190,7 +190,7 @@
 
   // ---- brain bridge (local LLM via `jarvis serve`) ----
   async function refreshBrain() {
-    try { const h = await window.jarvis.brainHealth(); brainOnline = !!(h && h.ok && h.ollama); }
+    try { const h = await window.friday.brainHealth(); brainOnline = !!(h && h.ok && h.ollama); }
     catch (_) { brainOnline = false; }
     updateStatus();
   }
@@ -203,7 +203,7 @@
     if (!responseEl) return;
     responseEl.hidden = false; responseEl.textContent = text;
     responseEl.classList.toggle('thinking', !!isThinking);
-    window.jarvis.resizeQuickAdd(document.body.scrollHeight + 40);
+    window.friday.resizeQuickAdd(document.body.scrollHeight + 40);
   }
   function hideResponse() { if (responseEl) { responseEl.hidden = true; responseEl.textContent = ''; } }
 
@@ -212,7 +212,7 @@
     updateStatus('FRIDAY · THINKING'); showResponse('…', true);
     reactor.setEnergy(1); reactor.pulse();
     let res;
-    try { res = await window.jarvis.askBrain(raw); } catch (_) { res = { ok: false }; }
+    try { res = await window.friday.askBrain(raw); } catch (_) { res = { ok: false }; }
     thinking = false; updateStatus();
     if (!res || !res.ok) { hideResponse(); return false; }   // fall back to a directive
     showResponse(res.reply || '…done.');
@@ -224,7 +224,7 @@
 
   function exit() {
     stage.classList.remove('in'); stage.classList.add('out');
-    setTimeout(() => { resetForm(); window.jarvis.closeQuickAdd(); }, 280);
+    setTimeout(() => { resetForm(); window.friday.closeQuickAdd(); }, 280);
   }
   function resetForm() {
     input.value = ''; manualCategory = null; manualDue = undefined;
@@ -271,8 +271,8 @@
     setTimeout(() => input.focus(), 80);
     if (Math.random() < 0.55) V.say(pick(['Yes?', 'Ready when you are.', "What's the directive?", "I'm listening.", 'Go ahead.', 'At your service.']));
   }
-  window.jarvis.onSummon(summon);
-  window.jarvis.onDismiss(() => stage.classList.remove('in'));
+  window.friday.onSummon(summon);
+  window.friday.onDismiss(() => stage.classList.remove('in'));
 
   buildCats();
 })();
