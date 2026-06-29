@@ -10,7 +10,8 @@ window.HoloField = class HoloField {
     this.t = 0;
     this.cyan = opts.hue ?? 196;     // primary vector lines (cyan-white)
     this.gold = opts.gold ?? 28;     // orange data accent
-    this.red = opts.red ?? 6;        // red alert/data accent
+    this.red = opts.red ?? 6;        // hot-rod red (suit) accent
+    this.suit = opts.suit ?? 46;     // suit gold accent
     this.energy = 0.35;
     this.targetEnergy = 0.35;
     this.ripples = [];
@@ -70,21 +71,28 @@ window.HoloField = class HoloField {
     ctx.save();
     ctx.translate(cx, cy);
 
-    // --- arc-reactor core glow ---
-    const core = ctx.createRadialGradient(0, 0, 1, 0, 0, R * 0.42);
-    core.addColorStop(0, `hsla(${C},100%,85%,${0.22 + e * 0.18})`);
-    core.addColorStop(0.5, `hsla(${C},100%,60%,${0.08 + e * 0.08})`);
+    // --- arc-reactor core glow (chest-reactor: white-hot centre) ---
+    const core = ctx.createRadialGradient(0, 0, 1, 0, 0, R * 0.44);
+    core.addColorStop(0, `hsla(${C},100%,86%,${0.24 + e * 0.2})`);
+    core.addColorStop(0.5, `hsla(${C},100%,60%,${0.09 + e * 0.09})`);
     core.addColorStop(1, 'hsla(0,0%,0%,0)');
     ctx.fillStyle = core;
-    ctx.beginPath(); ctx.arc(0, 0, R * 0.42, 0, 6.2832); ctx.fill();
+    ctx.beginPath(); ctx.arc(0, 0, R * 0.44, 0, 6.2832); ctx.fill();
+    const hot = ctx.createRadialGradient(0, 0, 1, 0, 0, R * 0.17);
+    hot.addColorStop(0, `rgba(255,255,255,${0.55 + e * 0.3})`);
+    hot.addColorStop(0.45, `hsla(${C},100%,82%,${0.32 + e * 0.2})`);
+    hot.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = hot;
+    ctx.beginPath(); ctx.arc(0, 0, R * 0.17, 0, 6.2832); ctx.fill();
 
     // --- outermost: fine tick scale ---
     this._ticks(R * 1.32, 120, this.t * 0.05, 0.06 + e * 0.05, C);
 
-    // --- big segmented arc ring (gold accent), rotating ---
-    this._arcs(R * 1.16, 3, 0.22, this.t * 0.12, 3.2, 0.55 + e * 0.3, G);
-    this._arcs(R * 1.16, 3, 0.05, this.t * 0.12 + 0.34, 2, 0.35, G); // trailing slivers
-    this._arcs(R * 1.24, 2, 0.14, -this.t * 0.08, 1.6, 0.3 + e * 0.2, C); // thin counter arc
+    // --- segmented accent arcs: orange + suit-gold, rotating ---
+    this._arcs(R * 1.16, 3, 0.20, this.t * 0.12, 3.0, 0.55 + e * 0.3, G);
+    this._arcs(R * 1.16, 3, 0.05, this.t * 0.12 + 0.34, 2, 0.35, G);          // trailing slivers
+    this._arcs(R * 1.08, 2, 0.16, -this.t * 0.09, 2.6, 0.5 + e * 0.25, this.suit); // suit gold
+    this._arcs(R * 1.24, 2, 0.12, this.t * 0.07, 1.6, 0.3 + e * 0.2, C);      // thin counter arc
 
     // --- dashed data ring, counter-rotating (cyan) ---
     this._dashes(R * 0.98, 54, -this.t * 0.16, 0.18 + e * 0.12, C);
@@ -129,11 +137,11 @@ window.HoloField = class HoloField {
 
     ctx.restore();
 
-    // --- radial mask: fade to transparent at the edges ---
+    // --- tight radial mask: keep it a contained reactor, no sprawl ---
     ctx.globalCompositeOperation = 'destination-in';
-    const mask = ctx.createRadialGradient(cx, cy, R * 0.2, cx, cy, R * 1.5);
+    const mask = ctx.createRadialGradient(cx, cy, R * 0.2, cx, cy, R * 1.34);
     mask.addColorStop(0, 'rgba(0,0,0,1)');
-    mask.addColorStop(0.72, 'rgba(0,0,0,0.9)');
+    mask.addColorStop(0.6, 'rgba(0,0,0,0.96)');
     mask.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = mask;
     ctx.fillRect(0, 0, this.w, this.h);

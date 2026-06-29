@@ -61,6 +61,14 @@
     linear-gradient(180deg, rgba(6, 12, 22, 0.10), rgba(2, 5, 10, 0.18)); }
 .holo-field { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; opacity: .92; z-index: 0; }
 .main > *:not(.holo-field) { position: relative; z-index: 1; }
+/* slow horizontal scan sweep — live-HUD feel */
+.main::after {
+  content: ''; position: absolute; left: 0; right: 0; height: 2px; top: 0; z-index: 0;
+  background: linear-gradient(90deg, transparent, rgba(116, 230, 255, 0.45), transparent);
+  box-shadow: 0 0 16px rgba(116, 230, 255, 0.4); pointer-events: none; opacity: .55;
+  animation: scan 7s linear infinite;
+}
+@keyframes scan { 0% { top: -2%; } 100% { top: 102%; } }
 
 .main-head { display: flex; align-items: baseline; gap: 16px; margin-bottom: 20px; }
 .main-head h2 { font-family: var(--font-display); font-size: 16px; letter-spacing: .24em; }
@@ -93,6 +101,12 @@
   content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
   background: var(--c, var(--gold)); box-shadow: 0 0 16px var(--c, var(--gold));
 }
+.task::after { /* angular HUD corner bracket in the directive's colour */
+  content: ''; position: absolute; top: 9px; right: 11px; width: 13px; height: 13px;
+  border-top: 1.5px solid var(--c, var(--cyan)); border-right: 1.5px solid var(--c, var(--cyan));
+  border-radius: 0 5px 0 0; opacity: .35; transition: opacity .25s;
+}
+.task:hover::after { opacity: .8; }
 @keyframes taskIn { from { opacity: 0; transform: translateY(12px) scale(.99); } }
 .task:hover { transform: translateY(-3px); border-color: color-mix(in srgb, var(--c) 50%, var(--glass-edge)); box-shadow: 0 20px 46px rgba(0, 0, 0, .46), 0 0 30px -10px var(--c); }
 .task.overdue::before { background: var(--red); box-shadow: 0 0 16px var(--red); }
