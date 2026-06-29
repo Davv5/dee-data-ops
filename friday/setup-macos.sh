@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 #
-# setup-macos.sh — one-shot, fix-everything installer for JARVIS.
+# setup-macos.sh — one-shot, fix-everything installer for FRIDAY.
 #
 # Safe to run from ANY state (fresh clone, half-installed, old version still
 # running). It kills stale processes, removes old app copies, repairs the
 # Electron runtime (including the download this Mac's npm blocker prevents),
-# rebuilds JARVIS.app from current code, and launches it.
+# rebuilds FRIDAY.app from current code, and launches it.
 #
-#   cd ~/Documents/dee-data-ops/jarvis-todo
+#   cd ~/Documents/dee-data-ops/friday
 #   git pull
 #   bash setup-macos.sh
 
@@ -22,14 +22,14 @@ echo "==> [1/7] Pulling latest code ..."
 git pull --ff-only 2>/dev/null && echo "    up to date." \
   || echo "    (git pull skipped/failed — building with current files.)"
 
-echo "==> [2/7] Stopping any running JARVIS (old versions included) ..."
-pkill -9 -f "jarvis-todo" 2>/dev/null || true
-pkill -9 -f "JARVIS.app" 2>/dev/null || true
-osascript -e 'tell application "JARVIS" to quit' 2>/dev/null || true
+echo "==> [2/7] Stopping any running FRIDAY (old versions included) ..."
+pkill -9 -f "friday" 2>/dev/null || true
+pkill -9 -f "FRIDAY.app" 2>/dev/null || true
+osascript -e 'tell application "FRIDAY" to quit' 2>/dev/null || true
 sleep 1
 
 echo "==> [3/7] Deleting old built app copies ..."
-rm -rf "$HERE/JARVIS.app" "/Applications/JARVIS.app" 2>/dev/null || true
+rm -rf "$HERE/FRIDAY.app" "/Applications/FRIDAY.app" 2>/dev/null || true
 
 echo "==> [4/7] Ensuring node modules ..."
 if [ ! -d node_modules/electron ]; then
@@ -55,20 +55,20 @@ else
 fi
 printf 'Electron.app/Contents/MacOS/Electron' > node_modules/electron/path.txt
 
-echo "==> [6/7] Building JARVIS.app from current code ..."
+echo "==> [6/7] Building FRIDAY.app from current code ..."
 if ! bash make-app.sh; then
   echo "✘ Build failed. Paste the output above to Claude."
   exit 1
 fi
 
 echo "==> [7/7] Launching ..."
-open "$HERE/JARVIS.app"
+open "$HERE/FRIDAY.app"
 
 echo ""
 echo "════════════════════════════════════════════════════════════"
-echo " ✔ JARVIS is running — look in the MENU BAR (top-right) for"
+echo " ✔ FRIDAY is running — look in the MENU BAR (top-right) for"
 echo "   the gold reactor icon. Press  ⇧⌘Space  to summon the HUD."
 echo ""
-echo "   Keep it: drag this into Applications →  $HERE/JARVIS.app"
-echo "   Tasks saved at: ~/Library/Application Support/JARVIS/"
+echo "   Keep it: drag this into Applications →  $HERE/FRIDAY.app"
+echo "   Tasks saved at: ~/Library/Application Support/FRIDAY/"
 echo "════════════════════════════════════════════════════════════"

@@ -13,12 +13,12 @@ window.JARVIS_COMMANDS = (function () {
 
   function line(type, addr) {
     const arr = RESPONSES[type] || RESPONSES.huh;
-    return arr[Math.floor(Math.random() * arr.length)].replace(/\{a\}/g, addr || 'Sir');
+    return arr[Math.floor(Math.random() * arr.length)].replace(/\{a\}/g, addr || 'Boss');
   }
 
   function classify(raw) {
     let t = (raw || '').trim();
-    t = t.replace(/^\s*(hey\s+|ok\s+|okay\s+|wake up\s+)?jarvis[\s,!.:-]*/i, '').trim(); // strip wake word
+    t = t.replace(/^\s*(hey\s+|ok\s+|okay\s+|wake up\s+)?(?:friday|jarvis)[\s,!.:-]*/i, '').trim(); // strip wake word
     const l = t.toLowerCase();
     if (!t) return { type: 'wake' };
 

@@ -25,10 +25,10 @@
   let manualCategory = null;
   let manualDue;                 // undefined=follow text, null=no time, Date=set
   let lastParse = { due: null, cleanTitle: '' };
-  let settings = { address: 'Sir', customTags: {} };
+  let settings = { address: 'Boss', customTags: {} };
 
   const pick = (a) => a[Math.floor(Math.random() * a.length)];
-  const addr = () => settings.address || 'Sir';
+  const addr = () => settings.address || 'Boss';
 
   const reactor = new window.HoloField(document.getElementById('holo'), { hue: 194, motes: 30, cxBias: 0.5, cyBias: 0.5, scale: 1.05 });
   reactor.start();
@@ -196,7 +196,7 @@
   }
   function updateStatus(label) {
     if (!statusEl) return;
-    statusEl.innerHTML = '<span class="blink">●</span>&nbsp; ' + (label || (brainOnline ? 'JARVIS · ONLINE' : 'JARVIS · LISTENING'));
+    statusEl.innerHTML = '<span class="blink">●</span>&nbsp; ' + (label || (brainOnline ? 'FRIDAY · ONLINE' : 'FRIDAY · LISTENING'));
     statusEl.classList.toggle('brain-on', brainOnline);
   }
   function showResponse(text, isThinking) {
@@ -209,7 +209,7 @@
 
   async function askBrain(raw) {
     thinking = true;
-    updateStatus('JARVIS · THINKING'); showResponse('…', true);
+    updateStatus('FRIDAY · THINKING'); showResponse('…', true);
     reactor.setEnergy(1); reactor.pulse();
     let res;
     try { res = await window.jarvis.askBrain(raw); } catch (_) { res = { ok: false }; }

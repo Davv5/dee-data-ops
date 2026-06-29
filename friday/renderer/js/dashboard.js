@@ -96,7 +96,7 @@
           </div>
         </div>
         <div class="t-actions">
-          <button class="t-act speak" data-act="speak" title="Have JARVIS read it">▶</button>
+          <button class="t-act speak" data-act="speak" title="Have FRIDAY read it">▶</button>
           <button class="t-act" data-act="del" title="Delete">✕</button>
         </div>
       </div>`;
@@ -184,7 +184,7 @@
 
   function notify(t, kind) {
     if (!('Notification' in window)) return;
-    const title = kind === 'soon' ? 'JARVIS · Coming up' : kind === 'overdue' ? 'JARVIS · Overdue' : 'JARVIS · It’s time';
+    const title = kind === 'soon' ? 'FRIDAY · Coming up' : kind === 'overdue' ? 'FRIDAY · Overdue' : 'FRIDAY · It’s time';
     const body = V.cue(t, kind);   // intent-aware: "Time to call the CEO"
     try {
       if (Notification.permission === 'granted') new Notification(title, { body, silent: true });
@@ -269,7 +269,7 @@
   // ---- settings modal ----
   const back = $('settingsBack');
   function openSettings() {
-    $('setAddress').value = settings.address || 'Sir';
+    $('setAddress').value = settings.address || 'Boss';
     $('setHotkey').value = settings.hotkey || 'CommandOrControl+Shift+Space';
     fillVoices();
     back.classList.add('show');
@@ -284,12 +284,12 @@
   $('settingsBtn').addEventListener('click', openSettings);
   back.addEventListener('click', (e) => { if (e.target === back) back.classList.remove('show'); });
   $('setTest').addEventListener('click', () => {
-    V.configure({ address: $('setAddress').value || 'Sir', voiceURI: $('setVoice').value || null, mute: false });
-    V.say(`${$('setAddress').value || 'Sir'}, systems nominal. Voice calibration complete.`, { force: true });
+    V.configure({ address: $('setAddress').value || 'Boss', voiceURI: $('setVoice').value || null, mute: false });
+    V.say(`${$('setAddress').value || 'Boss'}, systems nominal. Voice calibration complete.`, { force: true });
   });
   $('setSave').addEventListener('click', () => {
     const patch = {
-      address: $('setAddress').value || 'Sir',
+      address: $('setAddress').value || 'Boss',
       voiceURI: $('setVoice').value || null,
       hotkey: $('setHotkey').value || 'CommandOrControl+Shift+Space'
     };
@@ -335,7 +335,7 @@
     settings.customTags = tags; window.jarvis.saveSettings({ customTags: tags });
     C.configure(tags); $('tagName').value = '';
     renderTagManager(); renderLegend(); buildEditorCats(); render();
-    V.say(`Added "${made.tag.label}", ${settings.address || 'Sir'}.`);
+    V.say(`Added "${made.tag.label}", ${settings.address || 'Boss'}.`);
   });
 
   // ---- buttons ----
@@ -371,7 +371,7 @@
     if (!settings.voiceNudged) {
       setTimeout(() => {
         if (!V.hasGoodVoice()) {
-          V.say(`${settings.address || 'Sir'}, I can sound considerably more natural. Add an Enhanced voice in System Settings, Accessibility, Spoken Content — I'd suggest Daniel, English UK — then select it in my settings.`, { force: true });
+          V.say(`${settings.address || 'Boss'}, I can sound considerably more natural. Add an Enhanced voice in System Settings, Accessibility, Spoken Content — I'd suggest Moira, English Ireland — then select it in my settings.`, { force: true });
           window.jarvis.saveSettings({ voiceNudged: true });
         }
       }, 6500);

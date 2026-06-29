@@ -10,7 +10,7 @@ window.JARVIS_VOICE = (function () {
 
   // ---- voice selection -----------------------------------------------------
   let chosenVoice = null;
-  let settings = { address: 'Sir', voiceURI: null, rate: 0.94, pitch: 0.92, mute: false };
+  let settings = { address: 'Boss', voiceURI: null, rate: 0.97, pitch: 1.0, mute: false };
   const recent = [];                       // anti-repeat ring buffer
 
   function isEnglish(v) { return /^en/i.test(v.lang); }
@@ -23,10 +23,15 @@ window.JARVIS_VOICE = (function () {
     if (/enhanced/.test(n)) s += 50;
     if (/siri/.test(n)) s += 45;
     if (/neural|natural/.test(n)) s += 40;
-    // calm British males read most like JARVIS
-    if (/daniel|arthur|oliver|jamie|serena/.test(n)) s += 25;
-    if (/en[-_]?gb/i.test(v.lang)) s += 18;
-    if (/google uk english/.test(n)) s += 15;
+    // FRIDAY is an Irish-accented woman (Kerry Condon in the films).
+    if (/moira/.test(n)) s += 55;                                   // macOS Irish female — closest match
+    if (/en[-_]?ie/i.test(v.lang)) s += 35;                         // Irish English
+    if (/fiona|orla|siobhan|niamh|caoimhe|roisin/.test(n)) s += 30; // other Irish female voices
+    // prefer female voices for this persona
+    if (/karen|samantha|tessa|serena|martha|catherine|kate|zoe|allison|ava|susan|victoria|nora/.test(n)) s += 20;
+    // de-emphasise obvious male voices
+    if (/daniel|arthur|oliver|jamie|fred|alex|aaron|tom|lee|gordon|rishi|albert|ralph/.test(n)) s -= 20;
+    if (/en[-_]?gb/i.test(v.lang)) s += 8;
     if (/compact/.test(n)) s -= 30;     // the robotic ones
     if (isEnglish(v)) s += 5;
     return s;
@@ -98,7 +103,7 @@ window.JARVIS_VOICE = (function () {
     return parts.filter(Boolean).join(' ').replace(/\s+/g, ' ')
       .replace(/\s+([,.!?])/g, '$1').replace(/,\s*\./g, '.').trim();
   }
-  function addr() { return settings.address || 'Sir'; }
+  function addr() { return settings.address || 'Boss'; }
 
   function partOfDay(d = new Date()) {
     const h = d.getHours();

@@ -19,9 +19,9 @@ The endgame is hands-free "movie Jarvis." We get there in layers; each phase run
 - **Phase 0 — Brain online.** Ollama + Qwen 3 answering in a text REPL. ✅
 - **Phase 1 — Tool-calling agent.** Shell, AppleScript, app launching, files, web search —
   the "do anything" core, driven by typed input. ✅
-- **HUD bridge — `jarvis serve`.** Local HTTP brain the macOS JARVIS HUD talks to;
+- **HUD bridge — `jarvis serve`.** Local HTTP brain the macOS FRIDAY HUD talks to;
   adds task tools (`add_task`/`list_tasks`/`complete_task`). See
-  `../jarvis-todo/INTEGRATION.md`. ✅
+  `../friday/INTEGRATION.md`. ✅
 - **Phase 2 — Voice in/out** (whisper.cpp + Piper, push-to-talk). _next_
 - **Phase 3 — Hands-free** (openWakeWord always-listening). _planned_
 - **Phase 4 — Movie polish** (streaming speech, barge-in, latency tuning, memory). _planned_

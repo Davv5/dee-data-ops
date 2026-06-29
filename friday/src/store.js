@@ -6,7 +6,7 @@ const { app } = require('electron');
 const fs = require('fs');
 const path = require('path');
 
-const FILE = path.join(app.getPath('userData'), 'jarvis-tasks.json');
+const FILE = path.join(app.getPath('userData'), 'friday-tasks.json');
 
 function load() {
   try {

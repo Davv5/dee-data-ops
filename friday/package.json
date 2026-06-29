@@ -1,8 +1,8 @@
 {
-  "name": "jarvis-todo",
-  "productName": "JARVIS",
+  "name": "friday",
+  "productName": "FRIDAY",
   "version": "1.0.0",
-  "description": "A glossy, solar-themed sci-fi to-do assistant for macOS, modelled on the Mark-class JARVIS interface. Global hotkey capture, contextual spoken alerts, deadline + colour-coded tasks.",
+  "description": "FRIDAY — a local, sci-fi voice assistant for macOS in the spirit of Iron Man's F.R.I.D.A.Y. Talks, thinks (local Qwen3 brain), acts on your Mac, and tracks directives. Global hotkey HUD, contextual spoken replies, colour-coded tasks.",
   "main": "main.js",
   "author": "David",
   "license": "MIT",
@@ -17,8 +17,8 @@
     "electron-builder": "^24.13.3"
   },
   "build": {
-    "appId": "com.david.jarvis.todo",
-    "productName": "JARVIS",
+    "appId": "com.david.friday",
+    "productName": "FRIDAY",
     "directories": {
       "output": "release",
       "buildResources": "build"

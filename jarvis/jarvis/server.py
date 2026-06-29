@@ -98,7 +98,7 @@ def serve(config: Config | None = None, *, host: str = "127.0.0.1", port: int = 
     state = _BrainState(config)
     httpd = ThreadingHTTPServer((host, port), _make_handler(state))
     mode = "autonomous" if not config.safety.confirm_destructive else "confirm-guarded"
-    print(f"JARVIS brain listening on http://{host}:{port}  (model={config.brain.model}, {mode})")
+    print(f"FRIDAY brain listening on http://{host}:{port}  (model={config.brain.model}, {mode})")
     print("POST /chat  ·  GET /health  ·  Ctrl-C to stop")
     try:
         httpd.serve_forever()

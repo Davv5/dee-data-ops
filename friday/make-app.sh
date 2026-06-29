@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 #
-# make-app.sh — assemble a standalone, double-clickable JARVIS.app from the
+# make-app.sh — assemble a standalone, double-clickable FRIDAY.app from the
 # Electron runtime that's ALREADY in node_modules. No npm, no downloads — so it
 # sidesteps the install-script blocker that fought us during setup.
 #
 # Usage:   bash make-app.sh
-# Result:  ./JARVIS.app  (drag it into /Applications, then double-click)
+# Result:  ./FRIDAY.app  (drag it into /Applications, then double-click)
 
 set -euo pipefail
 
@@ -13,7 +13,7 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 cd "$HERE"
 
 ELECTRON_APP="node_modules/electron/dist/Electron.app"
-OUT="JARVIS.app"
+OUT="FRIDAY.app"
 PLISTBUDDY="/usr/libexec/PlistBuddy"
 
 if [ ! -d "$ELECTRON_APP/Contents/Frameworks" ]; then
@@ -27,24 +27,24 @@ echo "▸ Cloning the Electron runtime into $OUT ..."
 rm -rf "$OUT"
 ditto "$ELECTRON_APP" "$OUT"
 
-echo "▸ Injecting the JARVIS app code ..."
+echo "▸ Injecting the FRIDAY app code ..."
 APPDIR="$OUT/Contents/Resources/app"
 mkdir -p "$APPDIR"
 # Runtime needs only these — the app has no third-party runtime deps.
 cp -R main.js preload.js src renderer package.json "$APPDIR/"
 
 echo "▸ Renaming the executable and tagging the bundle ..."
-mv "$OUT/Contents/MacOS/Electron" "$OUT/Contents/MacOS/JARVIS"
+mv "$OUT/Contents/MacOS/Electron" "$OUT/Contents/MacOS/FRIDAY"
 
 PLIST="$OUT/Contents/Info.plist"
 set_plist() {
   "$PLISTBUDDY" -c "Set :$1 $2" "$PLIST" 2>/dev/null || \
   "$PLISTBUDDY" -c "Add :$1 string $2" "$PLIST"
 }
-set_plist CFBundleExecutable  JARVIS
-set_plist CFBundleName         JARVIS
-set_plist CFBundleDisplayName  JARVIS
-set_plist CFBundleIdentifier   com.david.jarvis.todo
+set_plist CFBundleExecutable  FRIDAY
+set_plist CFBundleName         FRIDAY
+set_plist CFBundleDisplayName  FRIDAY
+set_plist CFBundleIdentifier   com.david.friday
 # LSUIElement = menu-bar-only app (no Dock icon), matching app.dock.hide().
 "$PLISTBUDDY" -c "Set :LSUIElement true" "$PLIST" 2>/dev/null || \
 "$PLISTBUDDY" -c "Add :LSUIElement bool true" "$PLIST"
@@ -52,7 +52,7 @@ set_plist CFBundleIdentifier   com.david.jarvis.todo
 # App icon: build a macOS .icns from build/icon.png using the system tools.
 ICON_SRC="build/icon.png"
 if [ -f "$ICON_SRC" ] && command -v sips >/dev/null 2>&1 && command -v iconutil >/dev/null 2>&1; then
-  echo "▸ Building the JARVIS app icon ..."
+  echo "▸ Building the FRIDAY app icon ..."
   ICONSET="$(mktemp -d)/jarvis.iconset"
   mkdir -p "$ICONSET"
   gen() { sips -z "$2" "$2" "$ICON_SRC" --out "$ICONSET/$1" >/dev/null 2>&1; }
@@ -83,8 +83,8 @@ echo ""
 echo "✔ Built $HERE/$OUT"
 echo ""
 echo "  Try it now:     open \"$OUT\""
-echo "  Keep it:        drag JARVIS.app into your Applications folder"
+echo "  Keep it:        drag FRIDAY.app into your Applications folder"
 echo "  First launch:   if macOS warns, right-click the app → Open → Open"
 echo ""
 echo "  Your tasks are stored at:"
-echo "    ~/Library/Application Support/JARVIS/jarvis-tasks.json"
+echo "    ~/Library/Application Support/FRIDAY/jarvis-tasks.json"

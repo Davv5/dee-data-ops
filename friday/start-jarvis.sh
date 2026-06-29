@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # One-command launch: bring up the local brain (Ollama + jarvis serve), then
-# the JARVIS HUD. If the brain isn't installed, the HUD still runs in
+# the FRIDAY HUD. If the brain isn't installed, the HUD still runs in
 # local-only mode (task parsing only) — it just won't think or act.
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -16,16 +16,16 @@ if ! curl -fsS http://localhost:11434/api/tags >/dev/null 2>&1; then
 fi
 
 # 2. Brain (jarvis serve) ------------------------------------------------
-# Find the jarvis CLI: on PATH, in the default worktree venv, or via JARVIS_VENV.
+# Find the jarvis CLI: on PATH, in the default worktree venv, or via FRIDAY_VENV.
 BRAIN_BIN=""
 if command -v jarvis >/dev/null 2>&1; then BRAIN_BIN="jarvis"
 elif [ -x "$HOME/jarvis-brain/jarvis/.venv/bin/jarvis" ]; then BRAIN_BIN="$HOME/jarvis-brain/jarvis/.venv/bin/jarvis"
-elif [ -n "${JARVIS_VENV:-}" ] && [ -x "$JARVIS_VENV/bin/jarvis" ]; then BRAIN_BIN="$JARVIS_VENV/bin/jarvis"
+elif [ -n "${FRIDAY_VENV:-}" ] && [ -x "$FRIDAY_VENV/bin/jarvis" ]; then BRAIN_BIN="$FRIDAY_VENV/bin/jarvis"
 fi
 
 if [ -n "$BRAIN_BIN" ]; then
   if ! curl -fsS http://localhost:11500/health >/dev/null 2>&1; then
-    step "Starting JARVIS brain"
+    step "Starting FRIDAY brain"
     ("$BRAIN_BIN" serve >/tmp/jarvis-brain.log 2>&1 &) || warn "brain failed to start (see /tmp/jarvis-brain.log)"
     sleep 2
   fi
@@ -35,13 +35,13 @@ else
 fi
 
 # 3. HUD -----------------------------------------------------------------
-if [ -d "$HERE/JARVIS.app" ]; then
-  step "Launching JARVIS.app"
-  open "$HERE/JARVIS.app"
+if [ -d "$HERE/FRIDAY.app" ]; then
+  step "Launching FRIDAY.app"
+  open "$HERE/FRIDAY.app"
 else
-  step "Building JARVIS.app (first run)"
+  step "Building FRIDAY.app (first run)"
   bash "$HERE/setup-macos.sh"
 fi
 
 echo
-echo "JARVIS up. Press ⇧⌘Space for the HUD. Brain log: /tmp/jarvis-brain.log"
+echo "FRIDAY up. Press ⇧⌘Space for the HUD. Brain log: /tmp/jarvis-brain.log"

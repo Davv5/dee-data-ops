@@ -1,8 +1,8 @@
-# JARVIS — a talking, solar-themed to-do assistant for macOS
+# FRIDAY — a talking, solar-themed to-do assistant for macOS
 
 A glossy sci-fi task HUD modelled on Tony Stark's most advanced suit. Summon it
 anywhere on your Mac with a global hotkey, speak (well, type) a directive, and
-JARVIS logs it, colour-classes it by meaning, tracks the deadline, and **speaks
+FRIDAY logs it, colour-classes it by meaning, tracks the deadline, and **speaks
 to you out loud** when it's time — in contextual, non-templated lines.
 
 ![concept](build/icon.svg)
@@ -28,7 +28,7 @@ to you out loud** when it's time — in contextual, non-templated lines.
   | 🟣 Violet | **Idea / Creative** | Sparks, research, someday. |
   | 🟡 Gold | **Standard** | General directives. |
 
-- **It speaks** — using the macOS speech engine via the Web Speech API. JARVIS
+- **It speaks** — using the macOS speech engine via the Web Speech API. FRIDAY
   composes each line fresh from context (time of day, task class, how close the
   deadline is, your workload) so it never sounds like a canned template:
   - on capture: *"Very good — I have 'submit invoice', that one's tight, today at 5 PM. I'll prompt you in good time."*
@@ -47,7 +47,7 @@ to you out loud** when it's time — in contextual, non-templated lines.
 Requires **Node 18+** and **macOS** (the voice + global hotkey are best there).
 
 ```bash
-cd jarvis-todo
+cd friday
 npm install
 npm start
 ```
@@ -57,7 +57,7 @@ right). Press **⇧⌘Space** to summon the quick-add HUD.
 
 ### First-run tips
 
-- **Give it the JARVIS voice.** Open **⚙ Settings** → pick a British voice such
+- **Give it the FRIDAY voice.** Open **⚙ Settings** → pick a British voice such
   as **Daniel**. If you don't have it: macOS **System Settings → Accessibility →
   Spoken Content → System Voice → Manage Voices** → add *Daniel (English UK)*.
   Leave it on **Auto** and it'll find the best British match itself.
@@ -71,11 +71,11 @@ right). Press **⇧⌘Space** to summon the quick-add HUD.
 ```bash
 npm run dist     # builds a signed-less .dmg into release/ (arm64 + x64)
 # or, faster, an unpackaged .app you can run directly:
-npm run pack     # -> release/mac/JARVIS.app
+npm run pack     # -> release/mac/FRIDAY.app
 ```
 
 > The `.dmg` is unsigned. On first open, right-click the app → **Open** to get
-> past Gatekeeper, or run `xattr -dr com.apple.quarantine release/mac/JARVIS.app`.
+> past Gatekeeper, or run `xattr -dr com.apple.quarantine release/mac/FRIDAY.app`.
 > To ship it widely you'd add an Apple Developer ID in `package.json → build.mac`.
 
 ### App icon
@@ -133,4 +133,4 @@ anti-repeat ring buffer keeps it from saying the same fragment twice in a row.
   the system voices directly — no cloud, no API key, works offline.
 - Fonts (Orbitron / Rajdhani) load from Google Fonts when online; offline it
   degrades to the system sans stack and still looks right.
-- Tasks persist to `~/Library/Application Support/JARVIS/jarvis-tasks.json`.
+- Tasks persist to `~/Library/Application Support/FRIDAY/jarvis-tasks.json`.

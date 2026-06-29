@@ -1,4 +1,4 @@
-// JARVIS — main process.
+// FRIDAY — main process.
 // Owns the windows, the global hotkey, the tray, and the task store. Two
 // windows exist: a frameless "quick-add" HUD that the hotkey summons, and the
 // always-running dashboard that also hosts the deadline scheduler + speech.
@@ -38,7 +38,7 @@ function createDashboard() {
     minWidth: 880,
     minHeight: 580,
     show: false,
-    title: 'JARVIS',
+    title: 'FRIDAY',
     backgroundColor: '#00000000',
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 18, y: 22 },
@@ -144,12 +144,12 @@ function trayIcon() {
 
 function createTray() {
   tray = new Tray(trayIcon());
-  tray.setToolTip('JARVIS — at your service');
+  tray.setToolTip('FRIDAY — at your service');
   const menu = Menu.buildFromTemplate([
     { label: 'New directive  (⇧⌘Space)', click: showQuickAdd },
     { label: 'Open dashboard', click: () => { if (dashboardWin) dashboardWin.show(); } },
     { type: 'separator' },
-    { label: 'Quit JARVIS', click: () => { app.isQuitting = true; app.quit(); } }
+    { label: 'Quit FRIDAY', click: () => { app.isQuitting = true; app.quit(); } }
   ]);
   tray.setContextMenu(menu);
   tray.on('click', showQuickAdd);
@@ -261,7 +261,7 @@ if (!gotLock) {
 
   app.whenReady().then(() => {
     if (process.platform === 'darwin') app.dock.hide(); // live in the menu bar
-    // allow microphone (for speaking to JARVIS) and media
+    // allow microphone (for speaking to FRIDAY) and media
     session.defaultSession.setPermissionRequestHandler((_wc, _perm, cb) => cb(true));
     try { session.defaultSession.setPermissionCheckHandler(() => true); } catch (_) {}
     createDashboard();
