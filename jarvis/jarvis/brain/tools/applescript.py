@@ -26,6 +26,31 @@ def open_app(name: str) -> str:
 
 
 @tool(
+    name="close_app",
+    description=(
+        "Quit / close a macOS application by name, e.g. 'Safari', 'Music', 'Notes'. "
+        "Use this whenever the user says to close, quit, or shut an app."
+    ),
+    parameters={
+        "type": "object",
+        "properties": {
+            "name": {"type": "string", "description": "Application name, e.g. 'Safari'."},
+        },
+        "required": ["name"],
+    },
+)
+def close_app(name: str) -> str:
+    proc = subprocess.run(
+        ["osascript", "-e", f'tell application "{name}" to quit'],
+        capture_output=True,
+        text=True,
+    )
+    if proc.returncode == 0:
+        return f"closed {name}"
+    return f"could not close {name}: {proc.stderr.strip() or 'unknown error'}"
+
+
+@tool(
     name="run_applescript",
     description=(
         "Run an AppleScript snippet for deeper macOS automation — controlling apps, "

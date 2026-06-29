@@ -18,7 +18,13 @@ _DEFAULTS: dict[str, Any] = {
         "max_history": 20,
     },
     "safety": {
+        # confirm_destructive governs the CLI (`jarvis chat`): ask y/N before
+        # destructive tools. The HUD has no prompt, so it can't use this.
         "confirm_destructive": True,
+        # block_in_app: when True, the FRIDAY HUD refuses destructive actions
+        # (shell, file writes, quitting apps). Default False = FRIDAY acts on
+        # what you say. Set True if you want the app to stay hands-off.
+        "block_in_app": False,
     },
     "voice": {
         "wake_word": "hey_jarvis",
@@ -56,6 +62,7 @@ class BrainConfig:
 @dataclass
 class SafetyConfig:
     confirm_destructive: bool
+    block_in_app: bool = False
 
 
 @dataclass

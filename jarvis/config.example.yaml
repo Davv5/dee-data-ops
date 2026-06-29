@@ -9,10 +9,14 @@ brain:
   max_history: 20                  # conversation turns kept in context
 
 safety:
-  # When true, destructive tools (shell, file writes, AppleScript, email)
-  # ask for a yes/no confirmation before running. Flip to false for fully
-  # autonomous operation. This is YOUR seatbelt, not a leash.
+  # confirm_destructive governs the CLI only (`jarvis chat`): ask y/N before
+  # destructive tools (shell, file writes, AppleScript). The FRIDAY HUD has no
+  # prompt, so this does not apply there.
   confirm_destructive: true
+  # block_in_app: the HUD acts on what you say by default (false). Set true to
+  # make the FRIDAY app refuse destructive actions (shell, file writes, quitting
+  # apps) — hands-off mode.
+  block_in_app: false
 
 # Voice settings are used from Phase 2 onward.
 voice:

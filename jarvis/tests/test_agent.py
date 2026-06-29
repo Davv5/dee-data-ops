@@ -11,13 +11,19 @@ from jarvis.brain.tools import run_tool, tool_schemas
 
 def test_tools_registered():
     names = {s["function"]["name"] for s in tool_schemas()}
-    assert {"run_shell", "open_app", "run_applescript", "read_file", "write_file", "web_search"} <= names
+    assert {"run_shell", "open_app", "close_app", "run_applescript", "read_file", "write_file", "web_search"} <= names
 
 
 def test_destructive_tool_blocked_without_confirm():
     # confirm_cb returns False -> call should be cancelled, nothing executed.
     out = run_tool("run_shell", {"command": "echo hi"}, confirm_destructive=True, confirm_cb=lambda n, a: False)
     assert json.loads(out)["status"] == "cancelled"
+
+
+def test_destructive_tool_allowed_when_confirmed():
+    # The HUD/server path: confirm_cb allows -> the tool actually runs.
+    out = run_tool("run_shell", {"command": "echo hi"}, confirm_destructive=True, confirm_cb=lambda n, a: True)
+    assert "hi" in out
 
 
 def test_nondestructive_read_file(tmp_path):

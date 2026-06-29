@@ -29,9 +29,11 @@ class _BrainState:
 
     def __init__(self, config: Config) -> None:
         self.config = config
-        # In app mode there's no interactive prompt: destructive tools are
-        # allowed only when the user has turned confirmation off in config.
-        self.agent = Agent(config, confirm_cb=lambda name, args: False)
+        # The HUD has no y/N prompt, so FRIDAY acts on what you say by default.
+        # confirm_cb decides whether a destructive tool is allowed: allow unless
+        # the user explicitly opted into hands-off mode (safety.block_in_app).
+        allow = not config.safety.block_in_app
+        self.agent = Agent(config, confirm_cb=lambda name, args: allow)
         self.lock = threading.Lock()
 
     def ask(self, text: str, tasks: list[dict[str, Any]] | None) -> dict[str, Any]:
@@ -97,7 +99,7 @@ def serve(config: Config | None = None, *, host: str = "127.0.0.1", port: int = 
     config = config or load_config()
     state = _BrainState(config)
     httpd = ThreadingHTTPServer((host, port), _make_handler(state))
-    mode = "autonomous" if not config.safety.confirm_destructive else "confirm-guarded"
+    mode = "hands-off" if config.safety.block_in_app else "autonomous"
     print(f"FRIDAY brain listening on http://{host}:{port}  (model={config.brain.model}, {mode})")
     print("POST /chat  ·  GET /health  ·  Ctrl-C to stop")
     try:

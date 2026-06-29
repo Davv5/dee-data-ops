@@ -179,12 +179,11 @@
     // Explicit "remind me to X" → a directive, fast, no LLM.
     if (cmd.type === 'create') { createTask(cmd.title || raw); return exit(); }
 
-    // Everything else ("open Safari", "what's 20% of 340", "email Sam") is
-    // ambiguous — let the brain act/answer/decide. Fall back to a directive.
-    if (brainOnline) {
-      const handled = await askBrain(raw);
-      if (handled) return;             // HUD stays open to keep conversing
-    }
+    // Everything else ("close Safari", "what's 20% of 340", "email Sam") is a
+    // command/question — the brain owns it. When the brain is reachable it acts
+    // or answers (and surfaces its own errors); only when it's offline do we
+    // fall back to logging a directive so nothing is lost.
+    if (brainOnline) { await askBrain(raw); return; }
     createTask(cmd.title || raw); return exit();
   }
 
@@ -212,9 +211,16 @@
     updateStatus('FRIDAY · THINKING'); showResponse('…', true);
     reactor.setEnergy(1); reactor.pulse();
     let res;
-    try { res = await window.friday.askBrain(raw); } catch (_) { res = { ok: false }; }
+    try { res = await window.friday.askBrain(raw); } catch (e) { res = { ok: false, error: String(e && e.message || e) }; }
     thinking = false; updateStatus();
-    if (!res || !res.ok) { hideResponse(); return false; }   // fall back to a directive
+    if (!res || !res.ok) {
+      // Don't silently turn a command into a task — tell the user what happened.
+      const why = (res && res.error) ? res.error : 'no response';
+      showResponse(`I couldn't reach my brain, ${addr()} — ${why}. Is it running? (./start-jarvis.sh)`);
+      V.say(`I can't reach my brain right now, ${addr()}.`);
+      setTimeout(() => input.focus(), 30);
+      return false;
+    }
     showResponse(res.reply || '…done.');
     V.say(res.reply);
     input.value = ''; preview.innerHTML = ''; reactor.pulse();
