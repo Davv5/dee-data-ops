@@ -114,6 +114,16 @@
         <input id="setHotkey" type="text" placeholder="CommandOrControl+Shift+Space" />
         <div class="hint">Electron accelerator format. Restart-free; applies on save.</div>
       </div>
+      <div class="field">
+        <label>Tags — colour is meaning</label>
+        <div id="tagList" class="tag-list"></div>
+        <div class="tag-add">
+          <input id="tagName" type="text" placeholder="New tag, e.g. Finance" maxlength="24" />
+          <select id="tagColor"></select>
+          <button class="icon-btn on" id="tagAdd">Add</button>
+        </div>
+        <div class="hint">Or by voice: hit the hotkey and say “make a tag called Finance in green”.</div>
+      </div>
       <div class="modal-foot">
         <button class="icon-btn" id="setTest">Test voice</button>
         <button class="icon-btn on" id="setSave">Save</button>

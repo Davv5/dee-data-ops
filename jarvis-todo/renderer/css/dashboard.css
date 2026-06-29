@@ -153,3 +153,14 @@
 .pchip .dot { background: var(--c, var(--cyan)); box-shadow: 0 0 9px var(--c, var(--cyan)); width: 9px; height: 9px; }
 .pchip:hover { color: var(--text); border-color: var(--c, var(--cyan)); }
 .pchip.active { color: #fff; border-color: var(--c, var(--cyan)); background: color-mix(in srgb, var(--c, var(--cyan)) 18%, transparent); box-shadow: 0 0 18px -5px var(--c, var(--cyan)); }
+
+/* tag manager */
+.tag-list { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; min-height: 10px; }
+.tag-item { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; padding: 6px 9px 6px 11px; border-radius: 999px; border: 1px solid var(--c, var(--cyan)); background: color-mix(in srgb, var(--c, var(--cyan)) 12%, transparent); color: var(--text); }
+.tag-item .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--c); box-shadow: 0 0 9px var(--c); }
+.tag-rm { cursor: pointer; border: none; background: none; color: var(--text-dim); font-size: 12px; padding: 0 2px; }
+.tag-rm:hover { color: var(--red); }
+.tag-add { display: flex; gap: 8px; align-items: center; }
+.tag-add input { flex: 1; }
+.tag-add select { width: 120px; text-transform: capitalize; }
+.tag-add .icon-btn { white-space: nowrap; }

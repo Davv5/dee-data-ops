@@ -28,7 +28,7 @@
   function renderLegend() {
     $('legend').innerHTML = C.order.map((k) => {
       const c = C.byKey(k);
-      return `<div class="row c-${c.color}"><span class="dot chip-c"></span><span><b>${c.label}</b> — ${c.meaning}</span></div>`;
+      return `<div class="row" style="--c:${c.hex}"><span class="dot chip-c"></span><span><b>${c.label}</b> — ${c.meaning}</span></div>`;
     }).join('');
   }
   renderLegend();
@@ -164,6 +164,7 @@
       // the moment it's due
       if (diff <= 0 && !t.announcedDue) {
         window.jarvis.updateTask(t.id, { announcedDue: true, lastNudge: now });
+        window.jarvis.saveSettings({ lastAlertedId: t.id }); // for "reschedule that"
         holo.setEnergy(1); holo.pulse();
         V.alert(t, 'due');
         notify(t, 'due');
@@ -208,18 +209,24 @@
   function atd(add, h) { const d = new Date(); d.setDate(d.getDate() + add); d.setHours(h, 0, 0, 0); return d; }
   function toLocalInput(d) { const z = new Date(d.getTime() - d.getTimezoneOffset() * 60000); return z.toISOString().slice(0, 16); }
 
-  // build editor chip rows once
-  C.order.forEach((key) => {
-    const c = C.byKey(key);
-    const el = document.createElement('div');
-    el.className = `pchip c-${c.color}`;
-    el.dataset.key = key;
-    el.innerHTML = `<span class="dot"></span>${c.label}`;
-    el.addEventListener('click', () => {
-      [...$('edCats').children].forEach((x) => x.classList.toggle('active', x === el));
+  // editor category chips (rebuilt when custom tags change)
+  function buildEditorCats() {
+    const host = $('edCats');
+    host.innerHTML = '';
+    C.order.forEach((key) => {
+      const c = C.byKey(key);
+      const el = document.createElement('div');
+      el.className = 'pchip';
+      el.dataset.key = key;
+      el.style.setProperty('--c', c.hex);
+      el.innerHTML = `<span class="dot"></span>${c.label}`;
+      el.addEventListener('click', () => {
+        [...host.children].forEach((x) => x.classList.toggle('active', x === el));
+      });
+      host.appendChild(el);
     });
-    $('edCats').appendChild(el);
-  });
+  }
+  buildEditorCats();
   ED_TIMES.forEach((p) => {
     const el = document.createElement('div');
     el.className = 'pchip';
@@ -302,14 +309,44 @@
     $('muteBtn').classList.toggle('on', !muted);
   });
 
+  // ---- tag manager (Settings) ----
+  function renderTagManager() {
+    const sel = $('tagColor');
+    if (sel && !sel.dataset.filled) {
+      sel.innerHTML = C.palette.map((c) => `<option value="${c}">${c}</option>`).join('');
+      sel.dataset.filled = '1';
+    }
+    const list = $('tagList'); if (!list) return;
+    const custom = settings.customTags || {};
+    const keys = Object.keys(custom);
+    list.innerHTML = keys.length
+      ? keys.map((k) => { const c = C.byKey(k); return `<span class="tag-item" style="--c:${c.hex}"><span class="dot"></span>${c.label}<button data-k="${k}" class="tag-rm" title="Remove">✕</button></span>`; }).join('')
+      : '<span class="dim" style="font-size:12px">No custom tags yet — add one below or by voice.</span>';
+    list.querySelectorAll('.tag-rm').forEach((b) => b.addEventListener('click', () => {
+      const tags = Object.assign({}, settings.customTags || {}); delete tags[b.dataset.k];
+      settings.customTags = tags; window.jarvis.saveSettings({ customTags: tags });
+      C.configure(tags); renderTagManager(); renderLegend(); buildEditorCats(); render();
+    }));
+  }
+  if ($('tagAdd')) $('tagAdd').addEventListener('click', () => {
+    const name = $('tagName').value.trim(); if (!name) return;
+    const made = C.makeTag(name, $('tagColor').value || 'cyan', '');
+    const tags = Object.assign({}, settings.customTags || {}, { [made.key]: made.tag });
+    settings.customTags = tags; window.jarvis.saveSettings({ customTags: tags });
+    C.configure(tags); $('tagName').value = '';
+    renderTagManager(); renderLegend(); buildEditorCats(); render();
+    V.say(`Added "${made.tag.label}", ${settings.address || 'Sir'}.`);
+  });
+
   // ---- buttons ----
   $('newBtn').addEventListener('click', () => V.say(pick(['Use your hotkey to summon me — Command-Shift-Space.', 'Press Command-Shift-Space anywhere to give me a directive.'])));
   function pick(a) { return a[Math.floor(Math.random() * a.length)]; }
 
   // ---- live data ----
   function refresh(t) { tasks = t || []; render(); }
+  function applyTags(s) { C.configure((s && s.customTags) || {}); renderLegend(); buildEditorCats(); renderTagManager(); render(); }
   window.jarvis.onTasksChanged(refresh);
-  window.jarvis.onSettingsChanged((s) => { settings = s; V.configure(s); });
+  window.jarvis.onSettingsChanged((s) => { settings = s; V.configure(s); applyTags(s); });
 
   // ---- boot ----
   Promise.all([window.jarvis.getTasks(), window.jarvis.getSettings()]).then(([t, s]) => {
@@ -318,6 +355,7 @@
     $('muteBtn').textContent = muted ? '🔇 Muted' : '🔊 Voice';
     $('muteBtn').classList.toggle('on', !muted);
     V.configure(settings);
+    applyTags(settings);
     render();
     if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission();
 

@@ -34,7 +34,16 @@ body.qa { background: transparent; }
 }
 .qa-status .blink { animation: blink 1.6s ease-in-out infinite; }
 @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: .25; } }
-.qa-eq { display: flex; gap: 3px; align-items: flex-end; height: 18px; margin-left: auto; }
+.qa-mic {
+  -webkit-app-region: no-drag; cursor: pointer; margin-left: auto;
+  width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--glass-edge);
+  background: rgba(120, 210, 255, .06); color: var(--cyan); font-size: 15px; line-height: 1;
+  transition: all .2s;
+}
+.qa-mic:hover { border-color: var(--cyan); box-shadow: 0 0 16px -4px var(--cyan); transform: translateY(-1px); }
+.qa-mic.on { background: linear-gradient(180deg, var(--solar-1), var(--solar-2)); color: #00121f; border-color: transparent; animation: micpulse 1s ease-in-out infinite; }
+@keyframes micpulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(255, 196, 106, .5); } 50% { box-shadow: 0 0 0 7px rgba(255, 196, 106, 0); } }
+.qa-eq { display: flex; gap: 3px; align-items: flex-end; height: 18px; margin-left: 12px; }
 .qa-eq i {
   width: 3px; background: linear-gradient(var(--cyan), var(--solar-2));
   border-radius: 2px; height: 4px; box-shadow: 0 0 10px rgba(111, 240, 255, .6);
