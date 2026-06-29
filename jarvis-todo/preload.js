@@ -12,6 +12,10 @@ contextBridge.exposeInMainWorld('jarvis', {
   getSettings: () => ipcRenderer.invoke('settings:get'),
   saveSettings: (patch) => ipcRenderer.invoke('settings:save', patch),
 
+  // brain (local LLM) — ask returns { ok, reply, actions } or { ok:false }
+  askBrain: (text) => ipcRenderer.invoke('brain:ask', text),
+  brainHealth: () => ipcRenderer.invoke('brain:health'),
+
   // window control
   closeQuickAdd: () => ipcRenderer.send('quickadd:close'),
   resizeQuickAdd: (h) => ipcRenderer.send('quickadd:resize', h),

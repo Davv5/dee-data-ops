@@ -10,6 +10,6 @@ from __future__ import annotations
 from .registry import run_tool, tool, tool_schemas
 
 # Import submodules for their registration side effects.
-from . import shell, applescript, files, web  # noqa: E402,F401
+from . import shell, applescript, files, web, tasks  # noqa: E402,F401
 
 __all__ = ["run_tool", "tool", "tool_schemas"]

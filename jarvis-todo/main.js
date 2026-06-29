@@ -8,6 +8,13 @@ const {
 } = require('electron');
 const path = require('path');
 const store = require('./src/store');
+const brain = require('./src/brain');
+
+// category -> swatch, so brain-created tasks land in the right colour class.
+const CATEGORY_COLOR = {
+  critical: 'red', deadline: 'amber', work: 'cyan',
+  personal: 'green', idea: 'violet', standard: 'gold'
+};
 
 const isDev = process.argv.includes('--dev');
 const DEFAULT_HOTKEY = 'CommandOrControl+Shift+Space';
@@ -197,6 +204,40 @@ ipcMain.handle('tasks:remove', (_e, id) => {
   store.remove(id);
   broadcast('tasks:changed', store.all());
   return true;
+});
+
+// --- brain bridge (local Python `jarvis serve`) ----------------------------
+ipcMain.handle('brain:health', async () => {
+  try { return await brain.health(); } catch (_) { return { ok: false }; }
+});
+
+ipcMain.handle('brain:ask', async (_e, text) => {
+  try {
+    const { reply, actions } = await brain.ask(text, store.all());
+    let touched = false;
+    for (const a of actions || []) {
+      if (a.type === 'add_task') {
+        const t = a.task || {};
+        store.add({
+          title: t.title,
+          category: t.category || 'standard',
+          color: CATEGORY_COLOR[t.category] || 'gold',
+          due: t.due || null
+        });
+        touched = true;
+      } else if (a.type === 'complete_task') {
+        store.update(a.id, { done: true });
+        touched = true;
+      } else if (a.type === 'remove_task') {
+        store.remove(a.id);
+        touched = true;
+      }
+    }
+    if (touched) broadcast('tasks:changed', store.all());
+    return { ok: true, reply, actions: actions || [] };
+  } catch (err) {
+    return { ok: false, error: String(err && err.message || err) };
+  }
 });
 
 ipcMain.on('quickadd:close', hideQuickAdd);

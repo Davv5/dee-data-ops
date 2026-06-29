@@ -17,6 +17,14 @@ def _cmd_chat(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_serve(args: argparse.Namespace) -> int:
+    from . import server
+
+    config = load_config(args.config)
+    server.serve(config, port=args.port)
+    return 0
+
+
 def _cmd_doctor(args: argparse.Namespace) -> int:
     """Check that everything Jarvis needs is in place."""
     config = load_config(args.config)
@@ -65,6 +73,9 @@ def build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command", required=True)
 
     sub.add_parser("chat", help="text REPL (Phase 1)").set_defaults(func=_cmd_chat)
+    serve_p = sub.add_parser("serve", help="run the HTTP brain for the macOS HUD")
+    serve_p.add_argument("--port", type=int, default=11500, help="port (default 11500)")
+    serve_p.set_defaults(func=_cmd_serve)
     sub.add_parser("doctor", help="check Ollama, model, and deps").set_defaults(func=_cmd_doctor)
     sub.add_parser("voice", help="push-to-talk (Phase 2)").set_defaults(
         func=_cmd_unavailable("Phase 2")

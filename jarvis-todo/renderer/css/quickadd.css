@@ -107,3 +107,15 @@ body.qa { background: transparent; }
 }
 .qa-commit:hover { transform: translateY(-2px); box-shadow: 0 0 38px rgba(255, 196, 106, .6); }
 .qa-commit:active { transform: translateY(0) scale(.97); }
+
+/* --- brain response (JARVIS speaking back) ------------------------------- */
+.qa-response {
+  margin-top: 14px; padding: 14px 18px; border-radius: 16px;
+  background: rgba(120, 210, 255, .05); border: 1px solid var(--glass-edge);
+  border-left: 2px solid var(--cyan);
+  font-family: var(--font-body); font-size: 16px; line-height: 1.5; color: var(--text);
+  white-space: pre-wrap; max-height: 220px; overflow-y: auto;
+  opacity: 0; transform: translateY(6px); animation: tagIn .35s var(--ease) forwards;
+}
+.qa-response.thinking { color: var(--text-dim); border-left-color: var(--gold-text); font-style: italic; }
+.qa-status.brain-on .blink { color: var(--cyan); }

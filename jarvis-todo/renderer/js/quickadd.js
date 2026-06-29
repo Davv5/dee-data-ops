@@ -11,6 +11,11 @@
   const timesEl = document.getElementById('times');
   const customTime = document.getElementById('qaCustomTime');
   const commitBtn = document.getElementById('commit');
+  const statusEl = document.getElementById('status');
+  const responseEl = document.getElementById('response');
+
+  let brainOnline = false;         // is the local LLM brain reachable + ready?
+  let thinking = false;            // a brain turn is in flight
 
   let manualCategory = null;       // user override via pills/Tab
   // undefined = follow the typed text; null = explicitly "no time"; Date = set
@@ -121,10 +126,70 @@
     reactor.setEnergy(Math.min(1, 0.4 + raw.length / 60));
   }
 
-  // --- commit ---
-  function commit() {
+  // --- brain status + response display ---
+  async function refreshBrain() {
+    try {
+      const h = await window.jarvis.brainHealth();
+      brainOnline = !!(h && h.ok && h.ollama);
+    } catch (_) { brainOnline = false; }
+    updateStatus();
+  }
+  function updateStatus(label) {
+    if (!statusEl) return;
+    const text = label || (brainOnline ? 'JARVIS · ONLINE' : 'JARVIS · LISTENING');
+    statusEl.innerHTML = '<span class="blink">●</span>&nbsp; ' + text;
+    statusEl.classList.toggle('brain-on', brainOnline);
+  }
+  function showResponse(text, isThinking) {
+    if (!responseEl) return;
+    responseEl.hidden = false;
+    responseEl.textContent = text;
+    responseEl.classList.toggle('thinking', !!isThinking);
+    window.jarvis.resizeQuickAdd(document.body.scrollHeight + 40);
+  }
+  function hideResponse() {
+    if (!responseEl) return;
+    responseEl.hidden = true;
+    responseEl.textContent = '';
+  }
+
+  // --- commit: route through the brain, fall back to local task parsing ---
+  async function commit() {
     const raw = input.value.trim();
-    if (!raw) { input.focus(); return; }
+    if (!raw || thinking) { input.focus(); return; }
+
+    if (brainOnline) {
+      const handled = await askBrain(raw);
+      if (handled) return;            // the brain took it; HUD stays open
+    }
+    commitAsTask(raw);               // offline / brain failed → local NL task
+  }
+
+  async function askBrain(raw) {
+    thinking = true;
+    updateStatus('JARVIS · THINKING');
+    showResponse('…', true);
+    reactor.setEnergy(1); reactor.pulse();
+
+    let res;
+    try { res = await window.jarvis.askBrain(raw); }
+    catch (_) { res = { ok: false }; }
+    thinking = false;
+    updateStatus();
+
+    if (!res || !res.ok) { hideResponse(); return false; }  // fall back to task add
+
+    showResponse(res.reply || '…done.');
+    V.say(res.reply);
+    input.value = '';
+    preview.innerHTML = '';
+    reactor.pulse();
+    setTimeout(() => input.focus(), 30);
+    return true;                      // conversation stays open for the next directive
+  }
+
+  // The original behaviour: parse the directive into a task and acknowledge.
+  function commitAsTask(raw) {
     const parsed = window.JARVIS_NLP.parse(raw);
     const category = activeCategory();
     const c = C.byKey(category);
@@ -146,7 +211,7 @@
   function resetForm() {
     input.value = ''; manualCategory = null; manualDue = undefined;
     preview.innerHTML = ''; customTime.classList.remove('show'); customTime.value = '';
-    markTime('');
+    markTime(''); hideResponse(); thinking = false;
   }
 
   // --- keyboard ---
@@ -175,6 +240,7 @@
     resetForm();
     setCategory();
     reactor.pulse();
+    refreshBrain();                 // light up ONLINE if the brain is reachable
     setTimeout(() => input.focus(), 80);
     if (Math.random() < 0.6) {
       const cues = ['Yes?', 'Ready when you are.', "What's the directive?", "I'm listening.", 'Go ahead.', 'At your service.'];
