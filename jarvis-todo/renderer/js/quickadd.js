@@ -180,24 +180,65 @@
     preview.innerHTML = ''; customTime.classList.remove('show'); customTime.value = ''; markTime('');
   }
 
-  // ---- microphone (best-effort; Web Speech) ----
-  function startMic() {
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) { V.say(`Voice input isn't available here, ${addr()} — type to me instead.`); return; }
-    let rec;
-    try { rec = new SR(); } catch (_) { V.say(`I can't reach the microphone, ${addr()}.`); return; }
-    rec.lang = 'en-US'; rec.interimResults = false; rec.maxAlternatives = 1;
-    micBtn.classList.add('on');
-    rec.onresult = (e) => { input.value = e.results[0][0].transcript; renderPreview(); setTimeout(commit, 300); };
-    rec.onerror = (e) => {
-      micBtn.classList.remove('on');
-      if (e.error === 'not-allowed' || e.error === 'service-not-allowed') V.say(`I need microphone access, ${addr()}. Enable it in System Settings.`);
-      else if (e.error !== 'aborted') V.say(`I didn't catch that, ${addr()}.`);
+  // ---- microphone: record + transcribe via Whisper (reliable in Electron) ----
+  let recorder = null, chunks = [], recording = false;
+  function setStatus(txt) { const s = document.querySelector('.qa-status'); if (s) s.innerHTML = `<span class="blink">●</span>&nbsp; ${txt}`; }
+
+  function micClick() {
+    if (recording) { stopRecording(); return; }
+    if (settings.sttKey) { startRecording(); return; }
+    tryWebSpeech();   // no key configured — attempt the (often unsupported) built-in
+  }
+
+  async function startRecording() {
+    let stream;
+    try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+    catch (_) { V.say(`I need microphone access, ${addr()} — allow it in System Settings, Privacy, Microphone.`); return; }
+    try { recorder = new MediaRecorder(stream); } catch (_) { stream.getTracks().forEach((t) => t.stop()); V.say(`I can't record here, ${addr()}.`); return; }
+    chunks = [];
+    recorder.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
+    recorder.onstop = async () => {
+      stream.getTracks().forEach((t) => t.stop());
+      micBtn.classList.remove('on'); recording = false;
+      setStatus('JARVIS · TRANSCRIBING');
+      let text = null;
+      try { text = await transcribe(new Blob(chunks, { type: 'audio/webm' })); } catch (e) { console.warn('[stt]', e); }
+      setStatus('JARVIS · LISTENING');
+      if (text) { input.value = text; renderPreview(); setTimeout(commit, 200); }
+      else V.say(`I couldn't make that out, ${addr()}.`);
     };
-    rec.onend = () => micBtn.classList.remove('on');
+    recorder.start(); recording = true; micBtn.classList.add('on'); setStatus('JARVIS · RECORDING…');
+  }
+  function stopRecording() { if (recorder && recorder.state !== 'inactive') recorder.stop(); }
+
+  async function transcribe(blob) {
+    const fd = new FormData();
+    fd.append('file', blob, 'audio.webm');
+    fd.append('model', settings.sttModel || 'whisper-1');
+    const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+      method: 'POST', headers: { Authorization: 'Bearer ' + settings.sttKey }, body: fd
+    });
+    if (!res.ok) throw new Error('stt ' + res.status);
+    const j = await res.json();
+    return (j.text || '').trim();
+  }
+
+  function tryWebSpeech() {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    let rec;
+    try { rec = SR && new SR(); } catch (_) { rec = null; }
+    if (!rec) { V.say(`Voice input needs a quick setup, ${addr()}. Add a speech key in Settings, or just type to me.`); return; }
+    rec.lang = 'en-US'; rec.interimResults = false;
+    micBtn.classList.add('on'); setStatus('JARVIS · RECORDING…');
+    rec.onresult = (e) => { input.value = e.results[0][0].transcript; renderPreview(); setTimeout(commit, 250); };
+    rec.onerror = (e) => {
+      micBtn.classList.remove('on'); setStatus('JARVIS · LISTENING');
+      if (e.error !== 'aborted') V.say(`Voice input isn't supported in this build, ${addr()}. Add an OpenAI key in Settings for voice — or simply type to me.`);
+    };
+    rec.onend = () => { micBtn.classList.remove('on'); setStatus('JARVIS · LISTENING'); };
     try { rec.start(); } catch (_) {}
   }
-  if (micBtn) micBtn.addEventListener('click', startMic);
+  if (micBtn) micBtn.addEventListener('click', micClick);
 
   // ---- keyboard ----
   input.addEventListener('input', renderPreview);

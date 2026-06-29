@@ -115,6 +115,11 @@
         <div class="hint">Electron accelerator format. Restart-free; applies on save.</div>
       </div>
       <div class="field">
+        <label>Voice input — speech-to-text key</label>
+        <input id="setSttKey" type="password" placeholder="sk-… (OpenAI API key)" autocomplete="off" />
+        <div class="hint">Electron can’t do speech-to-text on its own. Paste an <b>OpenAI API key</b> and the 🎙 mic will record you and transcribe with Whisper. Stored locally only. Get one at platform.openai.com → API keys.</div>
+      </div>
+      <div class="field">
         <label>Tags — colour is meaning</label>
         <div id="tagList" class="tag-list"></div>
         <div class="tag-add">

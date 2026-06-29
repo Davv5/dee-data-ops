@@ -271,7 +271,9 @@
   function openSettings() {
     $('setAddress').value = settings.address || 'Sir';
     $('setHotkey').value = settings.hotkey || 'CommandOrControl+Shift+Space';
+    if ($('setSttKey')) $('setSttKey').value = settings.sttKey || '';
     fillVoices();
+    renderTagManager();
     back.classList.add('show');
   }
   function fillVoices() {
@@ -291,9 +293,11 @@
     const patch = {
       address: $('setAddress').value || 'Sir',
       voiceURI: $('setVoice').value || null,
-      hotkey: $('setHotkey').value || 'CommandOrControl+Shift+Space'
+      hotkey: $('setHotkey').value || 'CommandOrControl+Shift+Space',
+      sttKey: ($('setSttKey') && $('setSttKey').value.trim()) || ''
     };
     window.jarvis.saveSettings(patch);
+    settings = Object.assign(settings, patch);
     V.configure(patch);
     back.classList.remove('show');
     V.say('Configuration saved.', { force: true });
