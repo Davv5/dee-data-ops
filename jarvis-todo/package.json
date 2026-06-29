@@ -1,0 +1,42 @@
+{
+  "name": "jarvis-todo",
+  "productName": "JARVIS",
+  "version": "1.0.0",
+  "description": "A glossy, solar-themed sci-fi to-do assistant for macOS, modelled on the Mark-class JARVIS interface. Global hotkey capture, contextual spoken alerts, deadline + colour-coded tasks.",
+  "main": "main.js",
+  "author": "David",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "dist": "electron-builder --mac",
+    "pack": "electron-builder --dir"
+  },
+  "devDependencies": {
+    "electron": "^31.3.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.david.jarvis.todo",
+    "productName": "JARVIS",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "src/**/*",
+      "renderer/**/*",
+      "build/**/*"
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": [
+        { "target": "dmg", "arch": ["arm64", "x64"] }
+      ],
+      "hardenedRuntime": false,
+      "darkModeSupport": true
+    }
+  }
+}
