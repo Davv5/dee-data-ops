@@ -8,8 +8,9 @@ window.HoloField = class HoloField {
     this.ctx = canvas.getContext('2d');
     this.dpr = window.devicePixelRatio || 1;
     this.t = 0;
-    this.cyan = opts.hue ?? 194;
-    this.gold = opts.gold ?? 42;
+    this.cyan = opts.hue ?? 196;     // primary vector lines (cyan-white)
+    this.gold = opts.gold ?? 28;     // orange data accent
+    this.red = opts.red ?? 6;        // red alert/data accent
     this.energy = 0.35;
     this.targetEnergy = 0.35;
     this.ripples = [];
@@ -88,8 +89,8 @@ window.HoloField = class HoloField {
     // --- dashed data ring, counter-rotating (cyan) ---
     this._dashes(R * 0.98, 54, -this.t * 0.16, 0.18 + e * 0.12, C);
 
-    // --- segmented blocks ring, a few "lit" ---
-    this._blocks(R * 0.82, 40, this.t * 0.07, e, C);
+    // --- segmented data blocks ring (red/orange, like the HUD bars) ---
+    this._blocks(R * 0.82, 40, this.t * 0.07, e, this.red);
 
     // --- double inner rings ---
     this._circle(R * 0.64, 1.2, 0.22 + e * 0.12, C);
