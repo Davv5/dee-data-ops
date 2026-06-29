@@ -45,8 +45,14 @@ window.HoloField = class HoloField {
   start() { if (this.running) return; this.running = true; this._loop(); }
   stop() { this.running = false; clearInterval(this._auto); window.removeEventListener('resize', this._ro); }
 
+  _maybeResize() {
+    const r = this.canvas.getBoundingClientRect();
+    if (r.width > 0 && (Math.abs(r.width - this.w) > 1 || Math.abs(r.height - this.h) > 1)) this._resize();
+  }
+
   _loop() {
     if (!this.running) return;
+    this._maybeResize();           // keep circles true once the panel is laid out
     this.t += 0.016;
     this.energy += (this.targetEnergy - this.energy) * 0.05;
     this.targetEnergy += (0.35 - this.targetEnergy) * 0.012;

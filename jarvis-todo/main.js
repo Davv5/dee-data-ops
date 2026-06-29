@@ -4,7 +4,7 @@
 // always-running dashboard that also hosts the deadline scheduler + speech.
 
 const {
-  app, BrowserWindow, globalShortcut, ipcMain, Tray, Menu, nativeImage, screen
+  app, BrowserWindow, globalShortcut, ipcMain, Tray, Menu, nativeImage, screen, session
 } = require('electron');
 const path = require('path');
 const store = require('./src/store');
@@ -261,6 +261,9 @@ if (!gotLock) {
 
   app.whenReady().then(() => {
     if (process.platform === 'darwin') app.dock.hide(); // live in the menu bar
+    // allow microphone (for speaking to JARVIS) and media
+    session.defaultSession.setPermissionRequestHandler((_wc, _perm, cb) => cb(true));
+    try { session.defaultSession.setPermissionCheckHandler(() => true); } catch (_) {}
     createDashboard();
     createQuickAdd();
     createTray();

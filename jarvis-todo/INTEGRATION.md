@@ -20,6 +20,12 @@ on — while still working as a plain task app if the brain isn't running.
    and stays open to converse              store and broadcasts tasks:changed
 ```
 
+Input routing (in `quickadd.js`): instant rule-based intents (thanks / greet /
+reschedule / snooze / complete / "make a tag") are handled locally for snappiness;
+an explicit "remind me to X" makes a directive directly; **everything ambiguous**
+("open Safari", "what's 20% of 340", "email Sam") goes to the brain. You can type
+**or speak** (🎙 mic button, Web Speech) — spoken text flows through the same path.
+
 - **Brain online** → the directive goes to Qwen 3. "open Safari" launches it;
   "remind me to call mum at 5" creates a task (via the `add_task` action the
   main process applies to the same store the dashboard reads); "what's 20% of
@@ -87,5 +93,6 @@ Jarvis run commands unattended.
   THINKING and the request timeout is generous (120s).
 - `web_search` scrapes DuckDuckGo HTML — fine to start, brittle if their markup
   changes. Swappable for a real API later.
-- Voice **input** (speak instead of type) and wake-word are still Phase 2/3 in
-  `jarvis/` — today you type into the HUD and it speaks back.
+- Voice **input** uses the browser's Web Speech API (the 🎙 button), which on
+  macOS routes through Apple's recognizer — not the fully-local whisper.cpp path
+  yet. Swapping to whisper.cpp (and a "hey jarvis" wake word) is the next step.

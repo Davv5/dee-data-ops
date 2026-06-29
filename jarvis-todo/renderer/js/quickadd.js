@@ -1,9 +1,13 @@
-// Quick-add HUD controller — summon animation, live NL parsing, explicit time
-// setting (chips + custom picker), colour-class selection, and commit with a
-// spoken acknowledgement.
+// Quick-add HUD controller — create directives, set times, AND converse with
+// JARVIS by typing or speaking (mic). Routes input through the command parser:
+// thanks/greet -> spoken reply; reschedule/snooze/done -> act on the active
+// directive; "make a tag ..." -> custom tag; otherwise create a directive.
 (function () {
   const C = window.JARVIS_COLORS;
   const V = window.JARVIS_VOICE;
+  const CMD = window.JARVIS_COMMANDS;
+  const NLP = window.JARVIS_NLP;
+
   const stage = document.getElementById('stage');
   const input = document.getElementById('input');
   const preview = document.getElementById('preview');
@@ -11,45 +15,53 @@
   const timesEl = document.getElementById('times');
   const customTime = document.getElementById('qaCustomTime');
   const commitBtn = document.getElementById('commit');
+  const micBtn = document.getElementById('micBtn');
   const statusEl = document.getElementById('status');
   const responseEl = document.getElementById('response');
 
-  let brainOnline = false;         // is the local LLM brain reachable + ready?
+  let brainOnline = false;         // local LLM brain reachable + model ready?
   let thinking = false;            // a brain turn is in flight
 
-  let manualCategory = null;       // user override via pills/Tab
-  // undefined = follow the typed text; null = explicitly "no time"; Date = set
-  let manualDue;
+  let manualCategory = null;
+  let manualDue;                 // undefined=follow text, null=no time, Date=set
   let lastParse = { due: null, cleanTitle: '' };
+  let settings = { address: 'Sir', customTags: {} };
 
-  // --- holographic field ---
-  const reactor = new window.HoloField(document.getElementById('holo'), { hue: 194, motes: 30, cxBias: 0.5, cyBias: 0.5, scale: 1.1 });
+  const pick = (a) => a[Math.floor(Math.random() * a.length)];
+  const addr = () => settings.address || 'Sir';
+
+  const reactor = new window.HoloField(document.getElementById('holo'), { hue: 194, motes: 30, cxBias: 0.5, cyBias: 0.5, scale: 1.05 });
   reactor.start();
-  // keep .pulse()/.setEnergy()/.setHue() call-sites working unchanged
 
-  // --- category pills ---
-  C.order.forEach((key) => {
-    const c = C.byKey(key);
-    const el = document.createElement('div');
-    el.className = `qa-cat c-${c.color}`;
-    el.dataset.key = key;
-    el.innerHTML = `<span class="dot"></span>${c.label}`;
-    el.title = c.meaning;
-    el.addEventListener('click', () => { setCategory(key, true); input.focus(); });
-    catsEl.appendChild(el);
-  });
+  // ---- category pills (rebuilt when custom tags change) ----
+  function buildCats() {
+    catsEl.innerHTML = '';
+    C.order.forEach((key) => {
+      const c = C.byKey(key);
+      const el = document.createElement('div');
+      el.className = 'qa-cat';
+      el.dataset.key = key;
+      el.style.setProperty('--c', c.hex);
+      el.innerHTML = `<span class="dot"></span>${c.label}`;
+      el.title = c.meaning;
+      el.addEventListener('click', () => { setCategory(key, true); input.focus(); });
+      catsEl.appendChild(el);
+    });
+    setCategory();
+  }
 
-  // --- time chips ---
+  // ---- time chips ----
   const TIME_PRESETS = [
     { id: 'none', label: 'No time', get: () => null },
     { id: 'h1', label: '+1 hr', get: () => offset(60) },
     { id: 'h3', label: '+3 hr', get: () => offset(180) },
-    { id: 'eve', label: 'Tonight 8pm', get: () => at(0, 20, 0) },
-    { id: 'tmr', label: 'Tomorrow 9am', get: () => at(1, 9, 0) },
+    { id: 'eve', label: 'Tonight 8pm', get: () => at(0, 20) },
+    { id: 'tmr', label: 'Tomorrow 9am', get: () => at(1, 9) },
     { id: 'custom', label: 'Pick…', custom: true }
   ];
-  function offset(mins) { const d = new Date(); d.setMinutes(d.getMinutes() + mins); return d; }
-  function at(addDays, h, m) { const d = new Date(); d.setDate(d.getDate() + addDays); d.setHours(h, m, 0, 0); return d; }
+  const offset = (m) => { const d = new Date(); d.setMinutes(d.getMinutes() + m); return d; };
+  const at = (add, h) => { const d = new Date(); d.setDate(d.getDate() + add); d.setHours(h, 0, 0, 0); return d; };
+  const toLocalInput = (d) => { const z = new Date(d.getTime() - d.getTimezoneOffset() * 60000); return z.toISOString().slice(0, 16); };
 
   TIME_PRESETS.forEach((p) => {
     const el = document.createElement('div');
@@ -60,196 +72,207 @@
       if (p.custom) {
         customTime.classList.add('show');
         if (!customTime.value) customTime.value = toLocalInput(lastParse.due || offset(60));
-        customTime.focus();
-        manualDue = new Date(customTime.value);
-      } else {
-        customTime.classList.remove('show');
-        manualDue = p.get();        // null for "none", Date otherwise
-      }
-      markTime(p.id);
-      renderPreview();
-      input.focus();
+        customTime.focus(); manualDue = new Date(customTime.value);
+      } else { customTime.classList.remove('show'); manualDue = p.get(); }
+      markTime(p.id); renderPreview(); input.focus();
     });
     timesEl.appendChild(el);
   });
-  customTime.addEventListener('input', () => {
-    if (customTime.value) { manualDue = new Date(customTime.value); markTime('custom'); renderPreview(); }
-  });
+  customTime.addEventListener('input', () => { if (customTime.value) { manualDue = new Date(customTime.value); markTime('custom'); renderPreview(); } });
+  const markTime = (id) => [...timesEl.children].forEach((el) => el.classList.toggle('active', el.dataset.id === id));
 
-  function markTime(id) {
-    [...timesEl.children].forEach((el) => el.classList.toggle('active', el.dataset.id === id));
-  }
-  function toLocalInput(d) {
-    const z = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
-    return z.toISOString().slice(0, 16);
-  }
-
-  // --- category state ---
-  function activeCategory() { return manualCategory || C.infer(input.value) || 'standard'; }
+  // ---- category state ----
+  const activeCategory = () => manualCategory || C.infer(input.value) || 'standard';
   function setCategory(key, manual) {
     if (manual) manualCategory = key;
     const active = activeCategory();
     [...catsEl.children].forEach((el) => el.classList.toggle('active', el.dataset.key === active));
-    reactor.setHue(hueFor(C.byKey(active).color));
-    reactor.pulse();
   }
-  function hueFor(color) { return ({ red: 354, amber: 38, cyan: 192, green: 150, violet: 268, gold: 44 })[color] ?? 38; }
+  const effectiveDue = () => (manualDue !== undefined ? manualDue : lastParse.due);
 
-  // effective due: manual override wins, else the parsed time from the text
-  function effectiveDue() { return manualDue !== undefined ? manualDue : lastParse.due; }
-
-  // --- live preview ---
+  // ---- live preview ----
   function renderPreview() {
     const raw = input.value.trim();
     preview.innerHTML = '';
     if (!raw) { setCategory(); return; }
-    lastParse = window.JARVIS_NLP.parse(raw);
+    lastParse = NLP.parse(raw);
     const cat = C.byKey(activeCategory());
-
     const t1 = document.createElement('span');
-    t1.className = `qa-tag c-${cat.color}`;
+    t1.className = 'qa-tag'; t1.style.setProperty('--c', cat.hex);
     t1.innerHTML = `<span class="dot"></span>${cat.label}`;
-    t1.title = cat.meaning;
     preview.appendChild(t1);
-
     const due = effectiveDue();
     if (due) {
-      const t2 = document.createElement('span');
-      t2.className = 'qa-tag due';
-      t2.textContent = '◷ ' + V.humanWhen(due);
-      preview.appendChild(t2);
+      const t2 = document.createElement('span'); t2.className = 'qa-tag due';
+      t2.textContent = '◷ ' + V.humanWhen(due); preview.appendChild(t2);
     }
-    // if the typed text alone implies a time and the user hasn't overridden,
-    // reflect that on the chip row by clearing manual highlight
-    if (manualDue === undefined) markTime(lastParse.due ? '' : '');
     setCategory();
     reactor.setEnergy(Math.min(1, 0.4 + raw.length / 60));
   }
 
-  // --- brain status + response display ---
+  // ---- create a directive ----
+  function createTask(titleText) {
+    const parsed = NLP.parse(titleText);
+    const category = manualCategory || C.infer(titleText) || 'standard';
+    const c = C.byKey(category);
+    const due = manualDue !== undefined ? manualDue : parsed.due;
+    reactor.pulse(); reactor.pulse();
+    window.jarvis.addTask({
+      title: parsed.cleanTitle || titleText, notes: '', category, color: c.color,
+      due: due ? due.toISOString() : null
+    }).then((rec) => V.acknowledge(rec));
+  }
+
+  // ---- pick the directive a "reschedule/done" refers to ----
+  function pickTarget(tasks, lastId) {
+    const active = tasks.filter((t) => !t.done);
+    if (lastId) { const x = active.find((t) => t.id === lastId); if (x) return x; }
+    const withDue = active.filter((t) => t.due).sort((a, b) => new Date(a.due) - new Date(b.due));
+    const overdue = withDue.filter((t) => new Date(t.due) <= new Date());
+    if (overdue.length) return overdue[overdue.length - 1];   // most-recent overdue
+    if (withDue.length) return withDue[0];                     // soonest upcoming
+    return active[active.length - 1] || null;
+  }
+
+  // ---- handle a non-create command ----
+  async function handleCommand(cmd) {
+    const a = addr();
+    if (['thanks', 'greet', 'status', 'dismiss', 'wake', 'huh'].includes(cmd.type)) {
+      V.say(CMD.line(cmd.type, a)); return exit();
+    }
+    if (cmd.type === 'tag') {
+      const made = C.makeTag(cmd.name, cmd.color, '');
+      const tags = Object.assign({}, settings.customTags || {}, { [made.key]: made.tag });
+      await window.jarvis.saveSettings({ customTags: tags });
+      settings.customTags = tags; C.configure(tags); buildCats();
+      V.say(`Done, ${a}. New tag, "${made.tag.label}", in ${made.tag.color}.`);
+      return exit();
+    }
+    // reschedule / complete operate on the active directive
+    const [tasks, s] = await Promise.all([window.jarvis.getTasks(), window.jarvis.getSettings()]);
+    const target = pickTarget(tasks, s.lastAlertedId);
+    if (!target) { V.say(`I don't see a directive to ${cmd.type === 'complete' ? 'clear' : 'reschedule'}, ${a}.`); return exit(); }
+
+    if (cmd.type === 'complete') {
+      await window.jarvis.updateTask(target.id, { done: true });
+      V.reactComplete(target); return exit();
+    }
+    // reschedule
+    let newDue = cmd.snoozeMins ? new Date(Date.now() + cmd.snoozeMins * 60000) : cmd.due;
+    if (!newDue) { V.say(`To when, ${a}? Try “reschedule to 5pm”.`); return exit(); }
+    await window.jarvis.updateTask(target.id, { due: newDue.toISOString(), announcedDue: false, announcedSoon: false, lastNudge: undefined });
+    V.say(`Rescheduled, ${a}. "${target.title}" — now ${V.humanWhen(newDue)}.`);
+    return exit();
+  }
+
+  // ---- commit (typed Enter, button, or mic result) ----
+  async function commit() {
+    const raw = input.value.trim();
+    if (!raw || thinking) { input.focus(); return; }
+    const cmd = CMD.classify(raw);
+
+    // Instant rule-based intents (thanks / greet / reschedule / complete / tag)
+    // stay snappy and never need the LLM.
+    if (['thanks', 'greet', 'status', 'dismiss', 'wake', 'huh', 'tag', 'reschedule', 'complete'].includes(cmd.type)) {
+      return handleCommand(cmd);
+    }
+    // Explicit "remind me to X" → a directive, fast, no LLM.
+    if (cmd.type === 'create') { createTask(cmd.title || raw); return exit(); }
+
+    // Everything else ("open Safari", "what's 20% of 340", "email Sam") is
+    // ambiguous — let the brain act/answer/decide. Fall back to a directive.
+    if (brainOnline) {
+      const handled = await askBrain(raw);
+      if (handled) return;             // HUD stays open to keep conversing
+    }
+    createTask(cmd.title || raw); return exit();
+  }
+
+  // ---- brain bridge (local LLM via `jarvis serve`) ----
   async function refreshBrain() {
-    try {
-      const h = await window.jarvis.brainHealth();
-      brainOnline = !!(h && h.ok && h.ollama);
-    } catch (_) { brainOnline = false; }
+    try { const h = await window.jarvis.brainHealth(); brainOnline = !!(h && h.ok && h.ollama); }
+    catch (_) { brainOnline = false; }
     updateStatus();
   }
   function updateStatus(label) {
     if (!statusEl) return;
-    const text = label || (brainOnline ? 'JARVIS · ONLINE' : 'JARVIS · LISTENING');
-    statusEl.innerHTML = '<span class="blink">●</span>&nbsp; ' + text;
+    statusEl.innerHTML = '<span class="blink">●</span>&nbsp; ' + (label || (brainOnline ? 'JARVIS · ONLINE' : 'JARVIS · LISTENING'));
     statusEl.classList.toggle('brain-on', brainOnline);
   }
   function showResponse(text, isThinking) {
     if (!responseEl) return;
-    responseEl.hidden = false;
-    responseEl.textContent = text;
+    responseEl.hidden = false; responseEl.textContent = text;
     responseEl.classList.toggle('thinking', !!isThinking);
     window.jarvis.resizeQuickAdd(document.body.scrollHeight + 40);
   }
-  function hideResponse() {
-    if (!responseEl) return;
-    responseEl.hidden = true;
-    responseEl.textContent = '';
-  }
-
-  // --- commit: route through the brain, fall back to local task parsing ---
-  async function commit() {
-    const raw = input.value.trim();
-    if (!raw || thinking) { input.focus(); return; }
-
-    if (brainOnline) {
-      const handled = await askBrain(raw);
-      if (handled) return;            // the brain took it; HUD stays open
-    }
-    commitAsTask(raw);               // offline / brain failed → local NL task
-  }
+  function hideResponse() { if (responseEl) { responseEl.hidden = true; responseEl.textContent = ''; } }
 
   async function askBrain(raw) {
     thinking = true;
-    updateStatus('JARVIS · THINKING');
-    showResponse('…', true);
+    updateStatus('JARVIS · THINKING'); showResponse('…', true);
     reactor.setEnergy(1); reactor.pulse();
-
     let res;
-    try { res = await window.jarvis.askBrain(raw); }
-    catch (_) { res = { ok: false }; }
-    thinking = false;
-    updateStatus();
-
-    if (!res || !res.ok) { hideResponse(); return false; }  // fall back to task add
-
+    try { res = await window.jarvis.askBrain(raw); } catch (_) { res = { ok: false }; }
+    thinking = false; updateStatus();
+    if (!res || !res.ok) { hideResponse(); return false; }   // fall back to a directive
     showResponse(res.reply || '…done.');
     V.say(res.reply);
-    input.value = '';
-    preview.innerHTML = '';
-    reactor.pulse();
+    input.value = ''; preview.innerHTML = ''; reactor.pulse();
     setTimeout(() => input.focus(), 30);
-    return true;                      // conversation stays open for the next directive
+    return true;
   }
 
-  // The original behaviour: parse the directive into a task and acknowledge.
-  function commitAsTask(raw) {
-    const parsed = window.JARVIS_NLP.parse(raw);
-    const category = activeCategory();
-    const c = C.byKey(category);
-    const due = manualDue !== undefined ? manualDue : parsed.due;
-
-    const task = {
-      title: parsed.cleanTitle || raw,
-      notes: '', category, color: c.color,
-      due: due ? due.toISOString() : null
-    };
-
-    reactor.pulse(); reactor.pulse();
-    window.jarvis.addTask(task).then((rec) => V.acknowledge(rec));
-
+  function exit() {
     stage.classList.remove('in'); stage.classList.add('out');
     setTimeout(() => { resetForm(); window.jarvis.closeQuickAdd(); }, 280);
   }
-
   function resetForm() {
     input.value = ''; manualCategory = null; manualDue = undefined;
-    preview.innerHTML = ''; customTime.classList.remove('show'); customTime.value = '';
-    markTime(''); hideResponse(); thinking = false;
+    preview.innerHTML = ''; customTime.classList.remove('show'); customTime.value = ''; markTime('');
+    hideResponse(); thinking = false;
   }
 
-  // --- keyboard ---
+  // ---- microphone (best-effort; Web Speech) ----
+  function startMic() {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) { V.say(`Voice input isn't available here, ${addr()} — type to me instead.`); return; }
+    let rec;
+    try { rec = new SR(); } catch (_) { V.say(`I can't reach the microphone, ${addr()}.`); return; }
+    rec.lang = 'en-US'; rec.interimResults = false; rec.maxAlternatives = 1;
+    micBtn.classList.add('on');
+    rec.onresult = (e) => { input.value = e.results[0][0].transcript; renderPreview(); setTimeout(commit, 300); };
+    rec.onerror = (e) => {
+      micBtn.classList.remove('on');
+      if (e.error === 'not-allowed' || e.error === 'service-not-allowed') V.say(`I need microphone access, ${addr()}. Enable it in System Settings.`);
+      else if (e.error !== 'aborted') V.say(`I didn't catch that, ${addr()}.`);
+    };
+    rec.onend = () => micBtn.classList.remove('on');
+    try { rec.start(); } catch (_) {}
+  }
+  if (micBtn) micBtn.addEventListener('click', startMic);
+
+  // ---- keyboard ----
   input.addEventListener('input', renderPreview);
   input.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') { e.preventDefault(); commit(); }
-    else if (e.key === 'Escape') { e.preventDefault(); dismiss(); }
-    else if (e.key === 'Tab') {
-      e.preventDefault();
-      const idx = C.order.indexOf(activeCategory());
-      setCategory(C.order[(idx + 1) % C.order.length], true);
-      renderPreview();
-    }
+    else if (e.key === 'Escape') { e.preventDefault(); exit(); }
+    else if (e.key === 'Tab') { e.preventDefault(); const i = C.order.indexOf(activeCategory()); setCategory(C.order[(i + 1) % C.order.length], true); renderPreview(); }
   });
   commitBtn.addEventListener('click', commit);
 
-  function dismiss() {
-    stage.classList.remove('in'); stage.classList.add('out');
-    setTimeout(() => window.jarvis.closeQuickAdd(), 240);
-  }
-
-  // --- summon / dismiss ---
-  function summon(settings) {
-    if (settings) V.configure({ address: settings.address, voiceURI: settings.voiceURI, mute: settings.mute });
+  // ---- summon / dismiss ----
+  function summon(s) {
+    if (s) { settings = Object.assign(settings, s); V.configure({ address: s.address, voiceURI: s.voiceURI, mute: s.mute }); C.configure(s.customTags || {}); }
+    buildCats();
     stage.classList.remove('out'); stage.classList.add('in');
     resetForm();
-    setCategory();
     reactor.pulse();
-    refreshBrain();                 // light up ONLINE if the brain is reachable
+    refreshBrain();                  // light up ONLINE if the brain is reachable
     setTimeout(() => input.focus(), 80);
-    if (Math.random() < 0.6) {
-      const cues = ['Yes?', 'Ready when you are.', "What's the directive?", "I'm listening.", 'Go ahead.', 'At your service.'];
-      V.say(cues[Math.floor(Math.random() * cues.length)]);
-    }
+    if (Math.random() < 0.55) V.say(pick(['Yes?', 'Ready when you are.', "What's the directive?", "I'm listening.", 'Go ahead.', 'At your service.']));
   }
   window.jarvis.onSummon(summon);
   window.jarvis.onDismiss(() => stage.classList.remove('in'));
 
-  setCategory();
-  markTime('');
+  buildCats();
 })();
