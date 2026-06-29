@@ -22,7 +22,7 @@ body.qa { background: transparent; }
 .qa-panel > *:not(.qa-holo) { position: relative; z-index: 1; }
 
 /* contained spinning emblem in the header — no clipping, no glitch */
-.qa-emblem { width: 40px; height: 40px; flex: none; filter: drop-shadow(0 0 9px rgba(111, 240, 255, .6)); }
+.qa-emblem { width: 40px; height: 40px; flex: none; filter: drop-shadow(0 0 9px rgba(255, 184, 77, .65)); }
 .qa-emblem circle { transform-box: fill-box; transform-origin: center; }
 .qa-emblem .r-out { animation: spin 22s linear infinite; }
 .qa-emblem .r-mid { animation: spin 14s linear infinite reverse; }

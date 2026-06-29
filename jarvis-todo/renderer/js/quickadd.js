@@ -25,7 +25,7 @@
   const pick = (a) => a[Math.floor(Math.random() * a.length)];
   const addr = () => settings.address || 'Sir';
 
-  const reactor = new window.HoloField(document.getElementById('holo'), { hue: 194, motes: 30, cxBias: 0.5, cyBias: 0.5, scale: 1.05 });
+  const reactor = new window.HoloField(document.getElementById('holo'), { hue: 40, gold: 194, motes: 30, cxBias: 0.5, cyBias: 0.5, scale: 1.05 });
   reactor.start();
 
   // ---- category pills (rebuilt when custom tags change) ----

@@ -24,11 +24,13 @@
   --violet: #c39bff;
   --gold: #ffd9a0;
 
-  /* translucent surfaces — let the desktop / vibrancy bleed through */
-  --glass: rgba(18, 34, 58, 0.34);
-  --glass-2: rgba(10, 22, 40, 0.28);
-  --glass-edge: rgba(130, 220, 255, 0.22);
-  --hud-line: rgba(120, 220, 255, 0.20);
+  /* Mark-IV JARVIS helmet register: warm gold/amber chrome, cyan as data
+     accent, white-hot highlights, red alerts. */
+  --amber-line: #ffb24d;
+  --glass: rgba(28, 22, 12, 0.34);
+  --glass-2: rgba(16, 13, 8, 0.30);
+  --glass-edge: rgba(255, 184, 92, 0.28);
+  --hud-line: rgba(255, 184, 92, 0.34);
 
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
   --font-display: 'Orbitron', 'SF Pro Display', system-ui, sans-serif;
@@ -54,9 +56,9 @@ html, body {
 .space-bg {
   position: fixed; inset: 0; z-index: -3;
   background:
-    radial-gradient(1000px 700px at 85% -12%, rgba(255, 170, 80, 0.07), transparent 60%),
-    radial-gradient(1000px 700px at 50% 120%, rgba(70, 180, 255, 0.12), transparent 62%),
-    radial-gradient(circle at 50% 45%, rgba(8, 20, 38, 0.62) 0%, rgba(3, 9, 19, 0.72) 60%, rgba(1, 4, 10, 0.82) 100%);
+    radial-gradient(1100px 760px at 50% -10%, rgba(255, 170, 70, 0.13), transparent 60%),
+    radial-gradient(900px 620px at 12% 115%, rgba(80, 190, 255, 0.08), transparent 60%),
+    radial-gradient(circle at 50% 42%, rgba(22, 16, 8, 0.66) 0%, rgba(10, 7, 3, 0.76) 58%, rgba(3, 2, 1, 0.86) 100%);
 }
 .space-bg::after { /* slow holographic light-haze, not a scanline */
   content: ''; position: absolute; inset: -20%;
@@ -77,10 +79,10 @@ html, body {
   backdrop-filter: blur(26px) saturate(150%);
   -webkit-backdrop-filter: blur(26px) saturate(150%);
   box-shadow:
-    0 24px 70px rgba(0, 0, 0, 0.5),
-    inset 0 1px 0 rgba(255, 255, 255, 0.12),
-    inset 0 0 50px rgba(70, 200, 255, 0.06),
-    0 0 0 1px rgba(110, 240, 255, 0.04);
+    0 24px 70px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(255, 235, 200, 0.14),
+    inset 0 0 50px rgba(255, 175, 75, 0.06),
+    0 0 0 1px rgba(255, 184, 92, 0.06);
 }
 .glass::before { /* top gloss */
   content: ''; position: absolute; left: 0; right: 0; top: 0; height: 46%;
@@ -90,7 +92,7 @@ html, body {
 .glass::after { /* slow holo light-sweep across the surface */
   content: ''; position: absolute; top: 0; bottom: 0; width: 55%;
   left: -60%; pointer-events: none;
-  background: linear-gradient(100deg, transparent, rgba(150, 235, 255, 0.07), transparent);
+  background: linear-gradient(100deg, transparent, rgba(255, 210, 140, 0.08), transparent);
   animation: sheen 9s ease-in-out infinite;
 }
 @keyframes sheen { 0%, 60% { left: -60%; } 100% { left: 130%; } }
