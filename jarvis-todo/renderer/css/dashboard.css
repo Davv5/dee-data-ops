@@ -58,6 +58,7 @@
 .lg-chip .dot { width: 8px; height: 8px; }
 
 .rail-foot { margin-top: 18px; display: flex; gap: 9px; align-items: center; }
+.build-tag { margin-top: 8px; font-size: 9px; letter-spacing: .22em; text-transform: uppercase; opacity: .55; }
 .icon-btn {
   cursor: pointer; border: 1px solid var(--glass-edge); background: rgba(120, 210, 255, 0.05);
   color: var(--text-dim); border-radius: 12px; padding: 8px 12px; font-size: 12px; letter-spacing: .06em;

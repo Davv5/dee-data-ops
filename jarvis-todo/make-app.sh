@@ -71,6 +71,10 @@ else
   echo "▸ Skipping custom icon (build/icon.png or sips/iconutil missing)."
 fi
 
+echo "▸ Stamping the build (visible in the sidebar as BUILD …) ..."
+STAMP="$(date '+%b %d %H:%M')"
+echo "window.JARVIS_BUILD = '$STAMP';" > "$APPDIR/renderer/build-stamp.js"
+
 echo "▸ Clearing quarantine + ad-hoc signing (so macOS will open it) ..."
 xattr -cr "$OUT" 2>/dev/null || true
 if command -v codesign >/dev/null 2>&1; then
@@ -79,12 +83,19 @@ if command -v codesign >/dev/null 2>&1; then
     || echo "  (codesign skipped — app will still run; right-click → Open first time.)"
 fi
 
+echo "▸ Installing into /Applications (so the Dock icon always runs the newest build) ..."
+if rm -rf "/Applications/JARVIS.app" 2>/dev/null && ditto "$OUT" "/Applications/JARVIS.app" 2>/dev/null; then
+  echo "  installed: /Applications/JARVIS.app (BUILD $STAMP)"
+else
+  echo "  (couldn't write to /Applications — run from $HERE/$OUT instead.)"
+fi
+
 echo ""
-echo "✔ Built $HERE/$OUT"
+echo "✔ Built $HERE/$OUT  (BUILD $STAMP)"
 echo ""
-echo "  Try it now:     open \"$OUT\""
-echo "  Keep it:        drag JARVIS.app into your Applications folder"
+echo "  Launch:         open /Applications/JARVIS.app"
 echo "  First launch:   if macOS warns, right-click the app → Open → Open"
+echo "  Verify build:   the sidebar shows 'BUILD $STAMP' bottom-left"
 echo ""
 echo "  Your tasks are stored at:"
 echo "    ~/Library/Application Support/JARVIS/jarvis-tasks.json"

@@ -435,6 +435,7 @@
   });
 
   // ---- boot ----
+  if ($('buildTag')) $('buildTag').textContent = 'BUILD ' + (window.JARVIS_BUILD || 'dev');
   Promise.all([window.jarvis.getTasks(), window.jarvis.getSettings()]).then(([t, s]) => {
     tasks = t || []; settings = s || {};
     muted = !!settings.mute;

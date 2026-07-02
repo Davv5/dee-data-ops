@@ -62,7 +62,11 @@ if ! bash make-app.sh; then
 fi
 
 echo "==> [7/7] Launching ..."
-open "$HERE/JARVIS.app"
+if [ -d "/Applications/JARVIS.app" ]; then
+  open "/Applications/JARVIS.app"
+else
+  open "$HERE/JARVIS.app"
+fi
 
 echo ""
 echo "════════════════════════════════════════════════════════════"
