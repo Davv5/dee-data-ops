@@ -10,7 +10,7 @@ body.qa { background: transparent; }
 
 .qa-panel {
   -webkit-app-region: no-drag;
-  width: 700px; padding: 32px 36px 28px; border-radius: 28px;
+  width: 700px; padding: 34px 38px 30px; border-radius: 36px;
   transform: translateY(22px) scale(0.92); opacity: 0; filter: blur(6px);
   transition: transform .6s var(--ease), opacity .45s var(--ease), filter .5s var(--ease);
 }
@@ -56,7 +56,7 @@ body.qa { background: transparent; }
 .qa-input-wrap { position: relative; }
 .qa-input {
   -webkit-app-region: no-drag; width: 100%;
-  background: rgba(4, 12, 24, .5); border: 1px solid var(--glass-edge); border-radius: 18px;
+  background: rgba(4, 12, 24, .5); border: 1px solid var(--glass-edge); border-radius: 999px;
   padding: 19px 22px; font-family: var(--font-body); font-size: 23px; font-weight: 500;
   color: var(--text); outline: none; letter-spacing: .01em;
   box-shadow: inset 0 0 28px rgba(70, 200, 255, .06);
@@ -85,7 +85,7 @@ body.qa { background: transparent; }
 .qa-times { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .qa-time {
   -webkit-app-region: no-drag; cursor: pointer; font-size: 12px; letter-spacing: .03em;
-  padding: 8px 13px; border-radius: 11px; border: 1px solid var(--glass-edge);
+  padding: 8px 15px; border-radius: 999px; border: 1px solid var(--glass-edge);
   color: var(--text-dim); background: rgba(120, 210, 255, .04); transition: all .2s;
 }
 .qa-time:hover { color: var(--text); border-color: var(--cyan); }
@@ -98,7 +98,7 @@ body.qa { background: transparent; }
 .qa-cats { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
 .qa-cat {
   -webkit-app-region: no-drag; cursor: pointer; display: inline-flex; align-items: center; gap: 7px;
-  font-size: 12px; letter-spacing: .04em; text-transform: uppercase; padding: 8px 13px; border-radius: 12px;
+  font-size: 12px; letter-spacing: .04em; text-transform: uppercase; padding: 8px 15px; border-radius: 999px;
   border: 1px solid var(--glass-edge); color: var(--text-dim); background: rgba(120, 210, 255, .03); transition: all .22s;
 }
 .qa-cat:hover { color: var(--text); border-color: var(--c); }
@@ -110,9 +110,9 @@ body.qa { background: transparent; }
 .qa-commit {
   -webkit-app-region: no-drag; cursor: pointer; font-family: var(--font-display); font-size: 12px;
   letter-spacing: .18em; text-transform: uppercase; color: #00121f;
-  background: linear-gradient(180deg, var(--solar-1), var(--solar-2)); border: none; border-radius: 13px;
-  padding: 11px 22px; box-shadow: 0 0 26px rgba(255, 196, 106, .4), inset 0 1px 0 rgba(255, 255, 255, .6);
+  background: linear-gradient(180deg, var(--solar-1), var(--solar-2)); border: none; border-radius: 999px;
+  padding: 12px 26px; box-shadow: 0 0 26px rgba(87, 200, 255, .35), inset 0 1px 0 rgba(255, 255, 255, .6);
   transition: transform .18s var(--ease), box-shadow .25s;
 }
-.qa-commit:hover { transform: translateY(-2px); box-shadow: 0 0 38px rgba(255, 196, 106, .6); }
+.qa-commit:hover { transform: translateY(-2px); box-shadow: 0 0 38px rgba(87, 200, 255, .55); }
 .qa-commit:active { transform: translateY(0) scale(.97); }
