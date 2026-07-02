@@ -183,6 +183,11 @@
 .field input:focus, .field select:focus { border-color: var(--cyan); box-shadow: 0 0 0 3px rgba(111, 240, 255, .12); }
 .field input[type="datetime-local"] { color-scheme: dark; }
 .field .hint { font-size: 11px; color: var(--text-dim); margin-top: 7px; line-height: 1.5; }
+.field .check-row {
+  display: flex; align-items: center; gap: 10px; cursor: pointer;
+  font-size: 14px; color: var(--text); text-transform: none; letter-spacing: .01em;
+}
+.field .check-row input[type="checkbox"] { width: auto; accent-color: var(--cyan); transform: scale(1.15); cursor: pointer; }
 .modal-foot { display: flex; gap: 10px; justify-content: flex-end; margin-top: 8px; }
 .modal-foot .grow { margin-right: auto; }
 

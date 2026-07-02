@@ -224,6 +224,15 @@ function createTray() {
 // Hotkey
 // ---------------------------------------------------------------------------
 
+// Keep JARVIS on duty across restarts: register as a macOS Login Item.
+// Default ON; controllable from Settings. Skipped in dev runs so we never
+// register the bare Electron binary as a login item.
+function syncLoginItem() {
+  if (!app.isPackaged) return;
+  const enabled = store.settings().launchAtLogin !== false;
+  try { app.setLoginItemSettings({ openAtLogin: enabled, openAsHidden: true }); } catch (_) {}
+}
+
 function registerHotkey() {
   const accel = store.settings().hotkey || DEFAULT_HOTKEY;
   globalShortcut.unregisterAll();
@@ -250,6 +259,7 @@ ipcMain.handle('settings:get', () => store.settings());
 ipcMain.handle('settings:save', (_e, patch) => {
   const s = store.saveSettings(patch);
   if (patch.hotkey) { registerHotkey(); refreshTray(); }
+  if ('launchAtLogin' in patch) syncLoginItem();
   broadcast('settings:changed', s);
   return s;
 });
@@ -311,6 +321,7 @@ if (!gotLock) {
     createAlertWin();
     createTray();
     registerHotkey();
+    syncLoginItem();                   // survive restarts: relaunch at login
     setInterval(refreshTray, 60000);   // "next" moves with the clock
 
     app.on('activate', () => {

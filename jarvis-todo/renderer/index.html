@@ -119,6 +119,11 @@
         <div class="hint">Electron accelerator format. Restart-free; applies on save.</div>
       </div>
       <div class="field">
+        <label>Startup</label>
+        <label class="check-row"><input type="checkbox" id="setLogin" checked /> Launch JARVIS at login — always on duty</label>
+        <div class="hint">Reminders survive quits and restarts. Applies to the installed JARVIS.app (drag it into Applications).</div>
+      </div>
+      <div class="field">
         <label>Voice input — speech-to-text key</label>
         <input id="setSttKey" type="password" placeholder="sk-… (OpenAI API key)" autocomplete="off" />
         <div class="hint">Electron can’t do speech-to-text on its own. Paste an <b>OpenAI API key</b> and the 🎙 mic will record you and transcribe with Whisper. Stored locally only. Get one at platform.openai.com → API keys.</div>

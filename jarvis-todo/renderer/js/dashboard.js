@@ -180,8 +180,11 @@
   // ---- scheduler: the spoken deadline engine ----
   function scheduleSweep() {
     const now = Date.now();
-    tasks.forEach((t) => {
-      if (t.done || !t.due) return;
+    // Announce at most ONE directive per sweep (15s apart). After a relaunch
+    // with several missed reminders, this paces them into a queue instead of
+    // firing overlapping speech + cards all at once.
+    for (const t of tasks) {
+      if (t.done || !t.due) continue;
       const due = new Date(t.due).getTime();
       const diff = due - now;
 
@@ -209,9 +212,10 @@
           window.jarvis.updateTask(t.id, { lastNudge: now });
           V.alert(t, 'overdue');
           notify(t, 'overdue');
+          return;
         }
       }
-    });
+    }
   }
 
   function notify(t, kind) {
@@ -332,6 +336,7 @@
     $('setAddress').value = settings.address || 'Sir';
     $('setHotkey').value = settings.hotkey || 'CommandOrControl+Shift+Space';
     if ($('setSttKey')) $('setSttKey').value = settings.sttKey || '';
+    if ($('setLogin')) $('setLogin').checked = settings.launchAtLogin !== false;
     fillVoices();
     renderTagManager();
     back.classList.add('show');
@@ -354,7 +359,8 @@
       address: $('setAddress').value || 'Sir',
       voiceURI: $('setVoice').value || null,
       hotkey: $('setHotkey').value || 'CommandOrControl+Shift+Space',
-      sttKey: ($('setSttKey') && $('setSttKey').value.trim()) || ''
+      sttKey: ($('setSttKey') && $('setSttKey').value.trim()) || '',
+      launchAtLogin: !$('setLogin') || $('setLogin').checked
     };
     window.jarvis.saveSettings(patch);
     settings = Object.assign(settings, patch);
