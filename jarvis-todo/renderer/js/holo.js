@@ -149,45 +149,64 @@ window.HoloField = class HoloField {
   }
 
   // ---- primitives (origin already translated to center) ----
+  // Every stroke carries a soft neon bloom (shadowBlur) so lines read as
+  // projected light, not crisp pixels.
+  _glow(hue, alpha, blur) {
+    this.ctx.shadowColor = `hsla(${hue},100%,70%,${Math.min(1, alpha * 2.2)})`;
+    this.ctx.shadowBlur = blur;
+  }
   _circle(r, lw, alpha, hue) {
     const ctx = this.ctx;
-    ctx.strokeStyle = `hsla(${hue},100%,68%,${alpha})`; ctx.lineWidth = lw;
+    ctx.save();
+    this._glow(hue, alpha, 9);
+    ctx.strokeStyle = `hsla(${hue},100%,72%,${alpha})`; ctx.lineWidth = lw + 0.3;
     ctx.beginPath(); ctx.arc(0, 0, r, 0, 6.2832); ctx.stroke();
+    ctx.restore();
   }
   _arcs(r, count, span, rot, lw, alpha, hue) {
     const ctx = this.ctx;
-    ctx.strokeStyle = `hsla(${hue},100%,68%,${alpha})`; ctx.lineWidth = lw; ctx.lineCap = 'round';
+    ctx.save();
+    this._glow(hue, alpha, 12);
+    ctx.strokeStyle = `hsla(${hue},100%,70%,${alpha})`; ctx.lineWidth = lw + 0.3; ctx.lineCap = 'round';
     const step = 6.2832 / count;
     for (let i = 0; i < count; i++) {
       const a0 = rot + i * step;
       ctx.beginPath(); ctx.arc(0, 0, r, a0, a0 + span * 6.2832); ctx.stroke();
     }
+    ctx.restore();
   }
   _dashes(r, n, rot, alpha, hue) {
     const ctx = this.ctx;
-    ctx.strokeStyle = `hsla(${hue},100%,70%,${alpha})`; ctx.lineWidth = 1.3;
+    ctx.save();
+    this._glow(hue, alpha, 7);
+    ctx.strokeStyle = `hsla(${hue},100%,74%,${alpha})`; ctx.lineWidth = 1.6;
     const step = 6.2832 / n;
     for (let i = 0; i < n; i++) {
       const a = rot + i * step;
       ctx.beginPath(); ctx.arc(0, 0, r, a, a + step * 0.45); ctx.stroke();
     }
+    ctx.restore();
   }
   _blocks(r, n, rot, e, hue) {
     const ctx = this.ctx;
+    ctx.save();
+    this._glow(hue, 0.4 + e * 0.3, 10);
     const step = 6.2832 / n;
     for (let i = 0; i < n; i++) {
       const a = rot + i * step;
       const lit = (Math.sin(i * 1.7 + this.t * 1.5) > 0.4);
       const al = lit ? 0.35 + e * 0.4 : 0.1;
-      ctx.strokeStyle = `hsla(${hue},100%,72%,${al})`; ctx.lineWidth = 3.4;
+      ctx.strokeStyle = `hsla(${hue},100%,72%,${al})`; ctx.lineWidth = 3.6;
       ctx.beginPath();
       ctx.arc(0, 0, r, a, a + step * 0.5); ctx.stroke();
     }
+    ctx.restore();
   }
   _ticks(r, n, rot, alpha, hue) {
     const ctx = this.ctx;
     ctx.save(); ctx.rotate(rot);
-    ctx.strokeStyle = `hsla(${hue},100%,72%,${alpha})`; ctx.lineWidth = 1;
+    this._glow(hue, alpha, 5);
+    ctx.strokeStyle = `hsla(${hue},100%,74%,${alpha})`; ctx.lineWidth = 1.3;
     const step = 6.2832 / n;
     for (let i = 0; i < n; i++) {
       const big = i % 10 === 0; const a = i * step;
@@ -201,12 +220,15 @@ window.HoloField = class HoloField {
   }
   _crosshair(r, hue, alpha) {
     const ctx = this.ctx;
-    ctx.strokeStyle = `hsla(${hue},100%,75%,${alpha})`; ctx.lineWidth = 1;
+    ctx.save();
+    this._glow(hue, alpha, 6);
+    ctx.strokeStyle = `hsla(${hue},100%,78%,${alpha})`; ctx.lineWidth = 1.2;
     for (const a of [0, Math.PI / 2, Math.PI, Math.PI * 1.5]) {
       ctx.beginPath();
       ctx.moveTo(Math.cos(a) * r * 0.78, Math.sin(a) * r * 0.78);
       ctx.lineTo(Math.cos(a) * r * 0.96, Math.sin(a) * r * 0.96);
       ctx.stroke();
     }
+    ctx.restore();
   }
 };

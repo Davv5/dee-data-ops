@@ -71,8 +71,16 @@
   background:
     radial-gradient(720px 720px at 52% 48%, rgba(70, 190, 255, 0.08), transparent 72%),
     linear-gradient(180deg, rgba(6, 12, 22, 0.10), rgba(2, 5, 10, 0.18)); }
-.holo-field { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; opacity: .92; z-index: 0; }
+.holo-field { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; opacity: .92; z-index: 0; animation: holoFlicker 9s steps(1) infinite; }
 .main > *:not(.holo-field) { position: relative; z-index: 1; }
+/* hologram projection bands drifting up the deck */
+.main::before {
+  content: ''; position: absolute; inset: 0; z-index: 0; pointer-events: none; opacity: .05;
+  background: repeating-linear-gradient(0deg, rgba(150, 220, 255, .5) 0 1px, transparent 1px 5px);
+  mix-blend-mode: screen;
+  animation: bands 14s linear infinite;
+}
+@keyframes bands { to { transform: translateY(-5px); } }
 /* slow horizontal scan sweep — live-HUD feel */
 .main::after {
   content: ''; position: absolute; left: 0; right: 0; height: 2px; top: 0; z-index: 0;
