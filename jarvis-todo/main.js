@@ -100,8 +100,8 @@ function alertAlive() { return alertWin && !alertWin.isDestroyed(); }
 
 function createAlertWin() {
   alertWin = new BrowserWindow({
-    width: 420,
-    height: 190,
+    width: 448,
+    height: 196,
     show: false,
     frame: false,
     transparent: true,
@@ -124,7 +124,7 @@ function createAlertWin() {
 function showAlertHud(payload) {
   if (!alertAlive()) createAlertWin();
   const wa = screen.getPrimaryDisplay().workArea;
-  alertWin.setPosition(wa.x + wa.width - 436, wa.y + 14);
+  alertWin.setPosition(wa.x + wa.width - 462, wa.y + 14);
   const deliver = () => {
     alertWin.showInactive();              // appear without stealing focus
     alertWin.webContents.send('alert:data', payload);

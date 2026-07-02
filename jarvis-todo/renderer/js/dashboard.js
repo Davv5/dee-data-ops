@@ -26,10 +26,11 @@
 
   // ---- legend ----
   function renderLegend() {
-    $('legend').innerHTML = C.order.map((k) => {
+    // compact chips; the meaning lives in the tooltip (de-emphasize secondary text)
+    $('legend').innerHTML = '<div class="lg-wrap">' + C.order.map((k) => {
       const c = C.byKey(k);
-      return `<div class="row" style="--c:${c.hex}"><span class="dot chip-c"></span><span><b>${c.label}</b> — ${c.meaning}</span></div>`;
-    }).join('');
+      return `<span class="lg-chip" style="--c:${c.hex}" title="${c.meaning.replace(/"/g, '&quot;')}"><span class="dot chip-c"></span>${c.label}</span>`;
+    }).join('') + '</div>';
   }
   renderLegend();
 

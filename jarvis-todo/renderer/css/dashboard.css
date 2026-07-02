@@ -44,10 +44,18 @@
 .stat.due .n { color: var(--amber); text-shadow: 0 0 16px rgba(255, 196, 106, 0.5); }
 
 .legend { margin-top: auto; }
-.legend h3 { font-size: 10px; letter-spacing: .26em; color: var(--text-dim); text-transform: uppercase; margin-bottom: 11px; }
-.legend .row { display: flex; align-items: center; gap: 11px; padding: 5px 0; font-size: 12px; color: var(--text-dim); }
-.legend .row .dot { width: 9px; height: 9px; }
-.legend .row b { color: var(--text); font-weight: 600; }
+.legend h3 { font-size: 10px; letter-spacing: .26em; color: var(--text-dim); text-transform: uppercase; margin-bottom: 10px; }
+/* compact chips — hover a chip for its meaning */
+.lg-wrap { display: flex; flex-wrap: wrap; gap: 6px; }
+.lg-chip {
+  display: inline-flex; align-items: center; gap: 7px; cursor: default;
+  font-size: 11.5px; font-weight: 600; color: var(--text-dim);
+  padding: 5px 10px; border-radius: 999px;
+  border: 1px solid rgba(150, 214, 255, .12); background: rgba(150, 214, 255, .03);
+  transition: color .2s, border-color .2s;
+}
+.lg-chip:hover { color: var(--text); border-color: color-mix(in srgb, var(--c) 55%, transparent); }
+.lg-chip .dot { width: 8px; height: 8px; }
 
 .rail-foot { margin-top: 18px; display: flex; gap: 9px; align-items: center; }
 .icon-btn {
@@ -88,11 +96,23 @@
 /* ---- task list ---- */
 .tasks { overflow-y: auto; flex: 1; padding-right: 8px; display: flex; flex-direction: column; gap: 12px; }
 
-/* day group headers */
-.tgroup { display: flex; align-items: center; gap: 12px; margin: 4px 2px -4px; }
+/* day group headers — extra top margin lets each section breathe */
+.tgroup { display: flex; align-items: center; gap: 12px; margin: 14px 2px -4px; }
+.tgroup:first-child { margin-top: 2px; }
 .tgroup span { font-family: var(--font-display); font-size: 10px; letter-spacing: .32em; color: var(--text-dim); }
-.tgroup::after { content: ''; flex: 1; height: 1px; background: var(--hud-line); opacity: .5; }
+.tgroup::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, var(--hud-line), transparent); opacity: .5; }
 .tgroup.hot span { color: var(--red); text-shadow: 0 0 12px rgba(255, 77, 94, .5); }
+
+/* staggered entrance — the list cascades in like a booting HUD */
+.tasks > .task:nth-child(1) { animation-delay: 0s; }
+.tasks > .task:nth-child(2) { animation-delay: .04s; }
+.tasks > .task:nth-child(3) { animation-delay: .08s; }
+.tasks > .task:nth-child(4) { animation-delay: .12s; }
+.tasks > .task:nth-child(5) { animation-delay: .16s; }
+.tasks > .task:nth-child(6) { animation-delay: .20s; }
+.tasks > .task:nth-child(7) { animation-delay: .24s; }
+.tasks > .task:nth-child(8) { animation-delay: .28s; }
+.tasks > .task:nth-child(n+9) { animation-delay: .32s; }
 .empty { color: var(--text-dim); text-align: center; margin-top: 86px; font-size: 14px; letter-spacing: .04em; }
 .empty .big { font-family: var(--font-display); font-size: 21px; letter-spacing: .22em; color: var(--gold-text); margin-bottom: 10px; text-shadow: 0 0 24px rgba(255, 196, 106, .4); }
 
@@ -133,8 +153,8 @@
 .task.done .t-check::after { content: '✓'; position: absolute; inset: 0; display: grid; place-items: center; color: var(--ink); font-size: 14px; font-weight: 700; }
 
 .t-body { flex: 1; min-width: 0; }
-.t-title { font-size: 16.5px; font-weight: 500; letter-spacing: .01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.t-meta { display: flex; gap: 13px; align-items: center; margin-top: 5px; font-size: 12px; color: var(--text-dim); }
+.t-title { font-size: 16.5px; font-weight: 600; letter-spacing: .01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.t-meta { display: flex; gap: 13px; align-items: center; margin-top: 5px; font-size: 12.5px; color: var(--text-dim); }
 .t-cat { display: inline-flex; align-items: center; gap: 6px; }
 .t-cat .dot { width: 8px; height: 8px; }
 .t-due { display: inline-flex; align-items: center; gap: 5px; }
