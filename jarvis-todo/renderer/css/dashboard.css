@@ -81,8 +81,8 @@
 /* slow horizontal scan sweep — live-HUD feel */
 .main::after {
   content: ''; position: absolute; left: 0; right: 0; height: 2px; top: 0; z-index: 0;
-  background: linear-gradient(90deg, transparent, rgba(255, 207, 92, 0.4), rgba(255, 90, 60, 0.25), transparent);
-  box-shadow: 0 0 16px rgba(255, 180, 80, 0.35); pointer-events: none; opacity: .5;
+  background: linear-gradient(90deg, transparent, rgba(116, 230, 255, 0.45), transparent);
+  box-shadow: 0 0 16px rgba(116, 230, 255, 0.4); pointer-events: none; opacity: .55;
   animation: scan 7s linear infinite;
 }
 @keyframes scan { 0% { top: -2%; } 100% { top: 102%; } }

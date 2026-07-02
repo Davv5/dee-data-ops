@@ -2,12 +2,12 @@
    glow, soft organic edges, smooth motion. No hard scanlines, no glitch. */
 
 :root {
-  /* Mark-IV 2070: cool black-cyan tech skeleton, suit gold + hot-rod red
-     as the energy/action register. Backgrounds stay cold — never brown. */
-  --solar-1: #ffe9a8;   /* suit gold highlight */
-  --solar-2: #ffcf5c;   /* suit gold */
-  --solar-3: #ff5a3c;   /* hot-rod red-orange */
-  --solar-core: #ffdf8e;
+  /* Cool black-cyan HUD register; the suit gold/red gradient survives only
+     in the brand (logo + wordmark). */
+  --solar-1: #e2f4ff;   /* near-white (primary action highlight) */
+  --solar-2: #57c8ff;   /* bright cyan */
+  --solar-3: #ff8a3c;   /* orange data accent */
+  --solar-core: #bfe9ff;
   --suit-red: #ff3d4d;
   --suit-grad: linear-gradient(135deg, #ffe9a8, #ffcf5c 45%, #ff5a3c);
 
@@ -21,7 +21,7 @@
   --ink: #010204;
   --text: #eef7ff;
   --text-dim: #9cb8d5;
-  --gold-text: #ffe2a1; /* suit-gold headers */
+  --gold-text: #eaf6ff; /* headers read bright white-cyan */
 
   --red: #ff4d5e;
   --amber: #ffc46a;
@@ -59,8 +59,7 @@ html, body {
   position: fixed; inset: 0; z-index: -3;
   background:
     radial-gradient(1000px 720px at 50% 6%, rgba(70, 185, 255, 0.10), transparent 60%),
-    radial-gradient(700px 500px at 86% 106%, rgba(255, 61, 77, 0.07), transparent 60%),
-    radial-gradient(520px 380px at 8% -6%, rgba(255, 207, 92, 0.05), transparent 60%),
+    radial-gradient(680px 480px at 88% 104%, rgba(255, 130, 50, 0.05), transparent 60%),
     radial-gradient(circle at 50% 45%, rgba(6, 12, 22, 0.55) 0%, rgba(2, 5, 10, 0.74) 58%, rgba(0, 1, 3, 0.92) 100%);
 }
 .space-bg::after { /* slow holographic light-haze, not a scanline */
@@ -117,7 +116,7 @@ html, body {
 
 /* text utilities */
 .display { font-family: var(--font-display); letter-spacing: 0.16em; text-transform: uppercase; }
-.glow-gold { color: var(--gold-text); text-shadow: 0 0 18px rgba(255, 190, 90, 0.45); }
+.glow-gold { color: var(--gold-text); text-shadow: 0 0 18px rgba(116, 230, 255, 0.45); }
 .glow-cyan { color: var(--cyan); text-shadow: 0 0 18px rgba(111, 240, 255, 0.55); }
 .dim { color: var(--text-dim); }
 
