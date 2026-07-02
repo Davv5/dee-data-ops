@@ -403,7 +403,22 @@
   });
 
   // ---- buttons ----
-  $('newBtn').addEventListener('click', () => V.say(pick(['Use your hotkey to summon me — Command-Shift-Space.', 'Press Command-Shift-Space anywhere to give me a directive.'])));
+  // "Control+Space" -> "Control-Space", spoken from the live setting
+  function spokenHotkey() {
+    const accel = settings.hotkey || 'CommandOrControl+Shift+Space';
+    return accel.split('+').map((k) => {
+      const t = k.trim().toLowerCase();
+      if (t === 'commandorcontrol' || t === 'cmdorctrl' || t === 'command' || t === 'cmd') return 'Command';
+      if (t === 'control' || t === 'ctrl') return 'Control';
+      if (t === 'alt' || t === 'option') return 'Option';
+      if (t === 'shift') return 'Shift';
+      return k.trim().charAt(0).toUpperCase() + k.trim().slice(1);
+    }).join('-');
+  }
+  $('newBtn').addEventListener('click', () => {
+    const hk = spokenHotkey();
+    V.say(pick([`Use your hotkey to summon me — ${hk}.`, `Press ${hk} anywhere to give me a directive.`]));
+  });
   function pick(a) { return a[Math.floor(Math.random() * a.length)]; }
 
   // ---- live data ----

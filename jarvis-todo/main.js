@@ -175,6 +175,17 @@ function trayIcon() {
   return img;
 }
 
+// "CommandOrControl+Shift+Space" -> "⌘⇧Space" for menu labels
+function prettyHotkey(accel) {
+  return (accel || DEFAULT_HOTKEY)
+    .replace(/CommandOrControl|CmdOrCtrl/gi, process.platform === 'darwin' ? '⌘' : '⌃')
+    .replace(/Command|Cmd/gi, '⌘')
+    .replace(/Control|Ctrl/gi, '⌃')
+    .replace(/Shift/gi, '⇧')
+    .replace(/Alt|Option/gi, '⌥')
+    .replace(/\+/g, '');
+}
+
 function refreshTray() {
   if (!tray) return;
   // surface the next scheduled directive right in the menu bar
@@ -195,7 +206,7 @@ function refreshTray() {
     tray.setToolTip('JARVIS — at your service');
   }
   items.push(
-    { label: 'New directive  (⇧⌘Space)', click: showQuickAdd },
+    { label: `New directive  (${prettyHotkey(store.settings().hotkey)})`, click: showQuickAdd },
     { label: 'Open dashboard', click: () => { if (dashboardWin) dashboardWin.show(); } },
     { type: 'separator' },
     { label: 'Quit JARVIS', click: () => { app.isQuitting = true; app.quit(); } }
@@ -238,7 +249,7 @@ ipcMain.handle('tasks:all', () => store.all());
 ipcMain.handle('settings:get', () => store.settings());
 ipcMain.handle('settings:save', (_e, patch) => {
   const s = store.saveSettings(patch);
-  if (patch.hotkey) registerHotkey();
+  if (patch.hotkey) { registerHotkey(); refreshTray(); }
   broadcast('settings:changed', s);
   return s;
 });
