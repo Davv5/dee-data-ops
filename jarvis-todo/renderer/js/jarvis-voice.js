@@ -10,7 +10,7 @@ window.JARVIS_VOICE = (function () {
 
   // ---- voice selection -----------------------------------------------------
   let chosenVoice = null;
-  let settings = { address: 'Sir', voiceURI: null, rate: 0.94, pitch: 0.92, mute: false };
+  let settings = { address: 'Sir', voiceURI: null, rate: 0.99, pitch: 0.96, mute: false };
   const recent = [];                       // anti-repeat ring buffer
 
   function isEnglish(v) { return /^en/i.test(v.lang); }
@@ -25,6 +25,7 @@ window.JARVIS_VOICE = (function () {
     if (/neural|natural/.test(n)) s += 40;
     // calm British males read most like JARVIS
     if (/daniel|arthur|oliver|jamie|serena/.test(n)) s += 25;
+    if (/daniel/.test(n) && /enhanced|premium/.test(n)) s += 40;  // the JARVIS voice
     if (/en[-_]?gb/i.test(v.lang)) s += 18;
     if (/google uk english/.test(n)) s += 15;
     if (/compact/.test(n)) s -= 30;     // the robotic ones
@@ -63,16 +64,31 @@ window.JARVIS_VOICE = (function () {
   }
 
   // ---- low-level speak -----------------------------------------------------
+  // Smooth text for the synthesiser: dashes and tight punctuation make TTS
+  // sound robotic; commas breathe better.
+  function smoothForSpeech(text) {
+    return text
+      .replace(/\s+—\s+/g, ', ')
+      .replace(/\s+-\s+/g, ', ')
+      .replace(/"/g, '')
+      .replace(/\s{2,}/g, ' ')
+      .replace(/,\s*,/g, ',')
+      .trim();
+  }
+
   function say(text, opts = {}) {
     if (!text) return;
     if (settings.mute && !opts.force) return;
     if (!('speechSynthesis' in window)) return;
     try {
       window.speechSynthesis.cancel();
-      const u = new SpeechSynthesisUtterance(text);
+      const u = new SpeechSynthesisUtterance(smoothForSpeech(text));
       if (chosenVoice) u.voice = chosenVoice;
-      u.rate = opts.rate || settings.rate;
-      u.pitch = opts.pitch || settings.pitch;
+      // subtle per-utterance variation — humans never say two lines identically
+      const jr = 0.97 + Math.random() * 0.06;
+      const jp = 0.98 + Math.random() * 0.04;
+      u.rate = (opts.rate || settings.rate) * jr;
+      u.pitch = (opts.pitch || settings.pitch) * jp;
       u.volume = 1;
       window.speechSynthesis.speak(u);
     } catch (e) { console.warn('[voice]', e); }

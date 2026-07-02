@@ -421,10 +421,8 @@
       return k.trim().charAt(0).toUpperCase() + k.trim().slice(1);
     }).join('-');
   }
-  $('newBtn').addEventListener('click', () => {
-    const hk = spokenHotkey();
-    V.say(pick([`Use your hotkey to summon me — ${hk}.`, `Press ${hk} anywhere to give me a directive.`]));
-  });
+  // + Directive opens the composer directly (the hotkey still works anywhere)
+  $('newBtn').addEventListener('click', () => window.jarvis.openQuickAdd());
   function pick(a) { return a[Math.floor(Math.random() * a.length)]; }
 
   // ---- live data ----

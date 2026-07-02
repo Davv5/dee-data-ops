@@ -292,6 +292,7 @@ ipcMain.on('alert:edit', (_e, id) => {
   }
 });
 
+ipcMain.on('quickadd:open', showQuickAdd);
 ipcMain.on('quickadd:close', hideQuickAdd);
 ipcMain.on('quickadd:resize', (_e, height) => {
   if (quickWin) {

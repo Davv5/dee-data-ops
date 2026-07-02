@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld('jarvis', {
   saveSettings: (patch) => ipcRenderer.invoke('settings:save', patch),
 
   // window control
+  openQuickAdd: () => ipcRenderer.send('quickadd:open'),
   closeQuickAdd: () => ipcRenderer.send('quickadd:close'),
   resizeQuickAdd: (h) => ipcRenderer.send('quickadd:resize', h),
   openDashboard: () => ipcRenderer.send('dashboard:open'),

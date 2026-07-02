@@ -70,10 +70,10 @@ body.al { background: transparent; overflow: hidden; }
 .al-btn.done:hover { box-shadow: 0 0 26px -4px #4de79a; color: #04240f; }
 .al-btn.edit { margin-left: auto; }
 
-/* auto-dismiss countdown */
+/* auto-dismiss countdown — flush with the card's bottom edge, no gap */
 .al-progress {
-  position: absolute; left: 14px; right: 14px; bottom: 6px; height: 2px;
-  background: rgba(150, 214, 255, .12); border-radius: 2px; overflow: hidden;
+  position: absolute; left: 0; right: 0; bottom: 0; height: 2px;
+  background: rgba(150, 214, 255, .08); overflow: hidden;
 }
 .al-progress i {
   display: block; height: 100%; width: 100%;
