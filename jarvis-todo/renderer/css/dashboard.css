@@ -19,7 +19,7 @@
   pointer-events: none;
 }
 .brand { display: flex; align-items: center; gap: 14px; margin-bottom: 6px; }
-.brand .brand-emblem { width: 54px; height: 54px; flex: none; filter: drop-shadow(0 0 11px rgba(255, 190, 90, .5)); }
+.brand .brand-emblem { width: 54px; height: 54px; flex: none; filter: drop-shadow(0 0 11px rgba(116, 230, 255, .55)); }
 .brand-emblem circle { transform-box: fill-box; transform-origin: center; }
 .brand-emblem .r-out { animation: spin 28s linear infinite; }
 .brand-emblem .r-mid { animation: spin 17s linear infinite reverse; }

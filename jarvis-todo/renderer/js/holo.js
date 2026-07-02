@@ -54,12 +54,16 @@ window.HoloField = class HoloField {
 
   _loop() {
     if (!this.running) return;
-    this._maybeResize();           // keep circles true once the panel is laid out
-    this.t += 0.016;
-    this.energy += (this.targetEnergy - this.energy) * 0.05;
-    this.targetEnergy += (0.35 - this.targetEnergy) * 0.012;
-    this._draw();
     requestAnimationFrame(() => this._loop());
+    // ambience doesn't need 60fps — cap at ~30 for a big CPU/GPU saving
+    const now = performance.now();
+    if (now - (this._last || 0) < 30) return;
+    this._last = now;
+    this._maybeResize();           // keep circles true once the panel is laid out
+    this.t += 0.032;
+    this.energy += (this.targetEnergy - this.energy) * 0.1;
+    this.targetEnergy += (0.35 - this.targetEnergy) * 0.024;
+    this._draw();
   }
 
   _draw() {
@@ -88,10 +92,9 @@ window.HoloField = class HoloField {
     // --- outermost: fine tick scale ---
     this._ticks(R * 1.32, 120, this.t * 0.05, 0.06 + e * 0.05, C);
 
-    // --- segmented accent arcs: orange + suit-gold, rotating ---
+    // --- segmented accent arcs: orange data accents, rotating ---
     this._arcs(R * 1.16, 3, 0.20, this.t * 0.12, 3.0, 0.55 + e * 0.3, G);
     this._arcs(R * 1.16, 3, 0.05, this.t * 0.12 + 0.34, 2, 0.35, G);          // trailing slivers
-    this._arcs(R * 1.08, 2, 0.16, -this.t * 0.09, 2.6, 0.5 + e * 0.25, this.suit); // suit gold
     this._arcs(R * 1.24, 2, 0.12, this.t * 0.07, 1.6, 0.3 + e * 0.2, C);      // thin counter arc
 
     // --- dashed data ring, counter-rotating (cyan) ---
@@ -149,86 +152,84 @@ window.HoloField = class HoloField {
   }
 
   // ---- primitives (origin already translated to center) ----
-  // Every stroke carries a soft neon bloom (shadowBlur) so lines read as
-  // projected light, not crisp pixels.
-  _glow(hue, alpha, blur) {
-    this.ctx.shadowColor = `hsla(${hue},100%,70%,${Math.min(1, alpha * 2.2)})`;
-    this.ctx.shadowBlur = blur;
+  // Two-pass neon: a wide faint halo stroke under a bright core stroke.
+  // Same holographic bloom as shadowBlur at a fraction of the cost.
+  _twoPass(hue, alpha, lw, drawPaths) {
+    const ctx = this.ctx;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = `hsla(${hue},100%,68%,${alpha * 0.25})`;
+    ctx.lineWidth = lw * 3;
+    drawPaths();
+    ctx.strokeStyle = `hsla(${hue},100%,76%,${alpha})`;
+    ctx.lineWidth = lw;
+    drawPaths();
   }
   _circle(r, lw, alpha, hue) {
     const ctx = this.ctx;
-    ctx.save();
-    this._glow(hue, alpha, 9);
-    ctx.strokeStyle = `hsla(${hue},100%,72%,${alpha})`; ctx.lineWidth = lw + 0.3;
-    ctx.beginPath(); ctx.arc(0, 0, r, 0, 6.2832); ctx.stroke();
-    ctx.restore();
+    this._twoPass(hue, alpha, lw, () => {
+      ctx.beginPath(); ctx.arc(0, 0, r, 0, 6.2832); ctx.stroke();
+    });
   }
   _arcs(r, count, span, rot, lw, alpha, hue) {
     const ctx = this.ctx;
-    ctx.save();
-    this._glow(hue, alpha, 12);
-    ctx.strokeStyle = `hsla(${hue},100%,70%,${alpha})`; ctx.lineWidth = lw + 0.3; ctx.lineCap = 'round';
     const step = 6.2832 / count;
-    for (let i = 0; i < count; i++) {
-      const a0 = rot + i * step;
-      ctx.beginPath(); ctx.arc(0, 0, r, a0, a0 + span * 6.2832); ctx.stroke();
-    }
-    ctx.restore();
+    this._twoPass(hue, alpha, lw, () => {
+      for (let i = 0; i < count; i++) {
+        const a0 = rot + i * step;
+        ctx.beginPath(); ctx.arc(0, 0, r, a0, a0 + span * 6.2832); ctx.stroke();
+      }
+    });
   }
   _dashes(r, n, rot, alpha, hue) {
     const ctx = this.ctx;
-    ctx.save();
-    this._glow(hue, alpha, 7);
-    ctx.strokeStyle = `hsla(${hue},100%,74%,${alpha})`; ctx.lineWidth = 1.6;
     const step = 6.2832 / n;
-    for (let i = 0; i < n; i++) {
-      const a = rot + i * step;
-      ctx.beginPath(); ctx.arc(0, 0, r, a, a + step * 0.45); ctx.stroke();
-    }
-    ctx.restore();
+    this._twoPass(hue, alpha, 1.4, () => {
+      for (let i = 0; i < n; i++) {
+        const a = rot + i * step;
+        ctx.beginPath(); ctx.arc(0, 0, r, a, a + step * 0.45); ctx.stroke();
+      }
+    });
   }
   _blocks(r, n, rot, e, hue) {
     const ctx = this.ctx;
-    ctx.save();
-    this._glow(hue, 0.4 + e * 0.3, 10);
     const step = 6.2832 / n;
-    for (let i = 0; i < n; i++) {
-      const a = rot + i * step;
-      const lit = (Math.sin(i * 1.7 + this.t * 1.5) > 0.4);
-      const al = lit ? 0.35 + e * 0.4 : 0.1;
-      ctx.strokeStyle = `hsla(${hue},100%,72%,${al})`; ctx.lineWidth = 3.6;
-      ctx.beginPath();
-      ctx.arc(0, 0, r, a, a + step * 0.5); ctx.stroke();
+    for (let pass = 0; pass < 2; pass++) {
+      ctx.lineWidth = pass === 0 ? 7 : 3.4;
+      for (let i = 0; i < n; i++) {
+        const a = rot + i * step;
+        const lit = (Math.sin(i * 1.7 + this.t * 1.5) > 0.4);
+        const al = (lit ? 0.35 + e * 0.4 : 0.1) * (pass === 0 ? 0.25 : 1);
+        ctx.strokeStyle = `hsla(${hue},100%,72%,${al})`;
+        ctx.beginPath();
+        ctx.arc(0, 0, r, a, a + step * 0.5); ctx.stroke();
+      }
     }
-    ctx.restore();
   }
   _ticks(r, n, rot, alpha, hue) {
     const ctx = this.ctx;
     ctx.save(); ctx.rotate(rot);
-    this._glow(hue, alpha, 5);
-    ctx.strokeStyle = `hsla(${hue},100%,74%,${alpha})`; ctx.lineWidth = 1.3;
     const step = 6.2832 / n;
-    for (let i = 0; i < n; i++) {
-      const big = i % 10 === 0; const a = i * step;
-      const len = big ? 10 : 4;
-      ctx.beginPath();
-      ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r);
-      ctx.lineTo(Math.cos(a) * (r + len), Math.sin(a) * (r + len));
-      ctx.stroke();
-    }
+    this._twoPass(hue, alpha, 1.1, () => {
+      for (let i = 0; i < n; i++) {
+        const big = i % 10 === 0; const a = i * step;
+        const len = big ? 10 : 4;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r);
+        ctx.lineTo(Math.cos(a) * (r + len), Math.sin(a) * (r + len));
+        ctx.stroke();
+      }
+    });
     ctx.restore();
   }
   _crosshair(r, hue, alpha) {
     const ctx = this.ctx;
-    ctx.save();
-    this._glow(hue, alpha, 6);
-    ctx.strokeStyle = `hsla(${hue},100%,78%,${alpha})`; ctx.lineWidth = 1.2;
-    for (const a of [0, Math.PI / 2, Math.PI, Math.PI * 1.5]) {
-      ctx.beginPath();
-      ctx.moveTo(Math.cos(a) * r * 0.78, Math.sin(a) * r * 0.78);
-      ctx.lineTo(Math.cos(a) * r * 0.96, Math.sin(a) * r * 0.96);
-      ctx.stroke();
-    }
-    ctx.restore();
+    this._twoPass(hue, alpha, 1.1, () => {
+      for (const a of [0, Math.PI / 2, Math.PI, Math.PI * 1.5]) {
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(a) * r * 0.78, Math.sin(a) * r * 0.78);
+        ctx.lineTo(Math.cos(a) * r * 0.96, Math.sin(a) * r * 0.96);
+        ctx.stroke();
+      }
+    });
   }
 };
