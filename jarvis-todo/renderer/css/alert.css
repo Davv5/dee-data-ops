@@ -3,8 +3,14 @@
 body.al { background: transparent; overflow: hidden; }
 
 .al-card {
-  position: relative; margin: 6px; padding: 14px 16px 12px;
+  position: relative; margin: 8px 10px; padding: 14px 16px 12px;
   border-radius: 18px;
+  /* override the theme's huge 70px glass shadow — in a transparent window
+     over light apps it smears into a giant grey slab with clipped edges */
+  box-shadow:
+    0 4px 16px rgba(0, 0, 0, .28),
+    inset 0 1px 0 rgba(255, 255, 255, .10),
+    0 0 0 1px rgba(150, 214, 255, .08);
   transform: translateX(30px) scale(.97); opacity: 0; filter: blur(4px);
   transition: transform .45s var(--ease), opacity .35s var(--ease), filter .4s var(--ease);
 }

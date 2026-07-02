@@ -11,6 +11,11 @@ body.qa { background: transparent; }
 .qa-panel {
   -webkit-app-region: no-drag;
   width: 700px; padding: 32px 36px 28px; border-radius: 28px;
+  /* tight shadow — the theme's 70px blur smears/clips in a transparent window */
+  box-shadow:
+    0 10px 30px rgba(0, 0, 0, .32),
+    inset 0 1px 0 rgba(255, 255, 255, .10),
+    0 0 0 1px rgba(150, 214, 255, .08);
   transform: translateY(22px) scale(0.92); opacity: 0; filter: blur(6px);
   transition: transform .6s var(--ease), opacity .45s var(--ease), filter .5s var(--ease);
 }
