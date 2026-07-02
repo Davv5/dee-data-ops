@@ -18,6 +18,16 @@ body.al { background: transparent; overflow: hidden; }
 .al-card.in { transform: none; filter: blur(0); animation: alSolidify 5s var(--ease) forwards; }
 @keyframes alSolidify { from { opacity: .38; } to { opacity: 1; } }
 
+/* solid backing — the glass alone stays see-through; this layer fades in over
+   the same 5s so the card ends genuinely opaque over any app. */
+.al-solid {
+  position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  z-index: -1; opacity: 0;
+  background: linear-gradient(160deg, rgba(13, 23, 39, .97), rgba(5, 11, 21, .97));
+}
+.al-card.in .al-solid { animation: alSolidBg 5s var(--ease) forwards; }
+@keyframes alSolidBg { from { opacity: 0; } to { opacity: 1; } }
+
 /* directive-coloured energy edge */
 .al-edge {
   position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
