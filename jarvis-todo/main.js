@@ -101,7 +101,7 @@ function alertAlive() { return alertWin && !alertWin.isDestroyed(); }
 function createAlertWin() {
   alertWin = new BrowserWindow({
     width: 448,
-    height: 196,
+    height: 168,
     show: false,
     frame: false,
     transparent: true,

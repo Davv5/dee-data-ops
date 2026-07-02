@@ -110,7 +110,7 @@ window.JARVIS_VOICE = (function () {
   }
 
   // ---- fragment banks ------------------------------------------------------
-  const ADDRESS = [() => addr() + ',', () => '', () => '', () => 'Very good,', () => addr() + '.'];
+  const ADDRESS = [() => addr() + ',', () => '', () => '', () => 'Right then,', () => addr() + '.'];
 
   const ACK = [
     'logged.', 'noted.', 'consider it tracked.', 'on the board.',
@@ -344,7 +344,7 @@ window.JARVIS_VOICE = (function () {
   function reactComplete(task) {
     const gist = shorten(task.title);
     return say(join(
-      pick([addr() + ',', 'Done.', 'Excellent.', 'Very good,']),
+      pick([addr() + ',', 'Done.', 'Excellent.', 'Cleared.']),
       pick([`"${gist}" is cleared.`, `"${gist}" — complete.`, `that's "${gist}" off the board.`, `marking "${gist}" done.`]),
       maybe(0.4, pick(['One less on the slate.', 'Onward.', 'Momentum is good.', '']))
     ));

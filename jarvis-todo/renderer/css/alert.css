@@ -3,7 +3,7 @@
 body.al { background: transparent; overflow: hidden; }
 
 .al-card {
-  position: relative; margin: 8px 10px; padding: 14px 16px 12px;
+  position: relative; margin: 8px 10px; padding: 11px 15px 10px;
   border-radius: 18px;
   /* override the theme's huge 70px glass shadow — in a transparent window
      over light apps it smears into a giant grey slab with clipped edges */
@@ -18,15 +18,15 @@ body.al { background: transparent; overflow: hidden; }
 .al-card.in { transform: none; filter: blur(0); animation: alSolidify 5s var(--ease) forwards; }
 @keyframes alSolidify { from { opacity: .38; } to { opacity: 1; } }
 
-/* solid backing — the glass alone stays see-through; this layer fades in over
-   the same 5s so the card ends genuinely opaque over any app. */
+/* glassy backing — fades in over the same 5s but settles mid-translucent:
+   readable, still lets the desktop glow through the blur. */
 .al-solid {
   position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
   z-index: -1; opacity: 0;
   background: linear-gradient(160deg, rgba(13, 23, 39, .97), rgba(5, 11, 21, .97));
 }
 .al-card.in .al-solid { animation: alSolidBg 5s var(--ease) forwards; }
-@keyframes alSolidBg { from { opacity: 0; } to { opacity: 1; } }
+@keyframes alSolidBg { from { opacity: 0; } to { opacity: .55; } }
 
 /* directive-coloured energy edge */
 .al-edge {
@@ -35,8 +35,8 @@ body.al { background: transparent; overflow: hidden; }
   border-radius: 3px 0 0 3px;
 }
 
-.al-head { display: flex; align-items: center; gap: 9px; margin-bottom: 8px; }
-.al-emblem { width: 22px; height: 22px; filter: drop-shadow(0 0 7px rgba(116, 230, 255, .6)); }
+.al-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.al-emblem { width: 19px; height: 19px; filter: drop-shadow(0 0 7px rgba(116, 230, 255, .6)); }
 .al-emblem .spin1 { transform-box: fill-box; transform-origin: center; animation: spin 5s linear infinite; }
 .al-kind {
   font-size: 10px; letter-spacing: .3em; color: var(--ac, var(--cyan));
@@ -49,17 +49,17 @@ body.al { background: transparent; overflow: hidden; }
 .al-x:hover { color: var(--text); }
 
 .al-title {
-  font-family: var(--font-body); font-size: 18px; font-weight: 600; color: var(--text);
+  font-family: var(--font-body); font-size: 16.5px; font-weight: 600; color: var(--text);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.al-meta { font-size: 12px; margin-top: 3px; letter-spacing: .04em; }
+.al-meta { font-size: 11.5px; margin-top: 2px; letter-spacing: .04em; }
 
-.al-actions { display: flex; gap: 7px; margin-top: 11px; flex-wrap: nowrap; }
+.al-actions { display: flex; gap: 7px; margin-top: 9px; flex-wrap: nowrap; }
 .al-btn {
-  cursor: pointer; font-family: var(--font-body); font-size: 12.5px; font-weight: 600;
+  cursor: pointer; font-family: var(--font-body); font-size: 12px; font-weight: 600;
   letter-spacing: .04em; color: var(--text-dim); white-space: nowrap;
   border: 1px solid var(--glass-edge); background: rgba(150, 214, 255, .05);
-  border-radius: 10px; padding: 7px 12px; transition: all .2s;
+  border-radius: 10px; padding: 5px 11px; transition: all .2s;
 }
 .al-btn:hover { color: var(--text); border-color: var(--cyan); box-shadow: 0 0 14px -5px var(--cyan); transform: translateY(-1px); }
 .al-btn.done {
