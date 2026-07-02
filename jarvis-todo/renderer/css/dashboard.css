@@ -24,12 +24,7 @@
 .brand-emblem .r-out { animation: spin 28s linear infinite; }
 .brand-emblem .r-mid { animation: spin 17s linear infinite reverse; }
 @keyframes spin { to { transform: rotate(360deg); } }
-.brand h1 {
-  font-family: var(--font-display); font-size: 23px; letter-spacing: .28em;
-  background: var(--suit-grad); -webkit-background-clip: text; background-clip: text;
-  color: transparent; text-shadow: none;
-  filter: drop-shadow(0 0 12px rgba(255, 170, 80, .35));
-}
+.brand h1 { font-family: var(--font-display); font-size: 23px; letter-spacing: .28em; }
 .brand .sub { font-size: 10px; letter-spacing: .34em; color: var(--text-dim); margin-top: 2px; }
 
 .clock { margin: 26px 0 10px; }
