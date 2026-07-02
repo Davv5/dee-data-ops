@@ -17,10 +17,12 @@ body.qa { background: transparent; }
     inset 0 1px 0 rgba(255, 255, 255, .10),
     0 0 0 1px rgba(150, 214, 255, .08);
   transform: translateY(22px) scale(0.92); opacity: 0; filter: blur(6px);
-  transition: transform .6s var(--ease), opacity .45s var(--ease), filter .5s var(--ease);
+  transition: transform .6s var(--ease), filter .5s var(--ease);
 }
-.qa-stage.in .qa-panel { transform: translateY(0) scale(1); opacity: 1; filter: blur(0); }
-.qa-stage.out .qa-panel { transform: translateY(8px) scale(0.96); opacity: 0; filter: blur(4px); transition: all .28s var(--ease); }
+/* rises in fast, then solidifies: translucent -> opaque over 5s, then stays */
+.qa-stage.in .qa-panel { transform: translateY(0) scale(1); filter: blur(0); animation: qaSolidify 5s var(--ease) forwards; }
+@keyframes qaSolidify { from { opacity: .4; } to { opacity: 1; } }
+.qa-stage.out .qa-panel { transform: translateY(8px) scale(0.96); opacity: 0; filter: blur(4px); transition: all .28s var(--ease); animation: none; }
 
 /* holographic field behind the panel content */
 .qa-holo { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; opacity: .8; }

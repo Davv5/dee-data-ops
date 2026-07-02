@@ -12,9 +12,11 @@ body.al { background: transparent; overflow: hidden; }
     inset 0 1px 0 rgba(255, 255, 255, .10),
     0 0 0 1px rgba(150, 214, 255, .08);
   transform: translateX(30px) scale(.97); opacity: 0; filter: blur(4px);
-  transition: transform .45s var(--ease), opacity .35s var(--ease), filter .4s var(--ease);
+  transition: transform .45s var(--ease), filter .4s var(--ease);
 }
-.al-card.in { transform: none; opacity: 1; filter: blur(0); }
+/* slides in fast, then solidifies: translucent -> opaque over 5s, then stays */
+.al-card.in { transform: none; filter: blur(0); animation: alSolidify 5s var(--ease) forwards; }
+@keyframes alSolidify { from { opacity: .38; } to { opacity: 1; } }
 
 /* directive-coloured energy edge */
 .al-edge {
