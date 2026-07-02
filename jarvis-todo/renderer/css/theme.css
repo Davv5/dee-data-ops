@@ -1,0 +1,155 @@
+/* JARVIS — shared theme. Iron-Man holographic: translucent glass, volumetric
+   glow, soft organic edges, smooth motion. No hard scanlines, no glitch. */
+
+:root {
+  /* Cool black-cyan HUD register; the suit gold/red gradient survives only
+     in the brand (logo + wordmark). */
+  --solar-1: #e2f4ff;   /* near-white (primary action highlight) */
+  --solar-2: #57c8ff;   /* bright cyan */
+  --solar-3: #ff8a3c;   /* orange data accent */
+  --solar-core: #bfe9ff;
+  --suit-red: #ff3d4d;
+  --suit-grad: linear-gradient(135deg, #ffe9a8, #ffcf5c 45%, #ff5a3c);
+
+  --holo-1: #cdefff;
+  --holo-2: #46c8ff;
+  --holo-3: #2a7bff;
+  --cyan: #74e6ff;
+  --orange: #ff8a3c;
+  --hot: #ff3b3b;       /* red alert accent */
+
+  --ink: #010204;
+  --text: #eef7ff;
+  --text-dim: #9cb8d5;
+  --gold-text: #eaf6ff; /* headers read bright white-cyan */
+
+  --red: #ff4d5e;
+  --amber: #ffc46a;
+  --green: #5dffb0;
+  --violet: #c39bff;
+  --gold: #ffd9a0;
+
+  --glass: rgba(10, 16, 26, 0.32);
+  --glass-2: rgba(4, 8, 16, 0.30);
+  --glass-edge: rgba(150, 214, 255, 0.26);
+  --hud-line: rgba(150, 214, 255, 0.30);
+
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --font-display: 'Orbitron', 'SF Pro Display', system-ui, sans-serif;
+  --font-body: 'Rajdhani', 'SF Pro Text', system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+*, *::before, *::after { transition-timing-function: var(--ease); }
+
+html, body {
+  height: 100%;
+  font-family: var(--font-body);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+  user-select: none;
+  cursor: default;
+  background: transparent;
+}
+
+/* Translucent backdrop — sits over the macOS vibrancy so the desktop blurs
+   through like a projected hologram. Soft solar + holo light pools. */
+.space-bg {
+  position: fixed; inset: 0; z-index: -3;
+  background:
+    radial-gradient(1000px 720px at 50% 6%, rgba(70, 185, 255, 0.10), transparent 60%),
+    radial-gradient(680px 480px at 88% 104%, rgba(255, 130, 50, 0.05), transparent 60%),
+    radial-gradient(circle at 50% 45%, rgba(6, 12, 22, 0.55) 0%, rgba(2, 5, 10, 0.74) 58%, rgba(0, 1, 3, 0.92) 100%);
+}
+.space-bg::after { /* slow holographic light-haze, not a scanline */
+  content: ''; position: absolute; inset: -20%;
+  background: radial-gradient(closest-side, rgba(110, 240, 255, 0.05), transparent 70%);
+  animation: haze 22s ease-in-out infinite alternate;
+}
+@keyframes haze {
+  0%   { transform: translate(-4%, -2%) scale(1.05); opacity: .7; }
+  100% { transform: translate(5%, 4%) scale(1.18); opacity: 1; }
+}
+
+/* Glass panels — thin, luminous, rounded, with a moving sheen. */
+.glass {
+  position: relative; overflow: hidden;
+  background: linear-gradient(160deg, var(--glass), var(--glass-2));
+  border: 1px solid var(--glass-edge);
+  border-radius: 22px;
+  backdrop-filter: blur(26px) saturate(150%);
+  -webkit-backdrop-filter: blur(26px) saturate(150%);
+  box-shadow:
+    0 24px 70px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(220, 240, 255, 0.14),
+    inset 0 0 50px rgba(90, 200, 255, 0.06),
+    0 0 0 1px rgba(150, 214, 255, 0.06);
+}
+.glass::before { /* top gloss */
+  content: ''; position: absolute; left: 0; right: 0; top: 0; height: 46%;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.12), transparent);
+  pointer-events: none;
+}
+.glass::after { /* slow holo light-sweep across the surface */
+  content: ''; position: absolute; top: 0; bottom: 0; width: 55%;
+  left: -60%; pointer-events: none;
+  background: linear-gradient(100deg, transparent, rgba(200, 235, 255, 0.08), transparent);
+  animation: sheen 9s ease-in-out infinite;
+}
+@keyframes sheen { 0%, 60% { left: -60%; } 100% { left: 130%; } }
+
+/* HUD framing corner ticks — softened, holographic blue */
+.hud-corners::after {
+  content: ''; position: absolute; inset: 10px; pointer-events: none; border-radius: 16px;
+  background:
+    linear-gradient(var(--hud-line), var(--hud-line)) left 0 top 0 / 20px 1.5px no-repeat,
+    linear-gradient(var(--hud-line), var(--hud-line)) left 0 top 0 / 1.5px 20px no-repeat,
+    linear-gradient(var(--hud-line), var(--hud-line)) right 0 top 0 / 20px 1.5px no-repeat,
+    linear-gradient(var(--hud-line), var(--hud-line)) right 0 top 0 / 1.5px 20px no-repeat,
+    linear-gradient(var(--hud-line), var(--hud-line)) left 0 bottom 0 / 20px 1.5px no-repeat,
+    linear-gradient(var(--hud-line), var(--hud-line)) left 0 bottom 0 / 1.5px 20px no-repeat,
+    linear-gradient(var(--hud-line), var(--hud-line)) right 0 bottom 0 / 20px 1.5px no-repeat,
+    linear-gradient(var(--hud-line), var(--hud-line)) right 0 bottom 0 / 1.5px 20px no-repeat;
+  opacity: .8;
+}
+
+/* text utilities */
+.display { font-family: var(--font-display); letter-spacing: 0.16em; text-transform: uppercase; }
+/* layered light-bloom: a tight halo plus a wide soft one, like projected text */
+.glow-gold { color: var(--gold-text); text-shadow: 0 0 10px rgba(116, 230, 255, 0.55), 0 0 34px rgba(70, 190, 255, 0.3); }
+.glow-cyan { color: var(--cyan); text-shadow: 0 0 10px rgba(111, 240, 255, 0.65), 0 0 36px rgba(70, 190, 255, 0.35); }
+
+/* holographic projection instability — rare, subtle brightness dips */
+@keyframes holoFlicker {
+  0%, 90%, 100% { opacity: .92; }
+  91% { opacity: .74; }
+  92% { opacity: .9; }
+  95% { opacity: .8; }
+  96% { opacity: .92; }
+}
+.dim { color: var(--text-dim); }
+
+/* .scanlines kept as a class for existing markup, but now a soft holo grain */
+.scanlines::before {
+  content: ''; position: absolute; inset: 0; pointer-events: none; opacity: 0.04;
+  background: repeating-linear-gradient(0deg, rgba(150, 235, 255, 0.4) 0 1px, transparent 1px 4px);
+  mix-blend-mode: screen;
+  -webkit-mask-image: linear-gradient(180deg, transparent, #000 30%, #000 70%, transparent);
+}
+
+/* category color chips */
+.dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.c-red    { --c: var(--red); }
+.c-amber  { --c: var(--amber); }
+.c-cyan   { --c: var(--cyan); }
+.c-green  { --c: var(--green); }
+.c-violet { --c: var(--violet); }
+.c-gold   { --c: var(--gold); }
+.chip-c { background: var(--c); box-shadow: 0 0 12px var(--c); }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+::-webkit-scrollbar { width: 7px; }
+::-webkit-scrollbar-thumb { background: rgba(120, 220, 255, 0.22); border-radius: 8px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(120, 220, 255, 0.4); }

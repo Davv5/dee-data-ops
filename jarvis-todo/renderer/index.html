@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self'; img-src 'self' data:;" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=Rajdhani:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/theme.css" />
+  <link rel="stylesheet" href="css/dashboard.css" />
+  <title>JARVIS</title>
+</head>
+<body>
+  <div class="space-bg"></div>
+  <div class="deck">
+    <!-- LEFT RAIL -->
+    <aside class="rail scanlines">
+      <div class="brand">
+        <svg class="brand-emblem" viewBox="0 0 100 100" aria-hidden="true">
+          <g fill="none" stroke="#9fe9ff" stroke-linecap="round">
+            <circle class="r-out" cx="50" cy="50" r="45" stroke-width="2" stroke-dasharray="5 9" opacity="0.85"/>
+            <circle class="r-mid" cx="50" cy="50" r="35" stroke-width="1.6" stroke-dasharray="2 28" opacity="0.9"/>
+            <circle cx="50" cy="50" r="25" stroke-width="1" stroke="#ff8a3c" opacity="0.55"/>
+          </g>
+          <circle cx="50" cy="50" r="6.5" fill="#eaf8ff"/>
+        </svg>
+        <div>
+          <h1 class="glow-gold">JARVIS</h1>
+          <div class="sub">MARK IV · DIRECTIVE CONTROL</div>
+        </div>
+      </div>
+
+      <div class="clock">
+        <div class="time glow-cyan" id="clockTime">--:--</div>
+        <div class="date" id="clockDate">—</div>
+      </div>
+
+      <div class="stat-grid">
+        <div class="stat"><div class="n" id="sActive">0</div><div class="l">Active</div></div>
+        <div class="stat due"><div class="n" id="sToday">0</div><div class="l">Due Today</div></div>
+        <div class="stat alert"><div class="n" id="sOverdue">0</div><div class="l">Overdue</div></div>
+        <div class="stat"><div class="n" id="sDone">0</div><div class="l">Cleared</div></div>
+      </div>
+
+      <div class="legend">
+        <h3>Colour = Meaning</h3>
+        <div id="legend"></div>
+      </div>
+
+      <div class="rail-foot">
+        <button class="icon-btn" id="newBtn">＋ Directive</button>
+        <button class="icon-btn" id="muteBtn" title="Toggle JARVIS voice">🔊 Voice</button>
+        <button class="icon-btn" id="settingsBtn" title="Settings">⚙</button>
+      </div>
+      <div class="build-tag dim" id="buildTag"></div>
+    </aside>
+
+    <!-- MAIN -->
+    <main class="main">
+      <canvas class="holo-field" id="holoField"></canvas>
+      <div class="main-head">
+        <h2 class="glow-gold">ACTIVE DIRECTIVES</h2>
+        <div class="filters" id="filters">
+          <div class="filter active" data-f="all">All</div>
+          <div class="filter" data-f="today">Today</div>
+          <div class="filter" data-f="overdue">Overdue</div>
+          <div class="filter" data-f="done">Cleared</div>
+        </div>
+      </div>
+      <div class="tasks" id="tasks"></div>
+    </main>
+  </div>
+
+  <!-- TASK EDITOR -->
+  <div class="modal-back" id="editBack">
+    <div class="modal glass hud-corners">
+      <h3 class="glow-gold">EDIT DIRECTIVE</h3>
+      <div class="field">
+        <label>Directive</label>
+        <input id="edTitle" type="text" />
+      </div>
+      <div class="field">
+        <label>Class</label>
+        <div class="chip-row" id="edCats"></div>
+      </div>
+      <div class="field">
+        <label>When</label>
+        <div class="chip-row" id="edTimes" style="margin-bottom:10px"></div>
+        <input id="edDue" type="datetime-local" />
+      </div>
+      <div class="field">
+        <label>Repeat</label>
+        <div class="chip-row" id="edRepeat"></div>
+      </div>
+      <div class="modal-foot">
+        <button class="icon-btn grow" id="edDelete">Delete</button>
+        <button class="icon-btn" id="edCancel">Cancel</button>
+        <button class="icon-btn on" id="edSave">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SETTINGS -->
+  <div class="modal-back" id="settingsBack">
+    <div class="modal glass hud-corners">
+      <h3 class="glow-gold">JARVIS · CONFIGURATION</h3>
+      <div class="field">
+        <label>How JARVIS addresses you</label>
+        <input id="setAddress" type="text" placeholder="Sir" />
+      </div>
+      <div class="field">
+        <label>Voice</label>
+        <select id="setVoice"></select>
+        <div class="hint">For a natural, non-robotic JARVIS, install an <b>Enhanced</b> or <b>Premium</b> voice: System Settings → Accessibility → Spoken Content → System Voice → Manage Voices → add <b>Daniel (Enhanced), English (UK)</b>. Then pick it here.</div>
+      </div>
+      <div class="field">
+        <label>Global hotkey</label>
+        <input id="setHotkey" type="text" placeholder="CommandOrControl+Shift+Space" />
+        <div class="hint">Electron accelerator format. Restart-free; applies on save.</div>
+      </div>
+      <div class="field">
+        <label>Startup</label>
+        <label class="check-row"><input type="checkbox" id="setLogin" checked /> Launch JARVIS at login — always on duty</label>
+        <div class="hint">Reminders survive quits and restarts. Applies to the installed JARVIS.app (drag it into Applications).</div>
+      </div>
+      <div class="field">
+        <label>Voice input — speech-to-text key</label>
+        <input id="setSttKey" type="password" placeholder="sk-… (OpenAI API key)" autocomplete="off" />
+        <div class="hint">Electron can’t do speech-to-text on its own. Paste an <b>OpenAI API key</b> and the 🎙 mic will record you and transcribe with Whisper. Stored locally only. Get one at platform.openai.com → API keys.</div>
+      </div>
+      <div class="field">
+        <label>Tags — colour is meaning</label>
+        <div id="tagList" class="tag-list"></div>
+        <div class="tag-add">
+          <input id="tagName" type="text" placeholder="New tag, e.g. Finance" maxlength="24" />
+          <select id="tagColor"></select>
+          <button class="icon-btn on" id="tagAdd">Add</button>
+        </div>
+        <div class="hint">Or by voice: hit the hotkey and say “make a tag called Finance in green”.</div>
+      </div>
+      <div class="modal-foot">
+        <button class="icon-btn" id="setTest">Test voice</button>
+        <button class="icon-btn on" id="setSave">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="build-stamp.js"></script>
+  <script src="js/colors.js"></script>
+  <script src="js/nlp.js"></script>
+  <script src="js/jarvis-voice.js"></script>
+  <script src="js/reactor.js"></script>
+  <script src="js/holo.js"></script>
+  <script src="js/sfx.js"></script>
+  <script src="js/dashboard.js"></script>
+</body>
+</html>

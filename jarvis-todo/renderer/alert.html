@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self'; img-src 'self' data:;" />
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=Rajdhani:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/theme.css" />
+  <link rel="stylesheet" href="css/alert.css" />
+  <title>JARVIS · Alert</title>
+</head>
+<body class="al">
+  <div class="al-card glass" id="card">
+    <div class="al-solid"></div>
+    <div class="al-edge"></div>
+    <div class="al-head">
+      <svg class="al-emblem" viewBox="0 0 100 100" aria-hidden="true">
+        <circle class="spin1" cx="50" cy="50" r="42" fill="none" stroke="#9fe9ff" stroke-width="4" stroke-dasharray="8 14" opacity="0.9"/>
+        <circle cx="50" cy="50" r="10" fill="#eaf8ff"/>
+      </svg>
+      <span class="al-kind display" id="aKind">IT'S TIME</span>
+      <button class="al-x" id="bX" title="Dismiss">✕</button>
+    </div>
+    <div class="al-title" id="aTitle">—</div>
+    <div class="al-meta dim" id="aMeta"></div>
+    <div class="al-actions">
+      <button class="al-btn done" id="bDone">✓ Done</button>
+      <button class="al-btn" id="b10">+10m</button>
+      <button class="al-btn" id="b60">+1h</button>
+      <button class="al-btn edit" id="bEdit" title="Change time, priority, or title">✎ Edit</button>
+    </div>
+    <div class="al-progress"><i id="aBar"></i></div>
+  </div>
+
+  <script src="js/colors.js"></script>
+  <script src="js/nlp.js"></script>
+  <script src="js/sfx.js"></script>
+  <script src="js/alert.js"></script>
+</body>
+</html>

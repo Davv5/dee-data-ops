@@ -1,0 +1,212 @@
+// Lightweight natural-language deadline parser. Zero dependencies.
+// Extracts a Date from phrases like:
+//   "submit report tomorrow 5pm"  /  "call mum friday"  /  "in 2 hours"
+//   "gym tonight"  /  "pay invoice aug 3 9am"  /  "next monday noon"
+// Returns { due: Date|null, cleanTitle: string } — cleanTitle has the time
+// words stripped so the task title reads naturally.
+window.JARVIS_NLP = (function () {
+  const WEEKDAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+  const MONTHS = ['january', 'february', 'march', 'april', 'may', 'june', 'july',
+    'august', 'september', 'october', 'november', 'december'];
+  const MONTH_ABBR = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+
+  function atTime(date, h, m) {
+    const d = new Date(date);
+    d.setHours(h, m || 0, 0, 0);
+    return d;
+  }
+
+  // Find an explicit clock time. Returns {h,m,matched} or null.
+  function parseTime(text) {
+    if (/\bnoon\b/.test(text)) return { h: 12, m: 0, matched: 'noon' };
+    if (/\bmidnight\b/.test(text)) return { h: 0, m: 0, matched: 'midnight' };
+
+    // 5pm / 5:30 pm / 5.30pm / 11.10 pm / 17:00 / 9 am
+    // Minutes may be separated by ":" or "." so "11.10pm" -> 23:10 (not "10pm").
+    let m = text.match(/\b(\d{1,2})[:.](\d{2})\s*([ap])\.?m\.?\b/);   // h.mm + am/pm
+    if (m) {
+      let h = parseInt(m[1], 10) % 12;
+      if (m[3] === 'p') h += 12;
+      return { h, m: parseInt(m[2], 10), matched: m[0] };
+    }
+    m = text.match(/\b(\d{1,2})\s*([ap])\.?m\.?\b/);                  // bare h + am/pm
+    if (m) {
+      let h = parseInt(m[1], 10) % 12;
+      if (m[2] === 'p') h += 12;
+      return { h, m: 0, matched: m[0] };
+    }
+    m = text.match(/\b(\d{1,2})[:.](\d{2})\b/);                       // 24h 17:00 / 17.00
+    if (m) return { h: parseInt(m[1], 10), m: parseInt(m[2], 10), matched: m[0] };
+    return null;
+  }
+
+  function nextWeekday(targetIdx, forceNext) {
+    const now = new Date();
+    let delta = (targetIdx - now.getDay() + 7) % 7; // 0 == same weekday as today
+    // A bare weekday that lands on today, or any "next <day>", rolls forward a
+    // full week — you rarely mean "right now" when you name a weekday.
+    if (delta === 0 || forceNext) delta = delta === 0 ? 7 : delta + 7;
+    const d = new Date();
+    d.setDate(now.getDate() + delta);
+    return d;
+  }
+
+  // ---- recurrence: "every day", "daily", "every monday", "every morning" ----
+  function extractRepeat(input) {
+    let s = input; let repeat = null; let defH = null;
+    const daily = s.match(/\b(every\s*day|everyday|daily|each day)\b/i);
+    const dayPart = s.match(/\bevery\s+(morning|afternoon|evening|night)\b/i);
+    const weekday = s.match(/\bevery\s+(sunday|monday|tuesday|wednesday|thursday|friday|saturday)s?\b/i);
+    const weekly = s.match(/\b(every\s+week|weekly)\b/i);
+    if (daily) { repeat = { freq: 'daily' }; s = s.replace(daily[0], ' '); }
+    else if (dayPart) {
+      repeat = { freq: 'daily' };
+      defH = { morning: 9, afternoon: 15, evening: 19, night: 21 }[dayPart[1].toLowerCase()];
+      s = s.replace(dayPart[0], ' ');
+    } else if (weekday) {
+      repeat = { freq: 'weekly' };
+      s = s.replace(weekday[0], ' ' + weekday[1] + ' ');  // let the core date the weekday
+    } else if (weekly) { repeat = { freq: 'weekly' }; s = s.replace(weekly[0], ' '); }
+    return { repeat, defH, cleaned: s.replace(/\s+/g, ' ').trim() };
+  }
+
+  // next occurrence of a repeating directive, always in the future
+  function nextOccurrence(fromIso, repeat) {
+    const d = fromIso ? new Date(fromIso) : new Date();
+    const step = repeat && repeat.freq === 'weekly' ? 7 : 1;
+    do { d.setDate(d.getDate() + step); } while (d <= new Date());
+    return d.toISOString();
+  }
+
+  function parse(input) {
+    const rec = extractRepeat(input);
+    const res = core(rec.cleaned);
+    if (rec.repeat) {
+      if (!res.due) {
+        const d = new Date(); d.setHours(rec.defH ?? 9, 0, 0, 0);
+        if (d <= new Date()) d.setDate(d.getDate() + 1);
+        res.due = d;
+      } else if (res.due <= new Date()) {
+        res.due = new Date(nextOccurrence(res.due.toISOString(), rec.repeat));
+      }
+      res.repeat = rec.repeat;
+    }
+    return res;
+  }
+
+  function core(input) {
+    const text = ' ' + input.toLowerCase() + ' ';
+    let baseDate = null;
+    const consumed = [];          // substrings to strip from the title
+    const time = parseTime(text);
+
+    // ---- relative day words ----
+    if (/\btomorrow\b/.test(text)) { baseDate = new Date(); baseDate.setDate(baseDate.getDate() + 1); consumed.push('tomorrow'); }
+    else if (/\btonight\b/.test(text)) { baseDate = new Date(); if (!time) { return finalize(input, atTime(baseDate, 20, 0), consumed.concat('tonight')); } consumed.push('tonight'); }
+    else if (/\btoday\b/.test(text)) { baseDate = new Date(); consumed.push('today'); }
+    else if (/\bthis evening\b/.test(text)) { baseDate = new Date(); if (!time) return finalize(input, atTime(baseDate, 19, 0), consumed.concat('this evening')); consumed.push('this evening'); }
+    else if (/\bthis afternoon\b/.test(text)) { baseDate = new Date(); if (!time) return finalize(input, atTime(baseDate, 15, 0), consumed.concat('this afternoon')); consumed.push('this afternoon'); }
+    else if (/\bmorning\b/.test(text)) { baseDate = new Date(); if (/tomorrow/.test(text)) baseDate.setDate(baseDate.getDate() + 1); if (!time) return finalize(input, atTime(baseDate, 9, 0), consumed.concat('morning')); consumed.push('morning'); }
+
+    // ---- "in N minutes/hours/days/weeks" ----
+    const rel = text.match(/\bin\s+(\d+)\s*(min(?:ute)?s?|hours?|hrs?|days?|weeks?)\b/);
+    if (rel && !baseDate) {
+      const n = parseInt(rel[1], 10);
+      const d = new Date();
+      const unit = rel[2];
+      if (/min/.test(unit)) d.setMinutes(d.getMinutes() + n);
+      else if (/h/.test(unit)) d.setHours(d.getHours() + n);
+      else if (/day/.test(unit)) d.setDate(d.getDate() + n);
+      else if (/week/.test(unit)) d.setDate(d.getDate() + n * 7);
+      return finalize(input, d, [rel[0].trim()]);
+    }
+
+    // ---- weekdays ("friday", "next monday") ----
+    if (!baseDate) {
+      const forceNext = /\bnext\s+/.test(text);
+      for (let i = 0; i < WEEKDAYS.length; i++) {
+        const re = new RegExp('\\b(next\\s+)?' + WEEKDAYS[i] + '\\b');
+        const mm = text.match(re);
+        if (mm) {
+          baseDate = nextWeekday(i, forceNext);
+          consumed.push(mm[0].trim());
+          break;
+        }
+      }
+    }
+
+    // ---- explicit calendar date ("aug 3", "3 august", "august 3rd") ----
+    if (!baseDate) {
+      const allMonths = MONTHS.concat(MONTH_ABBR);
+      for (let i = 0; i < allMonths.length; i++) {
+        const mName = allMonths[i];
+        const monthIdx = i % 12;
+        let mm = text.match(new RegExp('\\b' + mName + '\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?\\b'));
+        if (!mm) mm = text.match(new RegExp('\\b(\\d{1,2})(?:st|nd|rd|th)?\\s+' + mName + '\\b'));
+        if (mm) {
+          const day = parseInt(mm[1], 10);
+          const d = new Date();
+          d.setMonth(monthIdx, day);
+          if (d < new Date() && !/\d{4}/.test(text)) d.setFullYear(d.getFullYear() + 1);
+          baseDate = d;
+          consumed.push(mm[0].trim());
+          break;
+        }
+      }
+    }
+
+    // ---- next week / this week ----
+    if (!baseDate && /\bnext week\b/.test(text)) { baseDate = new Date(); baseDate.setDate(baseDate.getDate() + 7); consumed.push('next week'); }
+
+    if (!baseDate && !time) return { due: null, cleanTitle: input.trim() };
+
+    if (!baseDate) baseDate = new Date(); // time only -> today
+    const finalDate = time ? atTime(baseDate, time.h, time.m) : atTime(baseDate, 9, 0);
+    if (time) consumed.push(time.matched);
+    return finalize(input, finalDate, consumed);
+  }
+
+  function finalize(original, date, consumed) {
+    let title = original;
+    const fillers = ['by', 'on', 'at', 'due', 'this', 'next', 'in', '-'];
+    consumed.filter(Boolean).forEach((c) => {
+      title = title.replace(new RegExp(escape(c), 'ig'), ' ');
+    });
+    // tidy dangling prepositions + whitespace
+    title = title.replace(/\s+/g, ' ').trim();
+    title = title.replace(new RegExp('\\b(' + fillers.join('|') + ')\\b\\s*$', 'i'), '').trim();
+    title = title.replace(/[,;:\s]+$/g, '').trim();
+    return { due: date, cleanTitle: title || original.trim() };
+  }
+
+  function escape(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+
+  // Condense free text into a short, clean task title. Strips lead-in filler
+  // ("i want to", "remind me to", ...), keeps only the first clause, and
+  // clamps length at a word boundary. Full text should be kept in notes.
+  function condense(text) {
+    let t = (text || '').replace(/\s+/g, ' ').trim();
+    const FILLER = /^(please\s+|hey\s+|ok(ay)?\s+|so\s+|just\s+|quickly\s+|really\s+|gotta\s+|got to\s+|need to\s+|have to\s+|go and\s+|can you\s+|could you\s+|i\s+(want|wanna|need|have|got|gotta)\s+(to\s+)?|i\s+should\s+|i\s+must\s+|we\s+(should|need to|have to)\s+|remind me (to|about|for)\s+|reminder (to|for|:)\s*|remember to\s+|don'?t forget (to\s+)?|make sure (i|we|to)\s+|note (to|that)\s+|todo:?\s*|task:?\s*|to\s+)/i;
+    let prev;
+    do { prev = t; t = t.replace(FILLER, ''); } while (t !== prev && t.length);
+    // keep only the first clause — reasons/afterthoughts belong in notes
+    t = t.split(/\s+(?:because|since|so that|so i can|so we|and then|after that|as i|which|before the deadline|by the deadline)\s*/i)[0];
+    t = t.replace(/[.,;:!?]+$/, '').trim();
+    const STOP = /\b(the|a|an|of|for|to|and|or|before|after|with|by|at|on|in|my|your|our)$/i;
+    let words = t.split(/\s+/);
+    if (words.length > 9) {
+      words = words.slice(0, 9);
+      while (words.length > 2 && STOP.test(words[words.length - 1])) words.pop();
+      t = words.join(' ') + '…';
+    }
+    if (t.length > 52) {
+      t = t.slice(0, 52).replace(/\s+\S*$/, '');
+      t = t.replace(new RegExp('\\s+(' + 'the|a|an|of|for|to|and|or|before|after|with|by|at|on|in|my|your|our' + ')$', 'i'), '');
+      t += '…';
+    }
+    if (!t) t = (text || '').trim().slice(0, 52);
+    return t.charAt(0).toUpperCase() + t.slice(1);
+  }
+
+  return { parse, condense, nextOccurrence };
+})();
