@@ -63,11 +63,12 @@ body.al { background: transparent; overflow: hidden; }
 }
 .al-btn:hover { color: var(--text); border-color: var(--cyan); box-shadow: 0 0 14px -5px var(--cyan); transform: translateY(-1px); }
 .al-btn.done {
-  color: #04240f; border: none;
-  background: linear-gradient(180deg, #9dffcf, #4de79a);
-  box-shadow: 0 0 18px -4px #4de79a;
+  color: #c9ffe6; border: 1px solid #5dffb0;
+  background: rgba(93, 255, 176, .14);
+  text-shadow: 0 0 8px rgba(93, 255, 176, .6);
+  box-shadow: 0 0 16px -4px rgba(93, 255, 176, .8), inset 0 0 10px rgba(93, 255, 176, .12);
 }
-.al-btn.done:hover { box-shadow: 0 0 26px -4px #4de79a; color: #04240f; }
+.al-btn.done:hover { background: rgba(93, 255, 176, .24); color: #eafff4; }
 .al-btn.edit { margin-left: auto; }
 
 /* auto-dismiss countdown — flush with the card's bottom edge, no gap */

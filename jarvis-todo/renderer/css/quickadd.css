@@ -58,8 +58,8 @@ body.qa { background: transparent; }
   transition: all .2s;
 }
 .qa-mic:hover { border-color: var(--cyan); box-shadow: 0 0 16px -4px var(--cyan); transform: translateY(-1px); }
-.qa-mic.on { background-color: #57c8ff; background-image: linear-gradient(180deg, #e2f4ff, #57c8ff); color: #06202e; border-color: transparent; animation: micpulse 1s ease-in-out infinite; }
-@keyframes micpulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(255, 196, 106, .5); } 50% { box-shadow: 0 0 0 7px rgba(255, 196, 106, 0); } }
+.qa-mic.on { background: rgba(87, 200, 255, .18); color: #bfeeff; border-color: #74e6ff; animation: micpulse 1s ease-in-out infinite; }
+@keyframes micpulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(116, 230, 255, .5); } 50% { box-shadow: 0 0 0 7px rgba(116, 230, 255, 0); } }
 .qa-eq { display: flex; gap: 3px; align-items: flex-end; height: 18px; margin-left: 12px; }
 .qa-eq i {
   width: 3px; background: linear-gradient(var(--cyan), var(--solar-2));
@@ -106,7 +106,12 @@ body.qa { background: transparent; }
   color: var(--text-dim); background: rgba(120, 210, 255, .04); transition: all .2s;
 }
 .qa-time:hover { color: var(--text); border-color: var(--cyan); }
-.qa-time.active { color: #06202e; border-color: transparent; background-color: #57c8ff; background-image: linear-gradient(180deg, #e2f4ff, #57c8ff); box-shadow: 0 0 18px -4px #57c8ff; }
+.qa-time.active {
+  color: #bfeeff; border-color: #74e6ff;
+  background: rgba(87, 200, 255, .14);
+  box-shadow: 0 0 16px -4px rgba(116, 230, 255, .8), inset 0 0 10px rgba(87, 200, 255, .15);
+  text-shadow: 0 0 8px rgba(116, 230, 255, .6);
+}
 .qa-time.custom { color: var(--cyan); }
 #qaCustomTime { display: none; background: rgba(4, 12, 24, .55); border: 1px solid var(--glass-edge); color: var(--text); border-radius: 11px; padding: 7px 11px; font-family: var(--font-body); font-size: 13px; outline: none; color-scheme: dark; }
 #qaCustomTime.show { display: inline-block; }
@@ -126,10 +131,11 @@ body.qa { background: transparent; }
 .qa-foot kbd { font-family: var(--font-body); background: rgba(120, 210, 255, .07); border: 1px solid var(--glass-edge); border-radius: 7px; padding: 2px 7px; color: var(--text); margin: 0 2px; }
 .qa-commit {
   -webkit-app-region: no-drag; cursor: pointer; font-family: var(--font-display); font-size: 12px;
-  letter-spacing: .18em; text-transform: uppercase; color: #06202e;
-  background-color: #57c8ff; background-image: linear-gradient(180deg, #e2f4ff, #57c8ff); border: none; border-radius: 13px;
-  padding: 11px 22px; box-shadow: 0 0 26px rgba(255, 196, 106, .4), inset 0 1px 0 rgba(255, 255, 255, .6);
-  transition: transform .18s var(--ease), box-shadow .25s;
+  letter-spacing: .18em; text-transform: uppercase; color: #bfeeff;
+  background: rgba(87, 200, 255, .14); border: 1px solid #74e6ff; border-radius: 13px;
+  padding: 11px 22px; text-shadow: 0 0 8px rgba(116, 230, 255, .6);
+  box-shadow: 0 0 22px -4px rgba(116, 230, 255, .8), inset 0 0 14px rgba(87, 200, 255, .15);
+  transition: transform .18s var(--ease), box-shadow .25s, background .25s;
 }
-.qa-commit:hover { transform: translateY(-2px); box-shadow: 0 0 38px rgba(255, 196, 106, .6); }
+.qa-commit:hover { transform: translateY(-2px); background: rgba(87, 200, 255, .24); box-shadow: 0 0 32px -4px rgba(116, 230, 255, .95), inset 0 0 16px rgba(87, 200, 255, .2); }
 .qa-commit:active { transform: translateY(0) scale(.97); }
