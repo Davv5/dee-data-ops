@@ -19,12 +19,17 @@
   pointer-events: none;
 }
 .brand { display: flex; align-items: center; gap: 14px; margin-bottom: 6px; }
-.brand .brand-emblem { width: 54px; height: 54px; flex: none; filter: drop-shadow(0 0 11px rgba(116, 230, 255, .55)); }
+.brand .brand-emblem { width: 54px; height: 54px; flex: none; filter: drop-shadow(0 0 11px rgba(255, 190, 90, .5)); }
 .brand-emblem circle { transform-box: fill-box; transform-origin: center; }
 .brand-emblem .r-out { animation: spin 28s linear infinite; }
 .brand-emblem .r-mid { animation: spin 17s linear infinite reverse; }
 @keyframes spin { to { transform: rotate(360deg); } }
-.brand h1 { font-family: var(--font-display); font-size: 23px; letter-spacing: .28em; }
+.brand h1 {
+  font-family: var(--font-display); font-size: 23px; letter-spacing: .28em;
+  background: var(--suit-grad); -webkit-background-clip: text; background-clip: text;
+  color: transparent; text-shadow: none;
+  filter: drop-shadow(0 0 12px rgba(255, 170, 80, .35));
+}
 .brand .sub { font-size: 10px; letter-spacing: .34em; color: var(--text-dim); margin-top: 2px; }
 
 .clock { margin: 26px 0 10px; }
@@ -76,8 +81,8 @@
 /* slow horizontal scan sweep — live-HUD feel */
 .main::after {
   content: ''; position: absolute; left: 0; right: 0; height: 2px; top: 0; z-index: 0;
-  background: linear-gradient(90deg, transparent, rgba(116, 230, 255, 0.45), transparent);
-  box-shadow: 0 0 16px rgba(116, 230, 255, 0.4); pointer-events: none; opacity: .55;
+  background: linear-gradient(90deg, transparent, rgba(255, 207, 92, 0.4), rgba(255, 90, 60, 0.25), transparent);
+  box-shadow: 0 0 16px rgba(255, 180, 80, 0.35); pointer-events: none; opacity: .5;
   animation: scan 7s linear infinite;
 }
 @keyframes scan { 0% { top: -2%; } 100% { top: 102%; } }

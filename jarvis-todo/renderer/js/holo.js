@@ -91,8 +91,9 @@ window.HoloField = class HoloField {
     // --- segmented accent arcs: orange + suit-gold, rotating ---
     this._arcs(R * 1.16, 3, 0.20, this.t * 0.12, 3.0, 0.55 + e * 0.3, G);
     this._arcs(R * 1.16, 3, 0.05, this.t * 0.12 + 0.34, 2, 0.35, G);          // trailing slivers
-    this._arcs(R * 1.08, 2, 0.16, -this.t * 0.09, 2.6, 0.5 + e * 0.25, this.suit); // suit gold
+    this._arcs(R * 1.08, 2, 0.16, -this.t * 0.09, 2.6, 0.6 + e * 0.25, this.suit); // suit gold
     this._arcs(R * 1.24, 2, 0.12, this.t * 0.07, 1.6, 0.3 + e * 0.2, C);      // thin counter arc
+    this._arcs(R * 0.72, 2, 0.09, this.t * 0.2, 1.6, 0.35 + e * 0.2, this.red); // red targeting arc
 
     // --- dashed data ring, counter-rotating (cyan) ---
     this._dashes(R * 0.98, 54, -this.t * 0.16, 0.18 + e * 0.12, C);
