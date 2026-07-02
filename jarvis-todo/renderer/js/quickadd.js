@@ -109,6 +109,11 @@
       const t2 = document.createElement('span'); t2.className = 'qa-tag due';
       t2.textContent = '◷ ' + V.humanWhen(due); preview.appendChild(t2);
     }
+    if (lastParse.repeat) {
+      const t3 = document.createElement('span'); t3.className = 'qa-tag due';
+      t3.textContent = '⟳ ' + (lastParse.repeat.freq === 'weekly' ? 'weekly' : 'daily');
+      preview.appendChild(t3);
+    }
     setCategory();
     reactor.setEnergy(Math.min(1, 0.4 + raw.length / 60));
   }
@@ -122,11 +127,13 @@
     // short clean title on the board; the full typed text is preserved in notes
     const short = NLP.condense(parsed.cleanTitle || titleText);
     reactor.pulse(); reactor.pulse();
+    if (window.JARVIS_SFX) window.JARVIS_SFX.commit();
     window.jarvis.addTask({
       title: short,
       notes: titleText.trim() !== short ? titleText.trim() : '',
       category, color: c.color,
-      due: due ? due.toISOString() : null
+      due: due ? due.toISOString() : null,
+      repeat: parsed.repeat || null
     }).then((rec) => V.acknowledge(rec));
   }
 
@@ -146,6 +153,11 @@
     const a = addr();
     if (['thanks', 'greet', 'status', 'dismiss', 'wake', 'huh'].includes(cmd.type)) {
       V.say(CMD.line(cmd.type, a)); return exit();
+    }
+    if (cmd.type === 'brief') {
+      const tasks = await window.jarvis.getTasks();
+      V.brief(tasks);
+      return exit();
     }
     if (cmd.type === 'tag') {
       const made = C.makeTag(cmd.name, cmd.color, '');
@@ -268,6 +280,7 @@
     stage.classList.remove('out'); stage.classList.add('in');
     resetForm();
     reactor.pulse();
+    if (window.JARVIS_SFX) { window.JARVIS_SFX.setMuted(!!settings.mute); window.JARVIS_SFX.summon(); }
     setTimeout(() => input.focus(), 80);
     if (Math.random() < 0.55) V.say(pick(['Yes?', 'Ready when you are.', "What's the directive?", "I'm listening.", 'Go ahead.', 'At your service.']));
   }

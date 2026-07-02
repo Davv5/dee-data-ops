@@ -83,6 +83,12 @@
 
 /* ---- task list ---- */
 .tasks { overflow-y: auto; flex: 1; padding-right: 8px; display: flex; flex-direction: column; gap: 12px; }
+
+/* day group headers */
+.tgroup { display: flex; align-items: center; gap: 12px; margin: 4px 2px -4px; }
+.tgroup span { font-family: var(--font-display); font-size: 10px; letter-spacing: .32em; color: var(--text-dim); }
+.tgroup::after { content: ''; flex: 1; height: 1px; background: var(--hud-line); opacity: .5; }
+.tgroup.hot span { color: var(--red); text-shadow: 0 0 12px rgba(255, 77, 94, .5); }
 .empty { color: var(--text-dim); text-align: center; margin-top: 86px; font-size: 14px; letter-spacing: .04em; }
 .empty .big { font-family: var(--font-display); font-size: 21px; letter-spacing: .22em; color: var(--gold-text); margin-bottom: 10px; text-shadow: 0 0 24px rgba(255, 196, 106, .4); }
 

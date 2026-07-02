@@ -175,17 +175,38 @@ function trayIcon() {
   return img;
 }
 
-function createTray() {
-  tray = new Tray(trayIcon());
-  tray.setToolTip('JARVIS — at your service');
-  const menu = Menu.buildFromTemplate([
+function refreshTray() {
+  if (!tray) return;
+  // surface the next scheduled directive right in the menu bar
+  const upcoming = store.all()
+    .filter((t) => !t.done && t.due && new Date(t.due) >= new Date())
+    .sort((a, b) => new Date(a.due) - new Date(b.due));
+  const items = [];
+  if (upcoming.length) {
+    const nxt = upcoming[0];
+    const d = new Date(nxt.due);
+    const sameDay = d.toDateString() === new Date().toDateString();
+    const when = (sameDay ? '' : d.toLocaleDateString([], { weekday: 'short' }) + ' ') +
+      d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    const title = nxt.title.length > 30 ? nxt.title.slice(0, 29) + '…' : nxt.title;
+    items.push({ label: `Next: ${title} — ${when}`, enabled: false }, { type: 'separator' });
+    tray.setToolTip(`JARVIS — next: ${title} at ${when}`);
+  } else {
+    tray.setToolTip('JARVIS — at your service');
+  }
+  items.push(
     { label: 'New directive  (⇧⌘Space)', click: showQuickAdd },
     { label: 'Open dashboard', click: () => { if (dashboardWin) dashboardWin.show(); } },
     { type: 'separator' },
     { label: 'Quit JARVIS', click: () => { app.isQuitting = true; app.quit(); } }
-  ]);
-  tray.setContextMenu(menu);
+  );
+  tray.setContextMenu(Menu.buildFromTemplate(items));
+}
+
+function createTray() {
+  tray = new Tray(trayIcon());
   tray.on('click', showQuickAdd);
+  refreshTray();
 }
 
 // ---------------------------------------------------------------------------
@@ -210,6 +231,7 @@ function broadcast(channel, payload) {
   [dashboardWin, quickWin].forEach((w) => {
     if (w && !w.isDestroyed()) w.webContents.send(channel, payload);
   });
+  if (channel === 'tasks:changed') refreshTray();
 }
 
 ipcMain.handle('tasks:all', () => store.all());
@@ -278,6 +300,7 @@ if (!gotLock) {
     createAlertWin();
     createTray();
     registerHotkey();
+    setInterval(refreshTray, 60000);   // "next" moves with the clock
 
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createDashboard();

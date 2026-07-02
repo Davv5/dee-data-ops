@@ -56,13 +56,33 @@
   }
 
   // ---- render ----
+  const GROUP_ORDER = ['OVERDUE', 'TODAY', 'TOMORROW', 'THIS WEEK', 'LATER', 'UNSCHEDULED'];
+  function groupOf(t) {
+    if (!t.due) return 'UNSCHEDULED';
+    const now = new Date();
+    const d = new Date(t.due);
+    if (d < now) return 'OVERDUE';
+    if (d.toDateString() === now.toDateString()) return 'TODAY';
+    const tmr = new Date(now); tmr.setDate(now.getDate() + 1);
+    if (d.toDateString() === tmr.toDateString()) return 'TOMORROW';
+    if (d - now < 7 * 86400000) return 'THIS WEEK';
+    return 'LATER';
+  }
+
   function render() {
     const list = $('tasks');
     const items = visible().sort(sortTasks);
     if (!items.length) {
       list.innerHTML = `<div class="empty"><div class="big">CLEAR SKIES</div>No directives here. Press <b>＋ Directive</b> or hit your hotkey.</div>`;
-    } else {
+    } else if (filter === 'done') {
       list.innerHTML = items.map(taskHTML).join('');
+      wireTasks();
+    } else {
+      list.innerHTML = GROUP_ORDER.map((g) => {
+        const gi = items.filter((t) => groupOf(t) === g);
+        if (!gi.length) return '';
+        return `<div class="tgroup ${g === 'OVERDUE' ? 'hot' : ''}"><span>${g}</span></div>` + gi.map(taskHTML).join('');
+      }).join('');
       wireTasks();
     }
     renderStats();
@@ -93,6 +113,7 @@
           <div class="t-meta">
             <span class="t-cat"><span class="dot chip-c"></span>${c.label}</span>
             ${dueLabel}
+            ${t.repeat ? `<span class="t-due">⟳ ${t.repeat.freq}</span>` : ''}
           </div>
         </div>
         <div class="t-actions">
@@ -113,8 +134,18 @@
           const t = tasks.find((x) => x.id === id);
           if (!t) return;
           if (act === 'toggle') {
-            const done = !t.done;
-            window.jarvis.updateTask(id, { done }).then(() => { if (done) V.reactComplete(t); });
+            if (!t.done && t.repeat && t.due) {
+              // repeating directive: completing it rolls to the next occurrence
+              const next = window.JARVIS_NLP.nextOccurrence(t.due, t.repeat);
+              window.jarvis.updateTask(id, { due: next, announcedDue: false, announcedSoon: false, lastNudge: undefined });
+              if (window.JARVIS_SFX) window.JARVIS_SFX.done();
+              V.say(`Done. "${t.title}" resets — next ${V.humanWhen(new Date(next))}.`);
+            } else {
+              const done = !t.done;
+              window.jarvis.updateTask(id, { done }).then(() => {
+                if (done) { if (window.JARVIS_SFX) window.JARVIS_SFX.done(); V.reactComplete(t); }
+              });
+            }
           } else if (act === 'del') {
             window.jarvis.removeTask(id);
           } else if (act === 'speak') {
@@ -187,6 +218,7 @@
     try {
       window.jarvis.showAlert({
         id: t.id, title: t.title, category: t.category, kind,
+        due: t.due || null, repeat: t.repeat || null, mute: !!settings.mute,
         dueLabel: t.due ? V.humanWhen(new Date(t.due)) : '',
         customTags: settings.customTags || {}
       });
@@ -247,12 +279,25 @@
     $('edTimes').appendChild(el);
   });
 
+  // repeat chips: Once / Daily / Weekly
+  [{ k: '', label: 'Once' }, { k: 'daily', label: '⟳ Daily' }, { k: 'weekly', label: '⟳ Weekly' }].forEach((r) => {
+    const el = document.createElement('div');
+    el.className = 'pchip';
+    el.dataset.k = r.k;
+    el.textContent = r.label;
+    el.addEventListener('click', () => {
+      [...$('edRepeat').children].forEach((x) => x.classList.toggle('active', x === el));
+    });
+    $('edRepeat').appendChild(el);
+  });
+
   function openEditor(id) {
     const t = tasks.find((x) => x.id === id);
     if (!t) return;
     editingId = id;
     $('edTitle').value = t.title;
     [...$('edCats').children].forEach((x) => x.classList.toggle('active', x.dataset.key === t.category));
+    [...$('edRepeat').children].forEach((x) => x.classList.toggle('active', x.dataset.k === ((t.repeat && t.repeat.freq) || '')));
     $('edDue').value = t.due ? toLocalInput(new Date(t.due)) : '';
     editBack.classList.add('show');
     setTimeout(() => $('edTitle').focus(), 60);
@@ -271,8 +316,10 @@
     const activeCat = [...$('edCats').children].find((x) => x.classList.contains('active'));
     const category = activeCat ? activeCat.dataset.key : (t ? t.category : 'standard');
     const due = $('edDue').value ? new Date($('edDue').value).toISOString() : null;
+    const repChip = [...$('edRepeat').children].find((x) => x.classList.contains('active'));
+    const repeat = repChip && repChip.dataset.k ? { freq: repChip.dataset.k } : null;
     // changing the due time resets the spoken-alert flags so JARVIS will speak again
-    const patch = { title: $('edTitle').value.trim() || 'Untitled directive', category, color: C.byKey(category).color, due };
+    const patch = { title: $('edTitle').value.trim() || 'Untitled directive', category, color: C.byKey(category).color, due, repeat };
     if (!t || t.due !== due) { patch.announcedDue = false; patch.announcedSoon = false; patch.lastNudge = undefined; }
     window.jarvis.updateTask(editingId, patch);
     closeEditor();
@@ -362,7 +409,10 @@
   function refresh(t) { tasks = t || []; render(); }
   function applyTags(s) { C.configure((s && s.customTags) || {}); renderLegend(); buildEditorCats(); renderTagManager(); render(); }
   window.jarvis.onTasksChanged(refresh);
-  window.jarvis.onSettingsChanged((s) => { settings = s; V.configure(s); applyTags(s); });
+  window.jarvis.onSettingsChanged((s) => {
+    settings = s; V.configure(s); applyTags(s);
+    if (window.JARVIS_SFX) window.JARVIS_SFX.setMuted(!!s.mute);
+  });
 
   // ---- boot ----
   Promise.all([window.jarvis.getTasks(), window.jarvis.getSettings()]).then(([t, s]) => {
@@ -371,6 +421,7 @@
     $('muteBtn').textContent = muted ? '🔇 Muted' : '🔊 Voice';
     $('muteBtn').classList.toggle('on', !muted);
     V.configure(settings);
+    if (window.JARVIS_SFX) window.JARVIS_SFX.setMuted(muted);
     applyTags(settings);
     render();
     if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission();

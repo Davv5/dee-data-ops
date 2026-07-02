@@ -16,7 +16,8 @@
     document.documentElement.style.setProperty('--ac', p.kind === 'overdue' ? '#ff4d5e' : c.hex);
     $('aKind').textContent = KINDS[p.kind] || "IT'S TIME";
     $('aTitle').textContent = p.title;
-    $('aMeta').textContent = c.label + (p.dueLabel ? '  ·  ' + p.dueLabel : '');
+    $('aMeta').textContent = c.label + (p.dueLabel ? '  ·  ' + p.dueLabel : '') + (p.repeat ? '  ·  ⟳ ' + p.repeat.freq : '');
+    if (window.JARVIS_SFX) { window.JARVIS_SFX.setMuted(!!p.mute); window.JARVIS_SFX.alert(); }
     // restart the slide-in + countdown
     card.classList.remove('in');
     void card.offsetWidth;
@@ -40,7 +41,21 @@
     dismiss();
   }
 
-  $('bDone').addEventListener('click', () => { if (cur) window.jarvis.updateTask(cur.id, { done: true }); dismiss(); });
+  $('bDone').addEventListener('click', () => {
+    if (cur) {
+      if (cur.repeat && cur.due) {
+        // repeating directive: completing it schedules the next occurrence
+        window.jarvis.updateTask(cur.id, {
+          due: window.JARVIS_NLP.nextOccurrence(cur.due, cur.repeat),
+          announcedDue: false, announcedSoon: false, lastNudge: undefined
+        });
+      } else {
+        window.jarvis.updateTask(cur.id, { done: true });
+      }
+      if (window.JARVIS_SFX) window.JARVIS_SFX.done();
+    }
+    dismiss();
+  });
   $('b10').addEventListener('click', () => snooze(10));
   $('b60').addEventListener('click', () => snooze(60));
   $('bEdit').addEventListener('click', () => { if (cur) window.jarvis.editFromAlert(cur.id); });

@@ -51,6 +51,7 @@ module.exports = {
       category: task.category || 'standard',
       color: task.color || 'cyan',
       due: task.due || null,          // ISO string or null
+      repeat: task.repeat || null,    // { freq: 'daily' | 'weekly' } or null
       createdAt: new Date().toISOString(),
       done: false,
       announcedDue: false,            // spoken "it's time" fired

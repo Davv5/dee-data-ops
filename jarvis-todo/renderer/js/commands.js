@@ -27,6 +27,10 @@ window.JARVIS_COMMANDS = (function () {
     if (/\bhow (are you|are things|is it going|'?s it going|you doing|you holding up)\b|\byou (good|ok|okay|alright)\b/.test(l)) return { type: 'status' };
     if (/^(never ?mind|cancel|dismiss|forget it|stop|that'?s all|nothing|no thanks|nah)\b/.test(l)) return { type: 'dismiss' };
 
+    // spoken agenda
+    if (/^(brief me|briefing|debrief|status report|agenda|rundown|run me through)/.test(l) ||
+        /\bwhat('?s| is| do i have)\s+(next|up today|on today|on the (board|slate)|today|the plan|pending|overdue|left|due)\b/.test(l)) return { type: 'brief' };
+
     // make a custom tag: "make a tag called Finance in green"
     const tm = l.match(/\b(make|create|add|new|set up)\s+(a\s+|an\s+)?(tag|label|category|class|colou?r)\s+(called\s+|named\s+|for\s+|:\s*)?(.+)/);
     if (tm) {

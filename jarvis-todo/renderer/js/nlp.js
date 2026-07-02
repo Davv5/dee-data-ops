@@ -51,7 +51,50 @@ window.JARVIS_NLP = (function () {
     return d;
   }
 
+  // ---- recurrence: "every day", "daily", "every monday", "every morning" ----
+  function extractRepeat(input) {
+    let s = input; let repeat = null; let defH = null;
+    const daily = s.match(/\b(every\s*day|everyday|daily|each day)\b/i);
+    const dayPart = s.match(/\bevery\s+(morning|afternoon|evening|night)\b/i);
+    const weekday = s.match(/\bevery\s+(sunday|monday|tuesday|wednesday|thursday|friday|saturday)s?\b/i);
+    const weekly = s.match(/\b(every\s+week|weekly)\b/i);
+    if (daily) { repeat = { freq: 'daily' }; s = s.replace(daily[0], ' '); }
+    else if (dayPart) {
+      repeat = { freq: 'daily' };
+      defH = { morning: 9, afternoon: 15, evening: 19, night: 21 }[dayPart[1].toLowerCase()];
+      s = s.replace(dayPart[0], ' ');
+    } else if (weekday) {
+      repeat = { freq: 'weekly' };
+      s = s.replace(weekday[0], ' ' + weekday[1] + ' ');  // let the core date the weekday
+    } else if (weekly) { repeat = { freq: 'weekly' }; s = s.replace(weekly[0], ' '); }
+    return { repeat, defH, cleaned: s.replace(/\s+/g, ' ').trim() };
+  }
+
+  // next occurrence of a repeating directive, always in the future
+  function nextOccurrence(fromIso, repeat) {
+    const d = fromIso ? new Date(fromIso) : new Date();
+    const step = repeat && repeat.freq === 'weekly' ? 7 : 1;
+    do { d.setDate(d.getDate() + step); } while (d <= new Date());
+    return d.toISOString();
+  }
+
   function parse(input) {
+    const rec = extractRepeat(input);
+    const res = core(rec.cleaned);
+    if (rec.repeat) {
+      if (!res.due) {
+        const d = new Date(); d.setHours(rec.defH ?? 9, 0, 0, 0);
+        if (d <= new Date()) d.setDate(d.getDate() + 1);
+        res.due = d;
+      } else if (res.due <= new Date()) {
+        res.due = new Date(nextOccurrence(res.due.toISOString(), rec.repeat));
+      }
+      res.repeat = rec.repeat;
+    }
+    return res;
+  }
+
+  function core(input) {
     const text = ' ' + input.toLowerCase() + ' ';
     let baseDate = null;
     const consumed = [];          // substrings to strip from the title
@@ -165,5 +208,5 @@ window.JARVIS_NLP = (function () {
     return t.charAt(0).toUpperCase() + t.slice(1);
   }
 
-  return { parse, condense };
+  return { parse, condense, nextOccurrence };
 })();

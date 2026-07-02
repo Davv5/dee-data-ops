@@ -243,8 +243,8 @@ window.JARVIS_VOICE = (function () {
     let line;
 
     if (due) {
-      const when = humanWhen(due);
-      const near = (due - now) / 60000 < 90 && due > now;
+      const when = task.repeat ? humanRepeat(due, task.repeat) : humanWhen(due);
+      const near = !task.repeat && (due - now) / 60000 < 90 && due > now;
       line = join(opener, pick([
         `I'll remind you to ${subject} ${when}.`,
         `noted — I'll prompt you to ${subject} ${when}.`,
@@ -359,6 +359,45 @@ window.JARVIS_VOICE = (function () {
     if (t.length > 48) t = t.slice(0, 48).replace(/\s+\S*$/, '') + '…';
     return t;
   }
+  function humanRepeat(d, repeat) {
+    const time = d ? d.toLocaleTimeString([], { hour: 'numeric', minute: d.getMinutes() ? '2-digit' : undefined }) : '';
+    if (repeat && repeat.freq === 'weekly') {
+      const day = d ? d.toLocaleDateString([], { weekday: 'long' }) : 'week';
+      return 'every ' + day + (time ? ' at ' + time : '');
+    }
+    return 'every day' + (time ? ' at ' + time : '');
+  }
+
+  // ---- public: spoken agenda ("brief me" / "what's next") ------------------
+  function brief(tasks) {
+    const a = addr();
+    const now = new Date();
+    const active = (tasks || []).filter((t) => !t.done);
+    if (!active.length) return say(pick([`${a}, the board is clear. Nothing scheduled.`, `Nothing on the slate, ${a}. Enjoy it.`]));
+
+    const overdue = active.filter((t) => t.due && new Date(t.due) < now);
+    const today = active.filter((t) => t.due && new Date(t.due) >= now && new Date(t.due).toDateString() === now.toDateString())
+      .sort((x, y) => new Date(x.due) - new Date(y.due));
+    const later = active.filter((t) => t.due && new Date(t.due) > now && new Date(t.due).toDateString() !== now.toDateString())
+      .sort((x, y) => new Date(x.due) - new Date(y.due));
+
+    const parts = [];
+    if (today.length) {
+      const list = today.slice(0, 3).map((t) => `${shorten(t.title)} at ${clockOnly(new Date(t.due))}`).join(', ');
+      parts.push(`${today.length === 1 ? 'one directive today' : today.length + ' today'}: ${list}${today.length > 3 ? ', and more' : ''}`);
+    }
+    if (overdue.length) {
+      parts.push(`${overdue.length} overdue` + (overdue.length <= 2 ? ' — ' + overdue.map((t) => shorten(t.title)).join(', and ') : ''));
+    }
+    if (!today.length && later.length) {
+      const n = later[0];
+      parts.push(`next up: ${shorten(n.title)}, ${humanWhen(new Date(n.due))}`);
+    }
+    if (!parts.length) parts.push(`${active.length} tracked, none time-boxed yet`);
+    return say(join(pick([a + ',', 'Right then,', a + ' —', 'As it stands,']), parts.join('. ') + '.',
+      maybe(0.35, pick(['Shall we begin?', 'I suggest we start at the top.', '']))));
+  }
+
   function humanWhen(d) {
     const now = new Date();
     const sameDay = d.toDateString() === now.toDateString();
@@ -372,5 +411,5 @@ window.JARVIS_VOICE = (function () {
     return day + ' at ' + time;
   }
 
-  return { say, acknowledge, greeting, alert, reactComplete, cue, configure, listVoices, hasGoodVoice, humanWhen, partOfDay };
+  return { say, acknowledge, greeting, alert, reactComplete, cue, brief, configure, listVoices, hasGoodVoice, humanWhen, humanRepeat, partOfDay };
 })();
