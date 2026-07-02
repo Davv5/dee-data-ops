@@ -138,5 +138,32 @@ window.JARVIS_NLP = (function () {
 
   function escape(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
 
-  return { parse };
+  // Condense free text into a short, clean task title. Strips lead-in filler
+  // ("i want to", "remind me to", ...), keeps only the first clause, and
+  // clamps length at a word boundary. Full text should be kept in notes.
+  function condense(text) {
+    let t = (text || '').replace(/\s+/g, ' ').trim();
+    const FILLER = /^(please\s+|hey\s+|ok(ay)?\s+|so\s+|just\s+|quickly\s+|really\s+|gotta\s+|got to\s+|need to\s+|have to\s+|go and\s+|can you\s+|could you\s+|i\s+(want|wanna|need|have|got|gotta)\s+(to\s+)?|i\s+should\s+|i\s+must\s+|we\s+(should|need to|have to)\s+|remind me (to|about|for)\s+|reminder (to|for|:)\s*|remember to\s+|don'?t forget (to\s+)?|make sure (i|we|to)\s+|note (to|that)\s+|todo:?\s*|task:?\s*|to\s+)/i;
+    let prev;
+    do { prev = t; t = t.replace(FILLER, ''); } while (t !== prev && t.length);
+    // keep only the first clause — reasons/afterthoughts belong in notes
+    t = t.split(/\s+(?:because|since|so that|so i can|so we|and then|after that|as i|which|before the deadline|by the deadline)\s*/i)[0];
+    t = t.replace(/[.,;:!?]+$/, '').trim();
+    const STOP = /\b(the|a|an|of|for|to|and|or|before|after|with|by|at|on|in|my|your|our)$/i;
+    let words = t.split(/\s+/);
+    if (words.length > 9) {
+      words = words.slice(0, 9);
+      while (words.length > 2 && STOP.test(words[words.length - 1])) words.pop();
+      t = words.join(' ') + '…';
+    }
+    if (t.length > 52) {
+      t = t.slice(0, 52).replace(/\s+\S*$/, '');
+      t = t.replace(new RegExp('\\s+(' + 'the|a|an|of|for|to|and|or|before|after|with|by|at|on|in|my|your|our' + ')$', 'i'), '');
+      t += '…';
+    }
+    if (!t) t = (text || '').trim().slice(0, 52);
+    return t.charAt(0).toUpperCase() + t.slice(1);
+  }
+
+  return { parse, condense };
 })();

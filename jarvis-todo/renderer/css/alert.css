@@ -1,0 +1,66 @@
+/* JARVIS alert HUD — a small actionable reminder card, slides in top-right. */
+
+body.al { background: transparent; overflow: hidden; }
+
+.al-card {
+  position: relative; margin: 6px; padding: 14px 16px 12px;
+  border-radius: 18px;
+  transform: translateX(30px) scale(.97); opacity: 0; filter: blur(4px);
+  transition: transform .45s var(--ease), opacity .35s var(--ease), filter .4s var(--ease);
+}
+.al-card.in { transform: none; opacity: 1; filter: blur(0); }
+
+/* directive-coloured energy edge */
+.al-edge {
+  position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+  background: var(--ac, var(--cyan)); box-shadow: 0 0 16px var(--ac, var(--cyan));
+  border-radius: 3px 0 0 3px;
+}
+
+.al-head { display: flex; align-items: center; gap: 9px; margin-bottom: 8px; }
+.al-emblem { width: 22px; height: 22px; filter: drop-shadow(0 0 7px rgba(116, 230, 255, .6)); }
+.al-emblem .spin1 { transform-box: fill-box; transform-origin: center; animation: spin 5s linear infinite; }
+.al-kind {
+  font-size: 10px; letter-spacing: .3em; color: var(--ac, var(--cyan));
+  text-shadow: 0 0 12px var(--ac, var(--cyan));
+}
+.al-x {
+  margin-left: auto; cursor: pointer; border: none; background: none;
+  color: var(--text-dim); font-size: 13px; padding: 2px 5px; transition: color .2s;
+}
+.al-x:hover { color: var(--text); }
+
+.al-title {
+  font-family: var(--font-body); font-size: 18px; font-weight: 600; color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.al-meta { font-size: 12px; margin-top: 3px; letter-spacing: .04em; }
+
+.al-actions { display: flex; gap: 7px; margin-top: 11px; }
+.al-btn {
+  cursor: pointer; font-family: var(--font-body); font-size: 12.5px; font-weight: 600;
+  letter-spacing: .04em; color: var(--text-dim);
+  border: 1px solid var(--glass-edge); background: rgba(150, 214, 255, .05);
+  border-radius: 10px; padding: 7px 11px; transition: all .2s;
+}
+.al-btn:hover { color: var(--text); border-color: var(--cyan); box-shadow: 0 0 14px -5px var(--cyan); transform: translateY(-1px); }
+.al-btn.done {
+  color: #04240f; border: none;
+  background: linear-gradient(180deg, #9dffcf, #4de79a);
+  box-shadow: 0 0 18px -4px #4de79a;
+}
+.al-btn.done:hover { box-shadow: 0 0 26px -4px #4de79a; color: #04240f; }
+.al-btn.edit { margin-left: auto; }
+
+/* auto-dismiss countdown */
+.al-progress {
+  position: absolute; left: 14px; right: 14px; bottom: 6px; height: 2px;
+  background: rgba(150, 214, 255, .12); border-radius: 2px; overflow: hidden;
+}
+.al-progress i {
+  display: block; height: 100%; width: 100%;
+  background: linear-gradient(90deg, var(--ac, var(--cyan)), transparent);
+  transform-origin: left; border-radius: 2px;
+}
+.al-card.in .al-progress i { animation: drain 22s linear forwards; }
+@keyframes drain { from { transform: scaleX(1); } to { transform: scaleX(0); } }

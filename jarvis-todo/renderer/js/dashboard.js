@@ -183,6 +183,15 @@
   }
 
   function notify(t, kind) {
+    // Jarvis HUD card (animated, actionable: Done / +10m / +1h / Edit)
+    try {
+      window.jarvis.showAlert({
+        id: t.id, title: t.title, category: t.category, kind,
+        dueLabel: t.due ? V.humanWhen(new Date(t.due)) : '',
+        customTags: settings.customTags || {}
+      });
+    } catch (_) {}
+    // silent native notification too, so it lands in Notification Center history
     if (!('Notification' in window)) return;
     const title = kind === 'soon' ? 'JARVIS · Coming up' : kind === 'overdue' ? 'JARVIS · Overdue' : 'JARVIS · It’s time';
     const body = V.cue(t, kind);   // intent-aware: "Time to call the CEO"
@@ -249,6 +258,9 @@
     setTimeout(() => $('edTitle').focus(), 60);
   }
   function closeEditor() { editBack.classList.remove('show'); editingId = null; }
+
+  // alert card's "Time / Priority" button routes here
+  window.jarvis.onEditorOpen((id) => openEditor(id));
 
   $('edCancel').addEventListener('click', closeEditor);
   editBack.addEventListener('click', (e) => { if (e.target === editBack) closeEditor(); });

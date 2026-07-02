@@ -92,6 +92,14 @@
     if (!raw) { setCategory(); return; }
     lastParse = NLP.parse(raw);
     const cat = C.byKey(activeCategory());
+    // the short title JARVIS will actually log
+    const short = NLP.condense(lastParse.cleanTitle || raw);
+    if (short && short.toLowerCase() !== raw.toLowerCase()) {
+      const t0 = document.createElement('span');
+      t0.className = 'qa-tag'; t0.style.setProperty('--c', cat.hex);
+      t0.textContent = '➤ ' + short;
+      preview.appendChild(t0);
+    }
     const t1 = document.createElement('span');
     t1.className = 'qa-tag'; t1.style.setProperty('--c', cat.hex);
     t1.innerHTML = `<span class="dot"></span>${cat.label}`;
@@ -111,9 +119,13 @@
     const category = manualCategory || C.infer(titleText) || 'standard';
     const c = C.byKey(category);
     const due = manualDue !== undefined ? manualDue : parsed.due;
+    // short clean title on the board; the full typed text is preserved in notes
+    const short = NLP.condense(parsed.cleanTitle || titleText);
     reactor.pulse(); reactor.pulse();
     window.jarvis.addTask({
-      title: parsed.cleanTitle || titleText, notes: '', category, color: c.color,
+      title: short,
+      notes: titleText.trim() !== short ? titleText.trim() : '',
+      category, color: c.color,
       due: due ? due.toISOString() : null
     }).then((rec) => V.acknowledge(rec));
   }

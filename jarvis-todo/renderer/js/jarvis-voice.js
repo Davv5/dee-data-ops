@@ -180,22 +180,42 @@ window.JARVIS_VOICE = (function () {
     work: (o) => o ? 'get to work on ' + o : 'get to work', build: (o) => 'work on ' + (o || 'it'), code: (o) => 'work on ' + (o || 'it'), write: (o) => 'write ' + (o || 'it'), finish: (o) => 'finish ' + (o || 'it'), complete: (o) => 'finish ' + (o || 'it'), start: (o) => 'start ' + (o || 'it'), prepare: (o) => 'prepare ' + (o || 'it'), prep: (o) => 'prep ' + (o || 'it'), book: (o) => 'book ' + (o || 'it'), schedule: (o) => 'schedule ' + (o || 'it'),
     post: (o) => 'post ' + (o || 'it'), publish: (o) => 'publish ' + (o || 'it'), record: (o) => 'record ' + (o || 'it'), edit: (o) => 'edit ' + (o || 'it'),
     clean: (o) => 'clean ' + (o || 'up'), wash: (o) => 'wash ' + (o || 'up'), laundry: () => 'do the laundry',
-    feed: (o) => 'feed ' + (o || 'them'), check: (o) => 'check ' + (o || 'it'), pray: () => 'pray', meditate: () => 'meditate', journal: () => 'journal'
+    feed: (o) => 'feed ' + (o || 'them'), check: (o) => 'check ' + (o || 'it'), pray: () => 'pray', meditate: () => 'meditate', journal: () => 'journal',
+    begin: (o) => 'begin ' + (o || 'it'), continue: (o) => 'continue ' + (o || 'it'), resume: (o) => 'resume ' + (o || 'it'),
+    revise: (o) => 'revise ' + (o || 'it'), attend: (o) => 'attend ' + (o || 'it'), join: (o) => 'join ' + (o || 'it'),
+    watch: (o) => 'watch ' + (o || 'it'), plan: (o) => 'plan ' + (o || 'it'), organize: (o) => 'organise ' + (o || 'it'),
+    renew: (o) => 'renew ' + (o || 'it'), apply: (o) => 'apply' + (o ? ' ' + o : ''), update: (o) => 'update ' + (o || 'it'), fix: (o) => 'fix ' + (o || 'it')
   };
 
   function extractIntent(rawTitle) {
-    let title = (rawTitle || '').trim();
-    title = title.replace(/^(reminder\s+(to|for|:)|remember\s+to|remind\s+me\s+to|don'?t\s+forget\s+to|i\s+(need|have|want|gotta)\s+to|need\s+to|have\s+to|gotta|got\s+to|please|to|must)\s+/i, '').trim();
+    let title = (rawTitle || '').replace(/\s+/g, ' ').trim();
+    // strip lead-in filler, repeatedly ("please remind me to go call…")
+    const FILLER = /^(reminder\s+(to|for|:)\s*|remember\s+to\s+|remind\s+me\s+(to|about|for)\s+|don'?t\s+forget\s+(to\s+)?|i\s+(need|have|want|wanna|gotta|got)\s+(to\s+)?|i\s+should\s+|we\s+should\s+|need\s+to\s+|have\s+to\s+|gotta\s+|got\s+to\s+|make\s+sure\s+(i|to)\s+|please\s+|just\s+|quickly\s+|really\s+|to\s+|must\s+|go\s+and\s+)/i;
+    let prev;
+    do { prev = title; title = title.replace(FILLER, '').trim(); } while (title !== prev && title.length);
     // safety net: strip any trailing time/date that survived in the title
     title = title.replace(/\s+(at|by)?\s*\d{1,2}([:.]\d{2})?\s*([ap]\.?m\.?)?\s*$/i, ' $1').replace(/\s+(at|by)\s*$/i, '').trim();
     title = title.replace(/\s+(tonight|tomorrow|today|this\s+(morning|afternoon|evening)|next\s+week)$/i, '').trim();
     title = title.replace(/\s+(on\s+)?(mon|tue|wed|thu|fri|sat|sun)[a-z]*$/i, '').trim();
+    // keep the first clause only
+    title = title.split(/\s+(?:because|since|so that|and then|after that)\s+/i)[0];
     title = title.replace(/[.,;:!?]+$/, '').trim();
     const words = title.split(/\s+/);
-    const verb = (words[0] || '').toLowerCase().replace(/[^a-z]/g, '');
-    const object = words.slice(1).join(' ').replace(/[.,;:!?]+$/, '').trim();
-    const fn = VERB_PHRASES[verb];
-    if (fn) return { action: fn(object), matched: true };
+    // scan the first 3 tokens for a known action verb ("go call mum" -> call)
+    for (let i = 0; i < Math.min(3, words.length); i++) {
+      const verb = (words[i] || '').toLowerCase().replace(/[^a-z]/g, '');
+      const fn = VERB_PHRASES[verb];
+      if (fn) {
+        let object = words.slice(i + 1).join(' ').replace(/[.,;:!?]+$/, '').trim();
+        // clamp long objects so speech stays tight
+        const ow = object.split(/\s+/);
+        if (ow.length > 7) object = ow.slice(0, 7).join(' ');
+        // speak from JARVIS's side: "my course" -> "your course"
+        object = object.replace(/\bmy\b/gi, 'your').replace(/\bour\b/gi, 'your')
+                       .replace(/\bmyself\b/gi, 'yourself').replace(/\bi\b/g, 'you').replace(/\bme\b/gi, 'you');
+        return { action: fn(object), matched: true };
+      }
+    }
     return { action: null, matched: false, title };
   }
 
@@ -301,12 +321,17 @@ window.JARVIS_VOICE = (function () {
       );
     } else { // 'due' — the headline "it's time" event
       const head = pick([a + '.', a + ',', 'It is time,', 'Now,', a + ' —']);
-      const body = pick([
+      const body = it.matched ? pick([
         `it's time to ${subject}.`,
         `it is time to ${subject}.`,
         `you should ${subject} now.`,
         `let's ${subject}.`,
         `time to ${subject}.`
+      ]) : pick([
+        `it's time for "${gist}".`,
+        `"${gist}" is up.`,
+        `the moment for "${gist}" has arrived.`,
+        `"${gist}" — now.`
       ]);
       const timeBit = clock ? pick([`It's ${clock}.`, `The time is ${clock}.`, `It's ${clock} now.`, '']) : '';
       line = join(head, body, pick(tone), timeBit,
@@ -327,8 +352,11 @@ window.JARVIS_VOICE = (function () {
 
   // ---- text helpers --------------------------------------------------------
   function shorten(title) {
-    let t = (title || '').trim();
-    if (t.length > 70) t = t.slice(0, 67).replace(/\s+\S*$/, '') + '…';
+    // never speak a paragraph — clamp hard at a word boundary
+    let t = (title || '').replace(/\s+/g, ' ').trim();
+    const words = t.split(/\s+/);
+    if (words.length > 8) t = words.slice(0, 8).join(' ') + '…';
+    if (t.length > 48) t = t.slice(0, 48).replace(/\s+\S*$/, '') + '…';
     return t;
   }
   function humanWhen(d) {

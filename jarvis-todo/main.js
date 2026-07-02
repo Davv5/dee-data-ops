@@ -93,6 +93,46 @@ function quickAlive() {
   return quickWin && !quickWin.isDestroyed();
 }
 
+// --- alert HUD: a small always-on-top Jarvis card with Done/Snooze/Edit ---
+let alertWin = null;
+
+function alertAlive() { return alertWin && !alertWin.isDestroyed(); }
+
+function createAlertWin() {
+  alertWin = new BrowserWindow({
+    width: 420,
+    height: 190,
+    show: false,
+    frame: false,
+    transparent: true,
+    resizable: false,
+    movable: true,
+    skipTaskbar: true,
+    alwaysOnTop: true,
+    hasShadow: false,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false
+    }
+  });
+  alertWin.loadFile(path.join(__dirname, 'renderer', 'alert.html'));
+  alertWin.setVisibleOnAllWorkspaces(true, { visibleOnFullScreenScreens: true });
+  alertWin.setAlwaysOnTop(true, 'screen-saver');
+}
+
+function showAlertHud(payload) {
+  if (!alertAlive()) createAlertWin();
+  const wa = screen.getPrimaryDisplay().workArea;
+  alertWin.setPosition(wa.x + wa.width - 436, wa.y + 14);
+  const deliver = () => {
+    alertWin.showInactive();              // appear without stealing focus
+    alertWin.webContents.send('alert:data', payload);
+  };
+  if (alertWin.webContents.isLoading()) alertWin.webContents.once('did-finish-load', deliver);
+  else deliver();
+}
+
 function showQuickAdd() {
   if (!quickAlive()) createQuickAdd();
   const display = screen.getPrimaryDisplay();
@@ -199,6 +239,16 @@ ipcMain.handle('tasks:remove', (_e, id) => {
   return true;
 });
 
+ipcMain.on('alert:show', (_e, payload) => showAlertHud(payload));
+ipcMain.on('alert:close', () => { if (alertAlive()) alertWin.hide(); });
+ipcMain.on('alert:edit', (_e, id) => {
+  if (alertAlive()) alertWin.hide();
+  if (dashboardWin && !dashboardWin.isDestroyed()) {
+    dashboardWin.show();
+    dashboardWin.webContents.send('editor:open', id);
+  }
+});
+
 ipcMain.on('quickadd:close', hideQuickAdd);
 ipcMain.on('quickadd:resize', (_e, height) => {
   if (quickWin) {
@@ -225,6 +275,7 @@ if (!gotLock) {
     try { session.defaultSession.setPermissionCheckHandler(() => true); } catch (_) {}
     createDashboard();
     createQuickAdd();
+    createAlertWin();
     createTray();
     registerHotkey();
 

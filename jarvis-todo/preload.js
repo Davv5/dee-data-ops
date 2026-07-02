@@ -17,6 +17,13 @@ contextBridge.exposeInMainWorld('jarvis', {
   resizeQuickAdd: (h) => ipcRenderer.send('quickadd:resize', h),
   openDashboard: () => ipcRenderer.send('dashboard:open'),
 
+  // alert HUD (Jarvis-styled actionable reminder card)
+  showAlert: (payload) => ipcRenderer.send('alert:show', payload),
+  closeAlert: () => ipcRenderer.send('alert:close'),
+  editFromAlert: (id) => ipcRenderer.send('alert:edit', id),
+  onAlertData: (cb) => ipcRenderer.on('alert:data', (_e, p) => cb(p)),
+  onEditorOpen: (cb) => ipcRenderer.on('editor:open', (_e, id) => cb(id)),
+
   // events (main -> renderer)
   onTasksChanged: (cb) => ipcRenderer.on('tasks:changed', (_e, tasks) => cb(tasks)),
   onSettingsChanged: (cb) => ipcRenderer.on('settings:changed', (_e, s) => cb(s)),
